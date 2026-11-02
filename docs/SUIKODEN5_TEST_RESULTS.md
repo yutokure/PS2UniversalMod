@@ -52,7 +52,8 @@ compare-and-swap install, coordinate mapping, seeding, heartbeat guard, zoom hel
   the game's own focus (`G_FOCUS` = native focus, measured). The soak test applies random world
   offsets (±20) on purpose, and a world-space offset looks larger at a closer zoom stage. If the
   drift also appears with all offsets at zero, please send the steps; the next thing to check
-  would be the look-height slider.
+  would be the look-height slider. A follow-up screenshot check (orbit at the three stage distances
+  400/300/200, offsets zero) shows the party leader at the same screen position in all three.
 * PCSX2 exited by itself twice while switching between games (right after a state load on a freshly
   booted game). A relaunch fixed it; no crash dump was written. Not related to the hooks (no hook
   was installed at that moment).
