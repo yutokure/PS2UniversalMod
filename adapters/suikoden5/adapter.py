@@ -86,6 +86,8 @@ class Suikoden5Adapter:
     CAM_EYE_BASE_ADDR = mm.G_EYE
     #: the camera is placed by the game from yaw/pitch/distance; no eye offset injection
     uses_offset_injection = False
+    #: the engine passes the GUI camera-position offsets to write_orbit_params
+    accepts_pos_offset = True
     field_projection_centre = 0.0
     DISTANCE_RANGE = DISTANCE_RANGE
     LOOK_HEIGHT_RANGE = LOOK_HEIGHT_RANGE
@@ -102,7 +104,7 @@ class Suikoden5Adapter:
             "orbit": True,
             "free_camera": False,
             "fov": True,
-            "position_offsets": False,
+            "position_offsets": True,
             "target_offsets": True,
             "per_frame_write": False,
             "native_zoom": True,
@@ -245,15 +247,18 @@ class Suikoden5Adapter:
         return None
 
     def write_orbit_params(self, centre: Vec3, yaw_deg: float, pitch_deg: float,
-                           distance: float) -> None:
+                           distance: float, pos_offset: Vec3 | None = None) -> None:
         """Publish the orbit to the game's camera.
 
         ``centre`` is the engine's orbit centre (anchor + look height + target offset, in the
         engine's +Y-down frame); the world offset the cave adds to the focus is the
-        difference to the anchor, with Y flipped back.
+        difference to the anchor, with Y flipped back.  ``pos_offset`` (the GUI camera X/Y/Z)
+        moves the whole rig the same way: the camera keeps its direction and slides.
         """
         anchor = self.read_player()
         dx, dy, dz = centre.x - anchor.x, centre.y - anchor.y, centre.z - anchor.z
+        if pos_offset is not None:
+            dx, dy, dz = dx + pos_offset.x, dy + pos_offset.y, dz + pos_offset.z
         b = self.backend
         with self._lock:
             b.write_floats(self._mb(mm.MB_DISTANCE), [float(distance)])

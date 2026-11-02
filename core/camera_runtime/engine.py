@@ -683,11 +683,17 @@ class CameraRuntime:
 
         Returns True when something was written.
         """
+        pos = tuple(round(v, 4) for v in self.settings.pos_offset)
         key = (tuple(round(v, 4) for v in centre), round(yaw_deg, 4),
-               round(pitch_deg, 4), round(distance, 4))
+               round(pitch_deg, 4), round(distance, 4), pos)
         if key == self._last_orbit_key:
             return False
-        self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance)
+        if getattr(self.adapter, "accepts_pos_offset", False):
+            # an adapter that moves the whole camera rig takes the camera-position offsets too
+            self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance,
+                                            pos_offset=Vec3(*self.settings.pos_offset))
+        else:
+            self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance)
         self._last_orbit_key = key
         return True
 
