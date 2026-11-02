@@ -8,6 +8,10 @@ details matter for 30-60 Hz camera work:
   block instead of once per word.
 * the socket is re-opened transparently when PCSX2 restarts, so the controller
   survives an emulator restart without restarting the GUI.
+* when PCSX2 is gone (closed or killed) a connect attempt to the dead port takes the whole
+  connect timeout on Windows.  Every caller, the GUI thread included, would then wait that long
+  per request, so after a failed connect the backend refuses further requests *immediately* for
+  ``retry_backoff`` seconds (``PineUnavailable``) and only then tries again.
 """
 from __future__ import annotations
 
@@ -33,17 +37,28 @@ class PineError(RuntimeError):
     pass
 
 
+class PineUnavailable(PineError):
+    """PCSX2 cannot be reached right now; raised at once, without waiting for a timeout."""
+
+
 class PineBackend:
-    def __init__(self, slot: int = DEFAULT_SLOT, timeout: float = 2.0) -> None:
+    def __init__(self, slot: int = DEFAULT_SLOT, timeout: float = 2.0,
+                 connect_timeout: float = 0.3, retry_backoff: float = 1.0) -> None:
         self.slot = slot
         self.timeout = timeout
+        #: a PINE server on this machine answers a connect in well under a millisecond
+        self.connect_timeout = connect_timeout
+        self.retry_backoff = retry_backoff
+        self._down_until = 0.0
         self._sock: socket.socket | None = None
         self._lock = threading.Lock()
         self.stats = {"reads": 0, "writes": 0, "reconnects": 0, "errors": 0}
 
     # --- lifecycle ----------------------------------------------------
     def connect(self) -> None:
+        """Open the connection now (an explicit request ignores the retry back-off)."""
         with self._lock:
+            self._down_until = 0.0
             self._connect_locked()
 
     def _connect_locked(self) -> None:
@@ -53,7 +68,12 @@ class PineBackend:
             except OSError:
                 pass
             self._sock = None
-        s = socket.create_connection(("127.0.0.1", self.slot), timeout=self.timeout)
+        try:
+            s = socket.create_connection(("127.0.0.1", self.slot), timeout=self.connect_timeout)
+        except OSError as exc:
+            self._down_until = time.monotonic() + self.retry_backoff
+            raise PineUnavailable(f"PCSX2 is not reachable on port {self.slot}: {exc}") from exc
+        self._down_until = 0.0
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         s.settimeout(self.timeout)
         self._sock = s
@@ -76,8 +96,16 @@ class PineBackend:
     def connected(self) -> bool:
         return self._sock is not None
 
+    @property
+    def available(self) -> bool:
+        """False while PCSX2 is known to be unreachable (no request is sent then)."""
+        return self._sock is not None or time.monotonic() >= self._down_until
+
     def _ensure(self) -> socket.socket:
         if self._sock is None:
+            wait = self._down_until - time.monotonic()
+            if wait > 0:
+                raise PineUnavailable(f"PCSX2 is not reachable (next attempt in {wait:.1f}s)")
             self._connect_locked()
         return self._sock
 

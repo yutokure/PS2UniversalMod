@@ -135,6 +135,10 @@ TEXT: dict[str, dict[str, str]] = {
     # --- status bar / dialogs -------------------------------------------
     "status.ready": {"en": "Ready", "ja": "準備完了"},
     "status.connected": {"en": "Connected to FFX-2", "ja": "FFX-2 に接続しました"},
+    "status.pcsx2_lost": {"en": "PCSX2 is not reachable. Waiting for it to come back...",
+                          "ja": "PCSX2 に接続できません。復帰を待っています..."},
+    "status.pcsx2_back": {"en": "PCSX2 is back; the camera settings are re-applied.",
+                          "ja": "PCSX2 が復帰しました。カメラ設定を再適用します。"},
     "status.pine_failed": {"en": "PINE connection failed: {err}", "ja": "PINE 接続に失敗：{err}"},
     "status.unsupported": {"en": "Unsupported game: {gid} {crc}",
                            "ja": "未対応のゲームです：{gid} {crc}"},

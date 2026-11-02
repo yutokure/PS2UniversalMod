@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -136,6 +137,55 @@ class FloatSlider(QWidget):
         return self.spin.value()
 
 
+class StatusPoller(threading.Thread):
+    """Reads the slow-changing game state off the GUI thread.
+
+    Every read is a PINE round trip.  When PCSX2 is closed or killed a request can block, and the
+    80 ms window timer made the whole window freeze on it.  The GUI now only reads the last result
+    from ``data``; this thread does the reading, and it does nothing while the backend reports
+    PCSX2 as unreachable (``PineBackend.available``).
+    """
+
+    def __init__(self, window: "MainWindow", period: float = 0.4) -> None:
+        super().__init__(name="gui-status-poller", daemon=True)
+        self.window = window
+        self.period = period
+        self._halt = threading.Event()
+        #: link: True when the last poll could read the game; the rest is what was read
+        self.data: dict = {"link": True, "patch": "unreadable", "fov": None, "scale": None,
+                           "zoom_stage": None, "zoom_native": None}
+
+    def stop(self) -> None:
+        self._halt.set()
+
+    def run(self) -> None:
+        while not self._halt.wait(self.period):
+            self.data = self.poll_once()
+
+    def poll_once(self) -> dict:
+        w = self.window
+        ad, be = w.adapter, w.backend
+        d: dict = {"link": False, "patch": "unreadable", "fov": None, "scale": None,
+                   "zoom_stage": None, "zoom_native": None}
+        if ad is None or be is None or not be.available:
+            return d
+        try:
+            d["patch"] = ad.patch_state()
+            d["fov"] = ad.read_fov_deg()
+            reader = getattr(ad, "read_fov_scale", None)
+            d["scale"] = reader() if callable(reader) else be.read_floats(0x340B00, 1)[0]
+            d["link"] = True
+        except Exception:  # noqa: BLE001
+            return d
+        if getattr(ad, "features", {}).get("native_zoom"):
+            try:
+                d["zoom_stage"] = ad.read_zoom_stage()
+                d["zoom_native"] = ad.native_distance()
+            except Exception:  # noqa: BLE001
+                pass
+        return d
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -163,6 +213,9 @@ class MainWindow(QMainWindow):
         self._last_problem = ""
         set_language(getattr(self.app_settings, "language", "ja"))
         self._build_ui()
+        self._link_ok = True
+        self.poller = StatusPoller(self)
+        self.poller.start()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
         self._timer.start(80)
@@ -445,17 +498,13 @@ class MainWindow(QMainWindow):
             self._set(distance=dist)
             self.sl_dist.set_value(dist)
 
-    def _refresh_native_zoom(self) -> None:
+    def _refresh_native_zoom(self, data: dict) -> None:
         ad = self.adapter
         has = ad is not None and bool(getattr(ad, "features", {}).get("native_zoom"))
         self.grp_zoom.setVisible(has)
         if not has or self.runtime is None:
             return
-        try:
-            stage = ad.read_zoom_stage()
-            native = ad.native_distance()
-        except Exception:  # noqa: BLE001
-            stage, native = None, None
+        stage, native = data.get("zoom_stage"), data.get("zoom_native")
         if stage is None:
             self.lbl_zoom_now.setText(self._t("zoom.none"))
             return
@@ -597,6 +646,7 @@ class MainWindow(QMainWindow):
             rb.blockSignals(blocked)
 
     def _teardown(self) -> None:
+        # the poller reads self.adapter; take it out of the picture while the objects change
         if self.pump:
             self.pump.stop()
             self.pump = None
@@ -800,28 +850,20 @@ class MainWindow(QMainWindow):
         self.lbl_runtime.setText(
             f"{self._t('state.running')} ({self._mode_name(mode)})"
             if mode != MODE_ORIGINAL else self._t("state.stopped_original"))
-        # Both of these cost a PINE round trip, and the runtime thread is using
-        # the same socket; polling them at the 80 ms UI tick added needless
-        # contention, so they are refreshed a few times per second instead.
-        now = time.monotonic()
-        if now - getattr(self, "_slow_poll", 0.0) >= 0.4:
-            self._slow_poll = now
-            try:
-                state = self.adapter.patch_state()
-            except Exception:  # noqa: BLE001
-                state = "unreadable"
-            key, style = PATCH_TEXT.get(state, ("patch.missing", "color:#c60;"))
+        # PINE is read by the status poller thread; this timer only draws its last result, so a
+        # closed or killed PCSX2 can never block the window.
+        data = self.poller.data
+        self._show_link(data["link"])
+        if data["link"] and data["fov"] is not None:
+            key, style = PATCH_TEXT.get(data["patch"], ("patch.missing", "color:#c60;"))
             self.lbl_patch.setText(self._t(key))
             self.lbl_patch.setStyleSheet(style)
-            self._refresh_native_zoom()
-            try:
-                fov = self.adapter.read_fov_deg()
-                reader = getattr(self.adapter, "read_fov_scale", None)
-                scale = (reader() if callable(reader)
-                         else self.adapter.backend.read_floats(0x340B00, 1)[0])
-                self.lbl_fov_now.setText(self._t("lens.current", fov=fov, scale=scale))
-            except Exception:  # noqa: BLE001
-                self.lbl_fov_now.setText(self._t("lens.current_none"))
+            self._refresh_native_zoom(data)
+            self.lbl_fov_now.setText(self._t("lens.current", fov=data["fov"], scale=data["scale"]))
+        else:
+            self.lbl_patch.setText(self._t("patch.missing"))
+            self.lbl_patch.setStyleSheet("color:#c60;")
+            self.lbl_fov_now.setText(self._t("lens.current_none"))
         if st.applied_pose:
             e, t = st.applied_pose
             self.lbl_cam.setText(f"({e[0]:.2f}, {e[1]:.2f}, {e[2]:.2f})")
@@ -847,11 +889,33 @@ class MainWindow(QMainWindow):
             finally:
                 self._updating = False
 
+    def _show_link(self, ok: bool) -> None:
+        """Show when PCSX2 goes away or comes back; on a return check the game is still the same."""
+        if ok == self._link_ok:
+            return
+        self._link_ok = ok
+        if not ok:
+            self.lbl_pcsx2.setText(self._t("state.disconnected"))
+            self._last_problem = self._t("status.pcsx2_lost")
+            self._status(self._last_problem)
+            return
+        self._last_problem = ""
+        self.lbl_pcsx2.setText(self._t("state.connected"))
+        try:
+            info = self.adapter.identify() if self.adapter is not None else None
+        except Exception:  # noqa: BLE001
+            info = None
+        if info is None or not info.matched or (self.runtime and info.game_id != self.adapter.info.game_id):
+            self._reconnect()           # another game (or a first connect): start over
+        else:
+            self._status(self._t("status.pcsx2_back"))
+
     def _status(self, text: str) -> None:
         self.statusBar().showMessage(text, 8000)
 
     def closeEvent(self, event) -> None:  # noqa: N802
         try:
+            self.poller.stop()
             self._persist()
             self._teardown()
         finally:
