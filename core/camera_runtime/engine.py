@@ -165,6 +165,21 @@ class CameraRuntime:
         self.stats.running = False
         self._sync_stick_block(False)
 
+    def abandon(self) -> None:
+        """Stop for good without touching the game.
+
+        ``stop()`` + ``restore()`` write the game's stock words back, which is right for the game
+        this runtime was made for and wrong for any other.  When the running game is no longer that
+        one (see ``GuardedBackend``), this is the way out: the thread is ended, nothing is written,
+        and the runtime must not be used again.
+        """
+        self._stop.set()
+        thread, self._thread = self._thread, None
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+        self.stats.running = False
+        self.stats.connected = False
+
     @property
     def running(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
@@ -485,6 +500,9 @@ class CameraRuntime:
                 self._tick(dt, last_pose)
                 last_pose = self.stats_applied_pose()
                 self.stats.connected = True
+                if "write blocked" in self.stats.last_error:
+                    # a refusal by the game guard is temporary unless the GUI abandons us
+                    self.stats.last_error = ""
             except Exception as exc:  # noqa: BLE001
                 self.stats.last_error = f"{type(exc).__name__}: {exc}"
                 self.stats.connected = False

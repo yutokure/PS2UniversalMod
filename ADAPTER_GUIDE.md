@@ -105,11 +105,16 @@ SUPPORTED_IDS = {"SLPS-25250", "SLPS-00000"}                                    
 
 `identify()` が一致しなければ GUI は書き込みを行いません。
 
+GUI はアダプターを `GuardedBackend`（`core/memory_backend/guard.py`）越しに動かし、`identify()` が返した Serial / CRC を約 0.25 秒ごとに再確認します。
+ゲームが替わると書き込みは自動で止まり、アダプターは `restore()` なしで破棄されます。アダプターは**必ず `self.backend` 経由**で書き込んでください
+（PINE のソケットや別のバックエンドを自分で持つと、この保護の外になります）。
+
 ---
 
 ## 4. チェックリスト
 
 - [ ] `identify()` が Serial と CRC の**両方**を検証している
+- [ ] 書き込みはすべて `self.backend` 経由（ゲーム切替ガードの対象にするため）
 - [ ] `is_field_like()` が戦闘・イベント・ロード中を弾く
 - [ ] `restore()` でゲーム本来のカメラに戻る
 - [ ] 「元の値」を保存し、FOV を確実に戻せる
@@ -193,7 +198,7 @@ mkdir adapters/<game>                               # __init__.py / memory_map.p
 # アドレスは memory_map.py の定数にだけ書く。共通基盤（core/）にゲーム固有値を入れない
 git add adapters/<game> tests/test_<game>.py docs/<GAME>_CAMERA.md   # 明示的に指定する
 git diff --cached --name-only && git diff --cached --stat
-python tools/audit_repo.py --staged                  # ゲームデータ・秘密情報・大きなファイルが無いこと
+python tools/audit_repo.py --staged                  # Git インデックスの中身にゲームデータ・秘密情報・大きなファイルが無いこと
 git commit -m "<Game>: camera adapter ..."
 ```
 

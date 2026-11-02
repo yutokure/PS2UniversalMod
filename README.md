@@ -164,8 +164,9 @@ ISO・BIOS・セーブステート・ダンプはリポジトリに含めませ�
 ## 7. 検証
 
 ```powershell
-python -m pytest tests -q          # 単体テスト 129 件（実機・エミュレータ不要。GUI は offscreen で試験）
-python tools/audit_repo.py         # 追跡ファイルの監査（ゲームデータ・秘密情報・大きなファイル）
+python -m pytest tests -q          # 単体テスト（実機・エミュレータ不要。GUI は offscreen、Git 監査は一時リポジトリで試験）
+python tools/audit_repo.py --staged   # コミット前: Git インデックスの内容を監査（ゲームデータ・秘密情報・大きなファイル）
+python tools/audit_repo.py            # 追跡ファイルの作業ツリー上の内容（--commit REV / --history もあります）
 ```
 
 実機検証は PCSX2 でゲームを起動し、そのゲームの `base.p2s` を読み込んでから実行します（PINE クライアントは 1 つだけ）。
@@ -174,6 +175,7 @@ python tools/audit_repo.py         # 追跡ファイルの監査（ゲームデ�
 |---|---|
 | 全ゲーム共通の回帰（Orbit・FOV・復帰） | `python tools/regression_check.py` |
 | GUI を PCSX2 の強制終了・再起動で試す | `python tools/gui_freeze_check.py --kill --relaunch` |
+| PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。ディスクとセーブステートは読むだけ） |
 | 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
@@ -187,6 +189,7 @@ python tools/audit_repo.py         # 追跡ファイルの監査（ゲームデ�
 | 「未接続」のまま | PCSX2 が起動していて `EnablePINE = true` か確認。GUI とスクリプトを同時に使っていないか確認 |
 | 起動時に「すでに起動しています」 | 別のカメラコントローラーが開いています。閉じてから起動してください |
 | 未対応ゲームと表示される | Serial / CRC が違います。書き込みは行いません（安全） |
+| PCSX2 でゲームを切り替えた | GUI は約 0.25〜0.4 秒で気づき、前のゲームには何も書き込まず（元に戻す処理も行わず）、新しいゲーム用に選び直します。未対応ゲームなら書き込み不可の表示になります。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md) |
 | カメラが動かない | フィールドにいるか確認（戦闘・イベント・ロード中は自動で無効） |
 | カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。それでも戻らなければゲームを再開 |
 | PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 は `EnableCheats` を再度有効にし、「ゲームパッチ」欄を確認 |
@@ -206,6 +209,7 @@ PS2UniversalMod/
 │  ├─ camera_runtime/engine.py      毎フレーム書き込みエンジン
 │  ├─ controller/sources.py         XInput / キーボード / スクリプト入力
 │  ├─ memory_backend/pine_backend.py  PINE クライアント（PCSX2 が無いときは即座に失敗）
+│  ├─ memory_backend/guard.py       書き込みガード（Serial/CRC が違うゲームへは書かない）
 │  ├─ config/settings.py            設定・プリセット
 │  ├─ config/paths.py               ローカルデータの場所
 │  └─ mips_asm.py                   MIPS 命令エンコーダ（コードケーブ用）
@@ -237,6 +241,9 @@ PS2UniversalMod/
   スクリーンショット・Ghidra プロジェクトと逆コンパイル出力・ログは `.gitignore` で除外済みです（Git LFS も使いません）。
 * ステージングは `git add <明示的なパス>`。`git add .` / `-A` は使いません。
   コミット前に `git diff --cached --name-only` と `python tools/audit_repo.py --staged` で確認します。
+  `--staged` は作業ツリーではなく **Git インデックスの中身** を検査します（`git add` の後で書き換えても結果は変わりません）。
+* 任意のコミット前フック: `git config core.hooksPath tools/git-hooks` で有効化、`git config --unset core.hooksPath` で解除
+  （標準では無効。1 回だけ飛ばすには `git commit --no-verify`）。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md)。
 * 新しいゲームの追加手順は [`ADAPTER_GUIDE.md`](ADAPTER_GUIDE.md)（末尾の「Git での追加手順」）。
 
 ## 11. 文書

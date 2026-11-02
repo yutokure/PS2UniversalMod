@@ -14,7 +14,11 @@ Rules this module keeps (see docs/gui/GUI_AUDIT_2026-11-02.md):
   the game are wrapped so a failure becomes a message, never a traceback;
 * the window always starts in Original (the user switches the mod on);
 * controls are disabled when there is nothing to control (no game, lost link, unsupported game) and
-  per control when the adapter cannot use it.
+  per control when the adapter cannot use it;
+* the adapter writes through a ``GuardedBackend`` armed for the (serial, CRC) it was chosen for.
+  ``StatusPoller`` re-checks the running game every poll; when it differs the guard refuses all
+  writes at once, and the window drops the old runtime *without* restoring (a restore would write
+  the old game's addresses into the new game) and connects again to pick the right adapter.
 """
 from __future__ import annotations
 
@@ -65,6 +69,7 @@ from core.config.settings import (  # noqa: E402
 from core.controller.sources import (  # noqa: E402
     CompositeSource, InputPump, KeyboardSource, ScriptedSource, XInputSource,
 )
+from core.memory_backend.guard import CHANGED, GuardedBackend  # noqa: E402
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 
 try:  # run as a module (python -m gui.camera_controller.app)
@@ -209,6 +214,10 @@ class StatusPoller(threading.Thread):
     80 ms window timer made the whole window freeze on it.  The GUI only reads the last result from
     ``data``; this thread does the reading, and it does nothing while the backend reports PCSX2 as
     unreachable (``PineBackend.available``).
+
+    It also watches which game is running: every poll (about 0.4 s, two PINE reads) the window's
+    ``GuardedBackend`` compares the live serial and CRC with the ones the adapter was chosen for.
+    That check lives here, not in the camera loop, so the 1.2 kHz writer pays nothing for it.
     """
 
     def __init__(self, window: "MainWindow", period: float = 0.4) -> None:
@@ -233,6 +242,11 @@ class StatusPoller(threading.Thread):
         d: dict = {"link": False, "patch": "unreadable", "fov": None, "scale": None,
                    "zoom_stage": None, "zoom_native": None}
         if ad is None or be is None or not be.available:
+            return d
+        guard = getattr(w, "guard", None)
+        if guard is not None and guard.verify() == CHANGED:
+            # another game: say nothing about its memory, the window reconnects (see _refresh)
+            d["link"] = True
             return d
         try:
             d["patch"] = ad.patch_state()
@@ -265,6 +279,8 @@ class MainWindow(QMainWindow):
         self.store = SettingsStore()
         self.presets = PresetStore()
         self.backend: PineBackend | None = None
+        #: what the adapter writes through; armed for the game that was identified at connect
+        self.guard: GuardedBackend | None = None
         self.adapter = None
         self.runtime: CameraRuntime | None = None
         self.pump: InputPump | None = None
@@ -756,15 +772,21 @@ class MainWindow(QMainWindow):
         self.store.put(self.app_settings)
 
     # ------------------------------------------------------------ lifecycle
-    def _reconnect(self) -> None:
-        self._teardown()
+    def _reconnect(self, restore: bool = True) -> None:
+        """(Re)connect and pick the adapter for the game that is running now.
+
+        ``restore`` False is for a game that has changed: the old runtime is dropped without
+        writing anything (see _teardown).
+        """
+        self._teardown(restore)
         self._conn_problem = None
         self._set_usable(False)
         try:
             backend = PineBackend()
             backend.connect()
+            guard = GuardedBackend(backend)
             adapter_cls = ADAPTER_BY_GAME_ID.get(backend.game_id().strip().upper(), FFX2Adapter)
-            adapter = adapter_cls(backend)
+            adapter = adapter_cls(guard)
             info = adapter.identify()
         except Exception as exc:  # noqa: BLE001
             log.info("connect failed: %s", exc)
@@ -773,7 +795,11 @@ class MainWindow(QMainWindow):
             self._conn_problem = ("notice.no_game", "warn", {})
             self._update_title()
             return
+        # arm the guard for exactly the game that was identified; an unsupported game stays read-only,
+        # and is still watched so that starting a supported game later is noticed
+        guard.bind(info.game_id, info.crc, writable=info.matched)
         self.backend = backend
+        self.guard = guard
         self.adapter = adapter
         self._link_ok = True
         self.lbl_pcsx2.setText(self._t("state.connected"))
@@ -819,19 +845,36 @@ class MainWindow(QMainWindow):
             rb.setChecked(m == mode)
             rb.blockSignals(blocked)
 
-    def _teardown(self) -> None:
+    def _teardown(self, restore: bool = True) -> None:
+        """Stop the runtime and close the link.
+
+        ``restore`` hands the camera back to the game, which writes the game's addresses.  That is
+        only done after the guard has confirmed the running game is still the one the runtime was
+        made for (checked here too, because the poller may not have noticed a switch yet); otherwise
+        the runtime is abandoned without a single write.
+        """
+        guard, be = self.guard, self.backend
+        if restore and guard is not None and be is not None and be.available:
+            restore = guard.verify() != CHANGED
+        if guard is not None and (not restore or guard.revoked):
+            guard.revoke("teardown without restore")
+            restore = False
         if self.pump:
             self.pump.stop()
             self.pump = None
         if self.runtime:
-            # stop first: a tick still in flight could switch the orbit back on
-            # after restore() has handed the projection to the area
-            self.runtime.stop()
-            self.runtime.restore()
+            if restore:
+                # stop first: a tick still in flight could switch the orbit back on
+                # after restore() has handed the projection to the area
+                self.runtime.stop()
+                self.runtime.restore()
+            else:
+                self.runtime.abandon()
             self.runtime = None
         if self.backend:
             self.backend.close()
             self.backend = None
+        self.guard = None
         self.adapter = None
 
     def _setup_input(self) -> None:
@@ -1102,6 +1145,10 @@ class MainWindow(QMainWindow):
 
     # -------------------------------------------------------------- refresh
     def _refresh(self) -> None:
+        guard = self.guard
+        if guard is not None and guard.revoked:
+            self._on_game_changed()
+            return
         data = self.poller.data
         if self.runtime is not None:
             self._show_link(data["link"])
@@ -1161,7 +1208,11 @@ class MainWindow(QMainWindow):
                 self._updating = False
 
     def _show_link(self, ok: bool) -> None:
-        """Show when PCSX2 goes away or comes back; on a return check the game is still the same."""
+        """Show when PCSX2 goes away or comes back.
+
+        Whether it is still the same game is the guard's business: the poller verifies the serial and
+        CRC on every poll, and writes stay refused until it has (PineBackend.epoch).
+        """
         if ok == self._link_ok:
             return
         self._link_ok = ok
@@ -1170,14 +1221,19 @@ class MainWindow(QMainWindow):
             self._status(self._t("status.pcsx2_lost"))
             return
         self.lbl_pcsx2.setText(self._t("state.connected"))
-        try:
-            info = self.adapter.identify() if self.adapter is not None else None
-        except Exception:  # noqa: BLE001
-            info = None
-        if info is None or not info.matched or (self.runtime and info.game_id != self.adapter.info.game_id):
-            self._reconnect()           # another game (or a first connect): start over
-        else:
-            self._status(self._t("status.pcsx2_back"))
+        self._status(self._t("status.pcsx2_back"))
+
+    def _on_game_changed(self) -> None:
+        """The running game is not the one the adapter was made for: drop it and choose again.
+
+        Nothing is restored: the old game's addresses mean something else in the new game.
+        """
+        log.warning("game changed (%s); dropping the adapter without restoring",
+                    self.guard.revoke_reason if self.guard else "?")
+        if self.runtime is not None:
+            self._persist()             # the old game's settings, before the window is re-armed
+        self._reconnect(restore=False)
+        self._status(self._t("status.game_changed"))
 
     # ------------------------------------------------------------ window state
     def showEvent(self, event) -> None:  # noqa: N802

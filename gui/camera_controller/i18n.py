@@ -202,6 +202,8 @@ TEXT: dict[str, dict[str, str]] = {
     "status.connected": {"en": "Connected", "ja": "接続しました"},
     "status.pcsx2_lost": {"en": "PCSX2 is not reachable. Waiting for it to come back...",
                           "ja": "PCSX2 に接続できません。復帰を待っています..."},
+    "status.game_changed": {"en": "The game in PCSX2 changed. The previous game was left untouched; the camera was set up again for the new one.",
+                            "ja": "PCSX2 のゲームが切り替わりました。前のゲームには何も書き込まず、新しいゲーム用に設定し直しました。"},
     "status.pcsx2_back": {"en": "PCSX2 is back; the camera settings are re-applied.",
                           "ja": "PCSX2 が復帰しました。カメラ設定を再適用します。"},
     "status.pine_failed": {"en": "PINE connection failed: {err}", "ja": "PINE 接続に失敗：{err}"},

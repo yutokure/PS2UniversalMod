@@ -12,6 +12,9 @@ details matter for 30-60 Hz camera work:
   connect timeout on Windows.  Every caller, the GUI thread included, would then wait that long
   per request, so after a failed connect the backend refuses further requests *immediately* for
   ``retry_backoff`` seconds (``PineUnavailable``) and only then tries again.
+* every new connection gets a number (``epoch``).  A caller that has verified which game is running
+  can pin writes to that connection (``write_epoch``): once the socket has been re-opened, possibly
+  against another PCSX2 process, writes are refused until the caller verifies the game again.
 """
 from __future__ import annotations
 
@@ -31,6 +34,8 @@ MSG_LOADSTATE_SLOT = 0x11
 
 IPC_OK = 0
 DEFAULT_SLOT = 28011
+#: requests that change the emulated machine (everything else only reads)
+WRITE_OPCODES = frozenset({MSG_WRITE32, MSG_LOADSTATE_SLOT})
 
 
 class PineError(RuntimeError):
@@ -39,6 +44,10 @@ class PineError(RuntimeError):
 
 class PineUnavailable(PineError):
     """PCSX2 cannot be reached right now; raised at once, without waiting for a timeout."""
+
+
+class PineStaleSession(PineError):
+    """A write was refused because the connection is not the one the caller verified the game on."""
 
 
 class PineBackend:
@@ -52,6 +61,10 @@ class PineBackend:
         self._down_until = 0.0
         self._sock: socket.socket | None = None
         self._lock = threading.Lock()
+        #: number of the current connection (0 = never connected); +1 on every (re)connect
+        self.epoch = 0
+        #: when set, a write is only sent on the connection with this epoch (see PineStaleSession)
+        self.write_epoch: int | None = None
         self.stats = {"reads": 0, "writes": 0, "reconnects": 0, "errors": 0}
 
     # --- lifecycle ----------------------------------------------------
@@ -77,6 +90,7 @@ class PineBackend:
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         s.settimeout(self.timeout)
         self._sock = s
+        self.epoch += 1
         self.stats["reconnects"] += 1
 
     def close(self) -> None:
@@ -136,9 +150,18 @@ class PineBackend:
         with self._lock:
             try:
                 sock = self._ensure()
+                # checked under the lock and after any reconnect, so no write can slip onto a
+                # new connection between the caller's check and the send
+                if (opcode in WRITE_OPCODES and self.write_epoch is not None
+                        and self.write_epoch != self.epoch):
+                    raise PineStaleSession(
+                        f"write refused: PCSX2 was reconnected (connection {self.epoch}, "
+                        f"game verified on {self.write_epoch})")
                 sock.sendall(struct.pack("<I", 5 + len(payload)) + bytes([opcode]) + payload)
                 total = struct.unpack("<I", self._recv_exact(sock, 4))[0]
                 body = self._recv_exact(sock, total - 4)
+            except PineStaleSession:
+                raise                   # nothing was sent: the connection is fine
             except (OSError, PineError):
                 self.stats["errors"] += 1
                 # A request that timed out may still be answered later.  Keeping the

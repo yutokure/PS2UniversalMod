@@ -302,3 +302,168 @@ def test_every_translation_key_used_by_the_window_exists():
     missing = sorted(k for k in keys if k not in TEXT)
     assert not missing, missing
     assert all(set(v) == {"en", "ja"} for v in TEXT.values())
+
+
+# --- the running game changes under a live connection (review finding P1) --------------------------------
+class SwitchBackend(SuikodenBackend):
+    """One PINE connection that outlives the game: the test changes ``gid`` / ``crcv`` underneath it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.log: list[int] = []
+        self.times: list[float] = []
+
+    def write_u32(self, a: int, v: int) -> None:
+        self.log.append(a)
+        self.times.append(time.monotonic())
+        super().write_u32(a, v)
+
+    write_float_block = None
+
+    def write_floats(self, a, vals) -> None:
+        for i, v in enumerate(vals):
+            import struct
+            self.write_u32(a + 4 * i, struct.unpack("<I", struct.pack("<f", float(v)))[0])
+
+    write_float_block = write_floats
+
+
+SU_ADDRS = (su_mm.CAM_HOOK, su_mm.CAM_HOOK + 4, su_mm.ZOOM_HOOK, su_mm.ZOOM_HOOK + 4)
+
+
+#: the longest an unnoticed game change may still be written to (identity lease 0.25 s + margin)
+DETECTION_BOUND = 0.6
+
+
+def writes_after(be, t0: float, bound: float = DETECTION_BOUND) -> list[int]:
+    """Writes later than ``bound`` seconds after ``t0``: none are allowed once the change is noticed."""
+    return [a for a, t in zip(be.log, be.times) if t > t0 + bound]
+
+
+def su_writes(be, since: int = 0) -> list[int]:
+    return [a for a in be.log[since:]
+            if a in SU_ADDRS or su_mm.MOD_BLOCK <= a < su_mm.CAVE_END]
+
+
+def orbit_running(env, shared):
+    w = env.make(lambda: shared)
+    env.spin(0.4)
+    w.btn_enable.click()
+    env.spin(0.6)
+    assert w.runtime.settings.mode == "orbit"
+    assert su_writes(shared), "the orbit never wrote to the game"
+    return w
+
+
+def test_same_game_keeps_its_runtime_and_the_orbit(env):
+    """TEST-P1-01: several identity checks pass and nothing is torn down or re-applied."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    runtime, guard = w.runtime, w.guard
+    env.spin(1.6)                                           # four polls
+    assert w.runtime is runtime and w.guard is guard and not guard.revoked
+    assert w.runtime.settings.mode == "orbit" and w.runtime.running
+
+
+def test_switching_to_an_unsupported_game_stops_all_writes(env):
+    """TEST-P1-02 / 03 / 05: same socket, another disc.  Nothing may reach it, restore included."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    old_runtime = w.runtime
+    shared.gid, shared.crcv, shared.ttl = "SLUS-20000", "cafef00d", "Some Other Game"
+    t0 = time.monotonic()
+    env.spin(1.6)
+    assert writes_after(shared, t0) == [], "the old adapter or its restore wrote into the new game"
+    assert w.runtime is None and not old_runtime.running
+    assert all(not getattr(w, g).isEnabled() for g in CAMERA_GROUPS)
+    assert "SLUS-20000" in w.lbl_notice.text() and "CAFEF00D" in w.lbl_notice.text().upper()
+    t1 = time.monotonic()
+    w.btn_reconnect.click()                                 # a manual reconnect on the new game is quiet as well
+    env.spin(0.3)
+    assert writes_after(shared, t1, 0.0) == []
+
+
+def test_switching_between_supported_games_selects_the_new_adapter(env):
+    """TEST-P1-04: Suikoden V -> Shining Force Neo -> Suikoden V on one connection."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    first = w.runtime
+    shared.gid, shared.crcv, shared.ttl = sf_mm.GAME_ID, sf_mm.DISC_CRC.lower(), "SF Neo"
+    t0 = time.monotonic()
+    env.spin(1.6)
+    assert type(w.adapter).__name__ == "SFNeoAdapter" and w.runtime is not first
+    assert not first.running and w.runtime.settings.mode == "original"
+    late = [a for a, t in zip(shared.log, shared.times) if t > t0 + DETECTION_BOUND]
+    assert [a for a in late if a in SU_ADDRS or su_mm.MOD_BLOCK <= a < su_mm.CAVE_END] == [],         "Suikoden V addresses were written after the game changed"
+    assert w.grp_mode.isEnabled()
+    assert w.guard.expected == (sf_mm.GAME_ID.upper(), sf_mm.DISC_CRC.upper())
+    # and back: the Suikoden adapter is chosen again
+    shared.gid, shared.crcv, shared.ttl = su_mm.GAME_ID, su_mm.DISC_CRC.lower(), "Suikoden V"
+    env.spin(1.6)
+    assert type(w.adapter).__name__ == "Suikoden5Adapter" and w.runtime.settings.mode == "original"
+
+
+def test_unsupported_game_is_noticed_when_a_supported_one_starts(env):
+    shared = SwitchBackend()
+    shared.crcv = "deadbeef"
+    w = env.make(lambda: shared)
+    env.spin(0.4)
+    assert w.runtime is None and w.guard is not None and not w.guard.writes_allowed
+    shared.crcv = su_mm.DISC_CRC.lower()
+    env.spin(1.6)
+    assert w.runtime is not None and w.grp_mode.isEnabled()
+
+
+def test_closing_after_a_silent_game_switch_does_not_restore_into_the_new_game(env):
+    """The window is closed (teardown + restore) before the poller has noticed the switch."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    w.poller.stop()                                         # no poll will notice; teardown must check itself
+
+    shared.gid, shared.crcv = "SLUS-20000", "cafef00d"
+    w.guard._verified_at -= 5.0                             # the next write must re-check the game
+    time.sleep(0.05)
+    t0 = time.monotonic()
+    w.close()
+    assert writes_after(shared, t0, 0.0) == []
+
+
+def test_pcsx2_restart_with_another_game_does_not_restore_into_it(env):
+    """TEST-P1-06: PCSX2 goes away and comes back running something else."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    shared.available = False
+    env.spin(0.9)
+    assert not w.grp_position.isEnabled()
+    shared.gid, shared.crcv = "SLUS-20000", "cafef00d"
+    t0 = time.monotonic()
+    shared.available = True
+    env.spin(1.6)
+    assert writes_after(shared, t0) == [] and w.runtime is None
+
+
+def test_pcsx2_restart_with_the_same_game_keeps_working(env):
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    runtime = w.runtime
+    shared.available = False
+    env.spin(0.9)
+    shared.available = True
+    env.spin(1.2)
+    assert w.runtime is runtime and w.grp_position.isEnabled() and runtime.running
+
+
+def test_the_status_poller_checks_the_game_without_touching_the_camera_loop(env):
+    """TEST-P1-07: identity costs a handful of reads per second, not one per camera tick."""
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    reads = {"n": 0}
+    orig = shared.game_id
+
+    def counting():
+        reads["n"] += 1
+        return orig()
+    shared.game_id = counting
+    env.spin(2.0)
+    # the poller (every 0.4 s) and the lease renewal (every ~0.15 s) only: nowhere near the camera tick rate
+    assert 3 <= reads["n"] <= 25
