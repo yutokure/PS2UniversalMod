@@ -293,6 +293,12 @@ class Suikoden5Adapter:
             return
         with self._lock:
             caves.write_flags(self.backend, caves.read_flags(self.backend) & ~mm.FLAG_FOV)
+            self._release_camera_hook_if_idle()
+
+    def _release_camera_hook_if_idle(self) -> None:
+        """Take the camera hook out once no override flag needs it (stock code runs again)."""
+        if caves.read_flags(self.backend) & (mm.FLAGS_ORBIT | mm.FLAG_FOV) == 0:
+            caves.uninstall_camera(self.backend)
 
     def fov_in_sync(self, deg: float) -> bool:
         return abs(self.read_fov_deg() - deg) <= 0.05
@@ -326,6 +332,25 @@ class Suikoden5Adapter:
             return None
         stage = self.backend.read_u32(ctl + mm.CTL_ZOOM_STAGE) & 0xFFFF
         return stage if stage < self.ZOOM_STAGES else None
+
+    @staticmethod
+    def stage_distance(stage: int) -> float:
+        return mm.ZOOM_DISTANCES[max(0, min(stage, len(mm.ZOOM_DISTANCES) - 1))]
+
+    def set_zoom_stage(self, stage: int) -> float | None:
+        """Set the game's stage counter so the next R1 steps on from ``stage``.
+
+        Returns the distance of that stage (the caller applies it to the orbit).  The game's
+        own zoom animation is not triggered here; the stage short is only kept in step.
+        """
+        ctl = self._ctl()
+        stage = max(0, min(int(stage), len(mm.ZOOM_DISTANCES) - 1))
+        if ctl is None:
+            return None
+        addr = ctl + mm.CTL_ZOOM_STAGE
+        word = self.backend.read_u32(addr)
+        self.backend.write_u32(addr, (word & 0xFFFF0000) | stage)
+        return self.stage_distance(stage)
 
     def native_distance(self) -> float | None:
         if not self._cave_live():
@@ -372,6 +397,7 @@ class Suikoden5Adapter:
                 with self._lock:
                     caves.write_flags(self.backend,
                                       caves.read_flags(self.backend) & ~mm.FLAGS_ORBIT)
+                    self._release_camera_hook_if_idle()
 
     def patch_state(self) -> str:
         """applied, stock or unknown for the camera hook."""

@@ -104,6 +104,23 @@ TEXT: dict[str, dict[str, str]] = {
     "lens.current": {"en": "current: {fov:.2f}° (scale {scale:.1f})",
                      "ja": "現在: {fov:.2f}°（スケール {scale:.1f}）"},
     "lens.current_none": {"en": "current: -", "ja": "現在: -"},
+    # --- native zoom (games with a built-in zoom, e.g. Suikoden V) -------
+    "group.zoom": {"en": "Native zoom (game)", "ja": "ゲーム標準ズーム"},
+    "zoom.live": {"en": "Game stage", "ja": "現在の段階"},
+    "zoom.stages": {"en": "Orbit distance preset", "ja": "オービット距離プリセット"},
+    "zoom.stage": {"en": "Stage {n}", "ja": "段階 {n}"},
+    "zoom.current": {"en": "stage {n} of 3 (game distance {d:.0f})",
+                     "ja": "段階 {n} / 3（ゲーム距離 {d:.0f}）"},
+    "zoom.none": {"en": "not seen yet (enable the camera once)",
+                  "ja": "未検出（一度カメラを有効にしてください）"},
+    "zoom.follow": {"en": "R1 / game zoom steps the orbit distance",
+                    "ja": "R1・ゲームのズーム操作でオービット距離を段階変更"},
+    "zoom.note": {"en": "While the orbit is on, the right stick turns the camera and the game's "
+                        "stick zoom is blocked. R1 still steps the game's three stages; with the "
+                        "box above ticked each step also sets the orbit distance (400 / 300 / 200).",
+                  "ja": "オービット中は右スティックがカメラ回転になり、ゲーム側のスティックズームは遮断されます。"
+                        "R1 は従来どおり 3 段階ズームで、上のチェック時は段階に応じて"
+                        "オービット距離（400 / 300 / 200）も切り替わります。"},
     # --- debug ----------------------------------------------------------
     "group.debug": {"en": "Debug", "ja": "デバッグ"},
     "dbg.eye": {"en": "Camera eye", "ja": "カメラ視点"},

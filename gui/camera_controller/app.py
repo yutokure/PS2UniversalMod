@@ -44,6 +44,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - startup diagnostics
 
 from adapters.ffx2.adapter import FFX2Adapter  # noqa: E402
 from adapters.shiningforceneo.adapter import SFNeoAdapter  # noqa: E402
+from adapters.suikoden5.adapter import Suikoden5Adapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG, scale_to_fov_deg  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
     MODE_FREE, MODE_ORBIT, MODE_ORIGINAL, CameraRuntime, CameraSettings,
@@ -63,14 +64,15 @@ try:  # run as a module (python -m gui.camera_controller.app)
 except ImportError:  # run as a script (python gui/camera_controller/app.py)
     from i18n import LANGUAGES, current_language, set_language, tr  # noqa: E402
 
-ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter}
+ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SUIKODEN5": Suikoden5Adapter}
 #: adapter class per game serial, chosen when the GUI connects
-ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter}
+ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
+                      "SLPM-66286": Suikoden5Adapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
-#: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``), which only the Japanese
+#: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Suikoden V ``7380A572``), which only the Japanese
 #: releases satisfy, so the US/EU serials are deliberately NOT listed here:
 #: advertising them would promise support the adapters would then refuse.
-SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908"}
+SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66286"}
 
 
 class FloatSlider(QWidget):
@@ -229,6 +231,9 @@ class MainWindow(QMainWindow):
         grid.addWidget(self._build_position(), 2, 1)
         grid.addWidget(self._build_lens(), 3, 0)
         grid.addWidget(self._build_debug(), 3, 1)
+        self.grp_zoom = self._build_native_zoom()
+        grid.addWidget(self.grp_zoom, 4, 0, 1, 2)
+        self.grp_zoom.setVisible(False)       # shown for adapters with a native zoom
 
         self.setStatusBar(QStatusBar())
         self._status("Ready")
@@ -406,6 +411,65 @@ class MainWindow(QMainWindow):
         self._row(form, "lens.live", self.lbl_fov_now)
         form.addRow(self.btn_fov_reset)
         return box
+
+    def _build_native_zoom(self) -> QGroupBox:
+        """The game's own zoom (Suikoden V: three stages on R1 / the right stick)."""
+        box = self._group("group.zoom")
+        form = QFormLayout(box)
+        self.lbl_zoom_now = QLabel("-")
+        self._row(form, "zoom.live", self.lbl_zoom_now)
+        row = QHBoxLayout()
+        self.btn_zoom_stage: list[QPushButton] = []
+        for n in range(3):
+            b = QPushButton(self._t("zoom.stage", n=n + 1))
+            b.clicked.connect(lambda _c=False, n=n: self._on_zoom_stage(n))
+            self.btn_zoom_stage.append(b)
+            row.addWidget(b)
+        form.addRow(self._label("zoom.stages"), row)
+        self.chk_zoom_follow = self._chk("zoom.follow")
+        self.chk_zoom_follow.setChecked(True)
+        form.addRow(self.chk_zoom_follow)
+        self.lbl_zoom_note = self._label("zoom.note")
+        self.lbl_zoom_note.setWordWrap(True)
+        form.addRow(self.lbl_zoom_note)
+        self._zoom_last: int | None = None
+        return box
+
+    def _on_zoom_stage(self, stage: int) -> None:
+        """Orbit mode: use the distance of that native stage and keep the game's stage in step."""
+        ad = self.adapter
+        if self.runtime is None or not hasattr(ad, "set_zoom_stage"):
+            return
+        dist = ad.set_zoom_stage(stage)
+        if dist is not None and self.runtime.settings.mode != MODE_ORIGINAL:
+            self._set(distance=dist)
+            self.sl_dist.set_value(dist)
+
+    def _refresh_native_zoom(self) -> None:
+        ad = self.adapter
+        has = ad is not None and bool(getattr(ad, "features", {}).get("native_zoom"))
+        self.grp_zoom.setVisible(has)
+        if not has or self.runtime is None:
+            return
+        try:
+            stage = ad.read_zoom_stage()
+            native = ad.native_distance()
+        except Exception:  # noqa: BLE001
+            stage, native = None, None
+        if stage is None:
+            self.lbl_zoom_now.setText(self._t("zoom.none"))
+            return
+        self.lbl_zoom_now.setText(self._t("zoom.current", n=stage + 1, d=native or 0.0))
+        orbit = self.runtime.settings.mode != MODE_ORIGINAL
+        for b in self.btn_zoom_stage:
+            b.setEnabled(orbit)
+        # R1 / the game's zoom steps the orbit distance when "follow" is on
+        if (orbit and self.chk_zoom_follow.isChecked() and self._zoom_last is not None
+                and stage != self._zoom_last):
+            dist = ad.stage_distance(stage)
+            self._set(distance=dist)
+            self.sl_dist.set_value(dist)
+        self._zoom_last = stage
 
     def _build_debug(self) -> QGroupBox:
         box = self._group("group.debug")
@@ -745,6 +809,7 @@ class MainWindow(QMainWindow):
             key, style = PATCH_TEXT.get(state, ("patch.missing", "color:#c60;"))
             self.lbl_patch.setText(self._t(key))
             self.lbl_patch.setStyleSheet(style)
+            self._refresh_native_zoom()
             try:
                 fov = self.adapter.read_fov_deg()
                 reader = getattr(self.adapter, "read_fov_scale", None)
