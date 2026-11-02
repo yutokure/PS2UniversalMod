@@ -2,7 +2,7 @@
 
 Found with the five savestates (analysis/suikoden5/diff_states.py), GDB write
 watchpoints and Ghidra.  Addresses are EE main-memory offsets, as PINE takes them.
-The evidence and the function notes are in ``docs/SUIKODEN5_CAMERA.md``.
+The evidence and the function notes are in ``docs/games/suikoden5/CAMERA.md``.
 
 Camera chain (per frame, field):
 

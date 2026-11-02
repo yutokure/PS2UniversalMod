@@ -72,7 +72,7 @@ def main() -> None:
     lines += ["", "Zoom (R1) is a pure distance change: 400 -> 300 -> 200 (stages 1..3), pitch, yaw and FOV "
               "unchanged (S0 vs S2). S4 differs from S0 by pitch only (13 -> 40): the game's own camera "
               "zone eases the pitch when the character walks onto the slope (reproduced live, see "
-              "docs/SUIKODEN5_CAMERA.md).", ""]
+              "docs/games/suikoden5/CAMERA.md).", ""]
     OUT.write_text("\n".join(lines), encoding="utf-8")
     print(f"wrote {OUT}")
 

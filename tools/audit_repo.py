@@ -46,7 +46,8 @@ def main() -> int:
     total = 0
     for name in names:
         path = REPO / name
-        parts = {p.lower() for p in Path(name).parts[:-1]}
+        # data directories are top-level (docs/games/ is documentation, not a game folder)
+        parts = {p.lower() for p in Path(name).parts[:1]} if len(Path(name).parts) > 1 else set()
         ext = path.suffix.lower()
         if ext in BAD_EXT:
             problems.append(f"{name}: extension {ext}")

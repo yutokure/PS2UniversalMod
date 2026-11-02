@@ -220,7 +220,7 @@ FUN_001b07a0(out = 0x33F620, eye = 0x340360, target = 0x33FC10, up = 0x33FBC0, r
 
 # v3 追記（2026-10-31）: 歩行入力に関わるアドレス
 
-v2 の「出力専用」の分類は、歩行入力については訂正が必要。詳細は `reports/WALK_DIRECTION_INVESTIGATION.md`。
+v2 の「出力専用」の分類は、歩行入力については訂正が必要。詳細は `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md`。
 
 | アドレス | v3 での扱い |
 |---|---|

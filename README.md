@@ -1,7 +1,12 @@
 # PS2 Universal Camera Controller
 
-FF10-2（PS2 / `SLPS-25250`）の通常フィールドで、**右スティックによる自由回転カメラ**と
+PS2 ゲームの通常フィールドで、**右スティックによる自由回転カメラ**と
 **外部 Windows GUI からのリアルタイム制御**を実現する MOD コントローラー。
+共通基盤（`core/`・GUI）とゲーム別アダプター（`adapters/`）で構成され、
+**FF10-2・シャイニング・フォース ネオ・幻想水滸伝V** に対応しています（一覧は §12）。
+以下 §1〜§11 の詳細記述は FF10-2 を例に書かれています（ゲーム別の記録は `docs/games/`）。
+
+文書の入口は [`docs/README.md`](docs/README.md) です。
 
 DeepSeek Harness を起動し続ける必要はありません。GUI 単体で動きます。
 
@@ -38,7 +43,7 @@ DeepSeek Harness を起動し続ける必要はありません。GUI 単体で�
 | 安全な終了とカメラ復帰 | ✅ |
 | 場面・エリア切り替え後の復帰（オフセット／照準の読み戻し再書き込み） | ✅ 追加（実機確認は未実施） |
 | カメラ切り替えシーンでも中央維持（ガードを緩和） | ✅ セーブステートで確認（カメラ切り替え・左寄りの 2 場面） |
-| **歩行方向のカメラ追従** — オービット中、左スティックの進行方向がカメラ基準にならない | ❌ 未解決（`reports/WALK_DIRECTION_INVESTIGATION.md`、BLOCKERS B-08） |
+| **歩行方向のカメラ追従** — オービット中、左スティックの進行方向がカメラ基準にならない | ❌ 未解決（`docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md`、BLOCKERS B-08） |
 
 ちらつきは**原理的に解消**しています。ゲームは eye と注視点を毎フレーム書き戻すため、
 毎フレーム上書きし続ける方式では必ず競合します。本 MOD は
@@ -125,7 +130,7 @@ python -m venv .venv
 言語を追加する場合は `TEXT` に 1 列足すだけです。
 
 GUI のレビュー結果（見つけた不具合と未対応項目）は
-[`reports/GUI_REVIEW.md`](reports/GUI_REVIEW.md) にまとめてあります。
+[`docs/gui/GUI_REVIEW.md`](docs/gui/GUI_REVIEW.md) にまとめてあります。
 
 ### 3.4 操作
 
@@ -151,6 +156,7 @@ GUI のレビュー結果（見つけた不具合と未対応項目）は
 | Camera Position | 距離、Camera X/Y/Z オフセット、Target X/Y/Z オフセット |
 | Camera Lens | FOV（20〜110°）、FOV 有効化、現在値表示、FOV リセット |
 | Controls | Enable / Disable / Reset / Restore Original / Save Preset / Load Preset |
+| Native Zoom（対応ゲームのみ） | ゲーム標準ズームの段階表示、段階ボタン、R1 でオービット距離を連動 |
 | Debug | カメラ座標、プレイヤー座標、更新頻度、最終更新、警告 |
 
 スライダーと数値入力は同期しており、「適用」ボタンは不要です。
@@ -245,7 +251,7 @@ PCSX2 側で `EnableCheats` を有効にするか、`set_cheats_enabled(true)` +
 ゲームの歩行は、MOD が動かしている描画カメラ（`0x3403E0`・`0x33FC40`）ではなく、
 ゲーム本来のカメラ状態から方向を決めています。そのため、オービットで視点を回しても
 左スティックの進行方向は変わりません。書き込み実験の詳細は
-[`reports/WALK_DIRECTION_INVESTIGATION.md`](reports/WALK_DIRECTION_INVESTIGATION.md) を参照してください。
+[`docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md`](docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md) を参照してください。
 
 ### 6.4 壁抜け
 
@@ -264,15 +270,20 @@ PS2UniversalMod/
 │  ├─ camera_runtime/engine.py    毎フレーム書き込みエンジン
 │  ├─ controller/sources.py       XInput / キーボード / スクリプト入力
 │  ├─ memory_backend/pine_backend.py  PINE クライアント
-│  └─ config/settings.py          設定・プリセット
-├─ adapters/ffx2/
-│  ├─ memory_map.py               FFX-2 のアドレス定義（ここだけがゲーム依存）
-│  └─ adapter.py                  アダプター実装
-├─ gui/camera_controller/app.py   PySide6 GUI
-├─ analysis/                      差分解析スクリプト（scripts/ から移設可）
-├─ tools/                         E2E・ flicker・検証ツール
-├─ tests/                         pytest
-├─ reports/                       解析結果・E2E 証拠・スクリーンショット
+│  ├─ config/settings.py          設定・プリセット
+│  ├─ config/paths.py             ローカルデータの場所（環境変数 / local_config.json）
+│  └─ mips_asm.py                  MIPS 命令エンコーダ（コードケーブ用）
+├─ adapters/
+│  ├─ ffx2/                       FFX-2（memory_map.py にアドレス、adapter.py に実装）
+│  ├─ shiningforceneo/            シャイニング・フォース ネオ（+ FOV / パッドのコードケーブ）
+│  └─ suikoden5/                  幻想水滸伝V（memory_map.py / caves.py / adapter.py）
+├─ gui/camera_controller/         PySide6 GUI（app.py、i18n.py）
+├─ analysis/                      差分解析・Ghidra スクリプト（suikoden5/ ghidra/ savestate_diff/）
+├─ tools/                         実機検証ツール（su5_*_check.py、regression_check.py、audit_repo.py ほか）
+├─ tests/                         pytest（実機なしで動く単体テスト）
+├─ docs/                          文書（lab/ games/ gui/）。入口は docs/README.md
+├─ reports/                       生成物の要約（JSON・差分表）。画像・ダンプは Git 管理外
+├─ config/                        local_config.example.json（実体は Git 管理外）
 ├─ presets/                       同梱プリセット
 └─ README.md
 ```
@@ -303,11 +314,13 @@ python tools/verify_state.py --state base
 
 | ファイル | 内容 |
 |---|---|
-| `reports/SAVESTATE_INVENTORY.md` | 既存4ステートの同定・情景・差分条件 |
-| `reports/CAMERA_MEMORY_MAP.md` | カメラ／プレイヤーの全アドレスと根拠 |
-| `reports/FOV_ANALYSIS.md` | FOV の導出と角度換算 |
-| `reports/ghidra_camera.c` | 関連関数の Ghidra 逆コンパイル |
-| `reports/e2e/` | E2E 結果 JSON と全スクリーンショット |
+| `docs/games/ffx2/SAVESTATE_INVENTORY.md` | 既存4ステートの同定・情景・差分条件 |
+| `docs/games/ffx2/CAMERA_MEMORY_MAP.md` | カメラ／プレイヤーの全アドレスと根拠 |
+| `docs/games/ffx2/FOV_ANALYSIS.md` | FOV の導出と角度換算 |
+| `docs/games/ffx2/` | FFX-2 の解析記録一式（ORBIT_BREAKTHROUGH、WALK_DIRECTION_INVESTIGATION ほか） |
+| `docs/games/shiningforceneo/CAMERA_ANALYSIS.md` | シャイニング・フォース ネオの解析記録 |
+| `docs/games/suikoden5/` | 幻想水滸伝Vの解析記録（CAMERA.md）とテスト結果（TEST_RESULTS.md） |
+| `reports/*.json`, `reports/SUIKODEN5_STATE_DIFF.md` | 生成された数値の要約（画像・逆コンパイル出力は Git 管理外） |
 
 ---
 
@@ -322,7 +335,8 @@ python tools/verify_state.py --state base
 | PCSX2 再起動後 | GUI の **Reconnect** を押す（設定は保持）。`Look-at patch` が `NOT APPLIED` なら `EnableCheats` を再度有効にする |
 | 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか確認。接続後は自動検出されます。`rot.input` が `keyboard` や `scripted` になっていないか確認 |
 | 場面・エリア移動後にオービットが外れる | 自動で再書き込みされます（`resyncs` が増えます）。外れたままならエリアが戦闘・イベント扱いの可能性があります |
-| 左スティックの向きがカメラと合わない | 既知の制限（§6.5、B-08）です |
+| 左スティックの向きがカメラと合わない | 既知の制限（§6.5、B-08）です（幻想水滸伝V ではカメラ基準になります） |
+| PCSX2 を突然終了するとウィンドウが固まる | 修正済み（2026-11-02）。PINE の読み取りは別スレッドで行い、接続できない間は即座に失敗します。ウィンドウは「未接続」を表示し、PCSX2 が戻れば自動で復帰します（`tools/gui_freeze_check.py --kill --relaunch`） |
 
 ## 11. ゲーム本体のカメラを使う方式（フック、既定で有効）
 
@@ -351,13 +365,13 @@ python tools/stock_hook.py enable
 ゲーム本来のカメラがスロットの古い値のまま崩れます。MOD を使い終わったら `disable` を実行してください。
 MOD 単体の起動中は、通常どおり操作できます（停止中のオービット補正は従来どおりの方式で行います）。
 
-詳細: `reports/WALK_DIRECTION_INVESTIGATION.md` §9。
+詳細: `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md` §9。
 
 ### 既知の制限（other_area_base）
 
 - 演出カメラのあるエリア（`other_area_base`）では、オービット中に FOV 制御の効果がまだありません。
   視点・中心・歩行方向は軌道どおりになります。FOV は通常のフィールドでは効きます。
-  詳細は `reports/WALK_DIRECTION_INVESTIGATION.md` §11。
+  詳細は `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md` §11。
 
 ---
 
@@ -369,9 +383,9 @@ MOD 単体の起動中は、通常どおり操作できます（停止中のオ�
 | シャイニング・フォース ネオ | `adapters/shiningforceneo` | SLPM-65908 / 64F241D2 | Orbit・FOV・右スティック遮断 |
 | 幻想水滸伝V | `adapters/suikoden5` | SLPM-66286 / 7380A572 | Orbit（yaw/pitch/距離）・FOV・注視点/カメラ位置オフセット・右スティックのズーム遮断・R1 3段階ズーム連携 |
 
-幻想水滸伝V の解析記録は [`docs/SUIKODEN5_CAMERA.md`](docs/SUIKODEN5_CAMERA.md)、
+幻想水滸伝V の解析記録は [`docs/games/suikoden5/CAMERA.md`](docs/games/suikoden5/CAMERA.md)、
 5 ステートの差分は [`reports/SUIKODEN5_STATE_DIFF.md`](reports/SUIKODEN5_STATE_DIFF.md)、
-検証結果は [`docs/SUIKODEN5_TEST_RESULTS.md`](docs/SUIKODEN5_TEST_RESULTS.md) にあります。
+検証結果は [`docs/games/suikoden5/TEST_RESULTS.md`](docs/games/suikoden5/TEST_RESULTS.md) にあります。
 
 ### 幻想水滸伝V の使い方
 

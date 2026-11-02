@@ -2,7 +2,7 @@
 
 Discovered by differential analysis of four user savestates plus live PINE /
 GDB write+read watchpoints and an automated visual write sweep.  See
-``reports/CAMERA_MEMORY_MAP.md`` for the full evidence trail.
+``docs/games/ffx2/CAMERA_MEMORY_MAP.md`` for the full evidence trail.
 
 Addresses are EE main-memory (physical) offsets; PINE takes them verbatim.
 """

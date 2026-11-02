@@ -28,9 +28,9 @@
 * 接続欄に「表示言語」コンボを追加（日本語 / English）。
 * Qt Linguist（.ts/.qm）を使わないので、ビルド工程なしで `python run_gui.py` がそのまま動く。
 
-![日本語 UI](/C:/PS2CameraLab/PS2UniversalMod/reports/hook/72_ja_final.png)
+（スクリーンショット: ローカルの `reports/hook/72_ja_final.png`。画像は Git 管理外）
 
-![English UI](/C:/PS2CameraLab/PS2UniversalMod/reports/hook/71_en.png)
+（スクリーンショット: ローカルの `reports/hook/71_en.png`。画像は Git 管理外）
 
 ## 3. わかりやすさ・直感性の評価
 

@@ -1,6 +1,6 @@
 """Orbit camera mathematics, engine independent.
 
-FFX-2 world convention (determined empirically, see reports/CAMERA_MEMORY_MAP.md):
+FFX-2 world convention (determined empirically, see docs/games/ffx2/CAMERA_MEMORY_MAP.md):
 
     +X  right,  +Y  DOWN,  +Z  forward (away from the default camera)
 
@@ -84,7 +84,7 @@ def free_pose(eye: Vec3, target: Vec3) -> CameraPose:
 # 512 px to 640 virtual pixels, so the horizontal half-angle satisfies
 #     tan(fov_h / 2) = 320 / V
 # The default field value V0 = 619 therefore reproduces the stock field of
-# view (~54.7 deg horizontal).  See reports/FOV_ANALYSIS.md for the derivation.
+# view (~54.7 deg horizontal).  See docs/games/ffx2/FOV_ANALYSIS.md for the derivation.
 FOV_SCALE_REF = 619.0
 FOV_HALF_WIDTH_PX = 320.0
 FOV_MIN_DEG = 20.0
