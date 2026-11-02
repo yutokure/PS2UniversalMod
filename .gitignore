@@ -1,3 +1,4 @@
+# Data folders are anchored to the repository root (/games/ is data; docs/games/ is documentation)
 # ---- Game images -------------------------------------------------
 *.iso
 *.ISO
@@ -10,20 +11,20 @@
 *.img
 
 # ---- BIOS and extracted binaries ---------------------------------
-bios/
-games/
-extracted/
-extracted_data/
+/bios/
+/games/
+/extracted/
+/extracted_data/
 *.bin
 *.elf
 *.irx
 
 # ---- Save data ---------------------------------------------------
-savestates/
-sstates/
-states/
-memcards/
-memory_cards/
+/savestates/
+/sstates/
+/states/
+/memcards/
+/memory_cards/
 *.p2s
 *.ps2
 *.mcd
@@ -36,9 +37,9 @@ memory_cards/
 *.state*
 
 # ---- Memory dumps and reverse engineering ------------------------
-memory_dumps/
-dumps/
-ghidra_projects/
+/memory_dumps/
+/dumps/
+/ghidra_projects/
 *.dmp
 *.raw
 *.gpr
@@ -51,11 +52,11 @@ reports/ghidra_*.c.json
 *.dis.txt
 
 # ---- Extracted assets and evidence (kept locally, never in git) --
-assets_extracted/
-screenshots/
-shots/
-recordings/
-test_evidence/
+/assets_extracted/
+/screenshots/
+/shots/
+/recordings/
+/test_evidence/
 reports/raw/
 *.png
 *.jpg
@@ -93,7 +94,7 @@ dist/
 *.bak
 cache/
 temp/
-work/
+/work/
 
 # ---- Local configuration and secrets -----------------------------
 local_config.json
