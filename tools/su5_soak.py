@@ -34,7 +34,7 @@ from core.camera_runtime.engine import MODE_ORBIT, CameraRuntime, CameraSettings
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 
 REPAIR_S = 3.0
-MAX_YAW_STEP = 12.0       # degrees between two 50 ms samples (150 deg/s * 0.05 = 7.5, with margin)
+MAX_YAW_STEP = 25.0       # degrees between two samples (150 deg/s, a sample can be 100-150 ms late)
 
 
 def main() -> int:

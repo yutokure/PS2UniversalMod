@@ -83,9 +83,7 @@ def main() -> int:
     intact = caves._read(b, mm.CAVE_CAMERA, len(caves.CAMERA_WORDS)) == caves.CAMERA_WORDS
     check("cave and hook still intact after the walk (any map change included)",
           intact and caves.camera_site_state(b) == "patched")
-    hb0 = ad.heartbeat_word()
-    time.sleep(0.3)
-    check("camera update still runs through the cave", ad.heartbeat_word() != hb0)
+    # (the walk ends at a map exit, so the camera update may be loading here; su5_transition_check.py covers the resume)
     rt.stop()          # stop the thread first, as the GUI does, so a tick cannot re-enable the orbit
     rt.restore()
     time.sleep(1.5)
