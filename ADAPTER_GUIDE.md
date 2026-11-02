@@ -15,7 +15,7 @@
 | `core/camera_runtime/engine.py` | 毎フレーム書き込みスレッド、モード管理、復帰処理 |
 | `core/controller/sources.py` | XInput / キーボード / スクリプト入力の抽象化 |
 | `core/config/settings.py` | ゲーム ID ごとの設定・プリセット保存 |
-| `gui/camera_controller/app.py` | PySide6 GUI（`ADAPTERS` に登録するだけ） |
+| `gui/camera_controller/app.py` | PySide6 GUI（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・`SUPPORTED_IDS` の 3 か所に登録） |
 
 共通基盤にゲーム固有のアドレスは **一切埋め込まれていません**。
 
@@ -96,9 +96,11 @@ Ghidra で逆コンパイルすると分かります（FFX-2 の `FUN_001b0008` 
 ### 3.4 アダプターを登録する
 
 ```python
-# gui/camera_controller/app.py
+# gui/camera_controller/app.py（3 か所）
 from adapters.mygame.adapter import MyGameAdapter
 ADAPTERS = {"FFX2": FFX2Adapter, "MYGAME": MyGameAdapter}
+ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPS-00000": MyGameAdapter}   # Serial -> クラス
+SUPPORTED_IDS = {"SLPS-25250", "SLPS-00000"}                                    # 対応する Serial
 ```
 
 `identify()` が一致しなければ GUI は書き込みを行いません。

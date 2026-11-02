@@ -116,9 +116,9 @@ does not use it (keyboard path), but a real user pressing buttons during an
 experiment would perturb observations. Recommendation: leave the controller
 idle during automated runs.
 
-## B-08 — FFX-2 field walking does not follow the orbit camera (PS2UniversalMod)
+## B-08 — FFX-2 field walking does not follow the orbit camera (resolved in part by the stock-camera hook)
 
-**Status**: OPEN. Partially analysed on 2026-10-31.
+**Status**: RESOLVED in part (latest note below: the stock-camera hook makes the walk follow the orbit; long walks unverified). Analysed on 2026-10-31.
 
 **Cause (partly known)**: the mod moves the render camera through the additive eye offset
 `0x3403E0` and the aim slot `0x33FC40`. Walking direction is derived from the game's own camera
@@ -129,13 +129,13 @@ suggests the game overwrites that word before the walk reads it. The exact read 
 
 **Next step**: locate the instruction in the walk path that loads `0x340370` (EE or VU0), then retarget
 it with a `.pnach` patch to an unused slot the mod keeps up to date, as the aim patch does for
-`0x33FC10`. Full notes: `PS2UniversalMod/reports/WALK_DIRECTION_INVESTIGATION.md`.
+`0x33FC10`. Full notes: `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md`.
 
 2026-10-31 (latest): RESOLVED in part. The walk direction is normalize(look-at target 0x33FC20 - eye). The
 mod now drives the game's eye routine (hook applied in `cheats/8A6D7F14.pnach`, toggle `tools/stock_hook.py`) and
 writes the target as the orbit centre. Walking heading matches the orbit in the first 0.3 s (verified at yaw
 0/+90/-90). Longer walks are not yet verified, because the test room has walls close by. The hook is only correct
-while the mod is running. Details: `PS2UniversalMod/reports/WALK_DIRECTION_INVESTIGATION.md` §9-10.
+while the mod is running. Details: `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md` §9-10.
 
 2026-10-31 (earlier): the stock field camera base has no yaw input in EE RAM (perturbation scans), and the
 stick words `0x480080`/`0x480084` are not the walk input (overriding them did nothing). The real pad source
@@ -155,7 +155,7 @@ A physical stick push is not yet verified.
 **Status**: RESOLVED in the runtime on 2026-11-01, with open items (see the 2026-11-01 notes below). In `other_area_base` the orbit moves the eye, the aim and the walk
 direction correctly, but changing the projection scale (0x340B00) does not change the image while
 the orbit is active. In ordinary field areas FOV works (mean image difference 33.5 between FOV 93
-and FOV 54.7). Details: `PS2UniversalMod/reports/WALK_DIRECTION_INVESTIGATION.md` §11.
+and FOV 54.7). Details: `docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md` §11.
 
 2026-11-01: writers of the base `0x340370` and the walk target `0x33FC20` identified (copy loop at `0x1A977C`, source
 eye `0x3403A0` written at `0x1AAEEC`). The writer of the projection scale `0x340B00` is not yet found. §12.
