@@ -19,7 +19,11 @@
 | `core/config/settings.py` | ゲーム ID ごとの設定・プリセット保存 |
 | `gui/camera_controller/app.py` | PySide6 GUI（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・`SUPPORTED_IDS` の 3 か所に登録） |
 
-共通基盤にゲーム固有のアドレスは **一切埋め込まれていません**。
+設計方針として、ゲーム固有の処理・アドレスは原則 `adapters/<game>/` へ分離します。
+ただし、現在の共通エンジン（[`core/camera_runtime/engine.py`](core/camera_runtime/engine.py)）には、
+FFX-2（FF10-2）由来の FOV 同期確認用フォールバックが残っています。
+アダプターに呼び出し可能な `fov_in_sync()` がない場合、`0x340B00` を読み取って同期を確認します。
+新しいゲームを追加するときは、共通基盤（`core/`・GUI）へ新たなゲーム固有アドレスを持ち込みません。
 
 ---
 
