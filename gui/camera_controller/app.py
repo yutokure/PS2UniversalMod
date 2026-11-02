@@ -69,7 +69,7 @@ from core.config.settings import (  # noqa: E402
 from core.controller.sources import (  # noqa: E402
     CompositeSource, InputPump, KeyboardSource, ScriptedSource, XInputSource,
 )
-from core.memory_backend.guard import CHANGED, GuardedBackend  # noqa: E402
+from core.memory_backend.guard import CHANGED, SAME, GuardedBackend  # noqa: E402
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 
 try:  # run as a module (python -m gui.camera_controller.app)
@@ -851,14 +851,14 @@ class MainWindow(QMainWindow):
         ``restore`` hands the camera back to the game, which writes the game's addresses.  That is
         only done after the guard has confirmed the running game is still the one the runtime was
         made for (checked here too, because the poller may not have noticed a switch yet); otherwise
-        the runtime is abandoned without a single write.
+        the runtime is abandoned without a single write.  Fail closed: anything but a positive
+        ``SAME`` (changed, unknown, unreachable, no guard, already revoked) means no restore.
         """
         guard, be = self.guard, self.backend
-        if restore and guard is not None and be is not None and be.available:
-            restore = guard.verify() != CHANGED
-        if guard is not None and (not restore or guard.revoked):
+        restore = bool(restore and guard is not None and be is not None and be.available
+                       and not guard.revoked and guard.verify() == SAME)
+        if guard is not None and not restore:
             guard.revoke("teardown without restore")
-            restore = False
         if self.pump:
             self.pump.stop()
             self.pump = None

@@ -467,3 +467,68 @@ def test_the_status_poller_checks_the_game_without_touching_the_camera_loop(env)
     env.spin(2.0)
     # the poller (every 0.4 s) and the lease renewal (every ~0.15 s) only: nowhere near the camera tick rate
     assert 3 <= reads["n"] <= 25
+
+
+# --- teardown restores only after a positive SAME (fail closed) -----------------------------------------
+def hook_is_stock(be) -> bool:
+    return be.read_u32(su_mm.CAM_HOOK) == su_mm.CAM_HOOK_WORDS[0]
+
+
+def fresh_lease(w) -> None:
+    w.poller.stop()                                         # nobody else renews it
+    w.guard._verified_at = time.monotonic()                 # the last good check is moments old
+
+
+def test_teardown_restores_the_camera_when_the_game_is_confirmed_the_same(env):
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    assert not hook_is_stock(shared)
+    fresh_lease(w)
+    w._teardown()
+    assert hook_is_stock(shared) and w.runtime is None      # TEST-01 / 05: the normal way out still restores
+
+
+def test_teardown_does_not_restore_when_the_game_cannot_be_identified(env):
+    """UNKNOWN, even though the lease is still valid: no restore."""
+    for how in ("error", "empty"):
+        shared = SwitchBackend()
+        w = orbit_running(env, shared)
+        fresh_lease(w)
+        if how == "error":
+            def boom():
+                raise OSError("PCSX2 busy")
+            shared.game_id = boom
+        else:
+            shared.gid, shared.crcv = "", ""
+        old = w.runtime
+        w._teardown()
+        n = len(shared.log)
+        assert not hook_is_stock(shared), f"restored into an unidentified game ({how})"
+        assert not old.running and w.runtime is None and w.guard is None
+        time.sleep(0.2)
+        assert len(shared.log) == n                         # and nothing else was written either
+
+
+def test_teardown_does_not_restore_when_pcsx2_is_unreachable(env):
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    fresh_lease(w)
+    shared.available = False
+    old = w.runtime
+    w._teardown()
+    assert not hook_is_stock(shared) and not old.running and w.runtime is None
+
+
+def test_teardown_does_not_restore_after_the_game_changed_or_the_guard_was_revoked(env):
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    fresh_lease(w)
+    shared.gid, shared.crcv = "SLUS-20000", "cafef00d"
+    w._teardown()
+    assert not hook_is_stock(shared)
+    shared2 = SwitchBackend()
+    w2 = orbit_running(env, shared2)
+    fresh_lease(w2)
+    w2.guard.revoke("test")
+    w2._teardown()
+    assert not hook_is_stock(shared2)
