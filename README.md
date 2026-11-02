@@ -1,360 +1,251 @@
 # PS2 Universal Camera Controller
 
-FF10-2（PS2 / `SLPS-25250`）の通常フィールドで、**右スティックによる自由回転カメラ**と
-**外部 Windows GUI からのリアルタイム制御**を実現する MOD コントローラー。
-
-DeepSeek Harness を起動し続ける必要はありません。GUI 単体で動きます。
+PS2 ゲームの通常フィールドで、**右スティックによる自由回転カメラ**と
+**外部 Windows GUI からのリアルタイム制御**を実現する MOD コントローラーです。
+PCSX2 の PINE（メモリ読み書き IPC）で動き、**DeepSeek Harness・MCP サーバ・GDB は不要**です。
+GUI 単体で動きます（それらは解析・自動テストのときだけ使います）。
 
 ```
-┌────────────────────────┐        PINE (TCP 127.0.0.1:28011)
-│  GUI (PySide6)         │  ───────────────────────────────►  PCSX2  ──►  FFX-2
-│  CameraRuntime(thread) │        ~800 回/秒のメモリ読み書き
-└────────────────────────┘
+┌──────────────────────────┐   PINE (TCP 127.0.0.1:28011)   ┌────────┐
+│ GUI (PySide6)            │ ─────────────────────────────► │ PCSX2  │ ► ゲーム
+│  └ CameraRuntime (thread)│    メモリ読み書き + コードパッチ  └────────┘
+│     └ ゲーム別アダプター  │
+└──────────────────────────┘
 ```
 
----
+共通基盤（`core/`・GUI）にゲーム固有のアドレスは入れません。ゲームごとの違いは
+`adapters/<game>/` に閉じています。
 
-## 1. できること
+## 1. 対応ゲーム
 
-> **前提**: 注視点の注入には `.pnach`（`pcsx2\fork-B056de99\cheats\8A6D7F14.pnach`）が必要です。
-> このファイルは本フォルダではなく PCSX2 側にあります（本フォルダに同梱はありません）。
-> これが無効だと位置・距離・FOV は効きますが、**視線だけ回りません**。
-> GUI の `Connection → Look-at patch` が `active` になっているか確認してください。
+| ゲーム | アダプター | Serial / CRC | できること | 詳細 |
+|---|---|---|---|---|
+| FINAL FANTASY X-2 | `adapters/ffx2` | `SLPS-25250` / `8A6D7F14` | Orbit、距離、FOV、カメラ位置・注視点オフセット、Free Camera | [`docs/games/ffx2/`](docs/games/ffx2/) |
+| シャイニング・フォース ネオ | `adapters/shiningforceneo` | `SLPM-65908` / `64F241D2` | Orbit、距離、FOV、注視点の高さ、右スティック遮断 | [`docs/games/shiningforceneo/`](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) |
+| 幻想水滸伝V | `adapters/suikoden5` | `SLPM-66286` / `7380A572` | Orbit、距離、FOV、カメラ位置・注視点オフセット、右スティックのズーム遮断、R1 ズーム連動 | [`docs/games/suikoden5/`](docs/games/suikoden5/CAMERA.md) |
 
-| 機能 | 状態 |
-|---|---|
-| **Orbit** — ユウナを中心に水平360°旋回（注視点=ユウナ） | ✅ 実機動作 |
-| **GUI Yaw/Pitch** — スライダーで視点が回る | ✅ |
-| **右スティック** — 左右/上下回転、離すと保持、感度・反転・デッドゾーン。XInput は接続中のパッドを自動検出（スロット 1 でも可） | ✅ 入力系 |
-| **カメラ位置移動** — ワールド座標 / 相対オフセット | ✅ |
-| **距離** — 1〜200 単位、追従維持 | ✅ |
-| **注視点の高さ** — ユウナのフレーミング調整 | ✅ |
-| **FOV** — 20°〜110°、スライダー＋数値、即時反映、復帰 | ✅ |
-| **プレイヤー追従** — 移動中もカメラが追従 | ✅ |
-| **Original** — ゲーム本来のカメラへ復帰 | ✅ |
-| **Free Camera** — キャラクタから切り離した視点 | ✅（追加機能） |
-| 設定の保存／読込（プリセット、ゲーム別） | ✅ 同梱プリセット2種 |
-| 接続状態・Game ID/CRC・パッチ状態・エラー表示 | ✅ |
-| 安全な終了とカメラ復帰 | ✅ |
-| 場面・エリア切り替え後の復帰（オフセット／照準の読み戻し再書き込み） | ✅ 追加（実機確認は未実施） |
-| カメラ切り替えシーンでも中央維持（ガードを緩和） | ✅ セーブステートで確認（カメラ切り替え・左寄りの 2 場面） |
-| **歩行方向のカメラ追従** — オービット中、左スティックの進行方向がカメラ基準にならない | ❌ 未解決（`reports/WALK_DIRECTION_INVESTIGATION.md`、BLOCKERS B-08） |
-
-ちらつきは**原理的に解消**しています。ゲームは eye と注視点を毎フレーム書き戻すため、
-毎フレーム上書きし続ける方式では必ず競合します。本 MOD は
-
-* eye → ゲーム自身の加算フィールド `0x3403E0` に**オフセット**を書く
-* 注視点 → `.pnach` で読み取り先を `0x33FC10` から未使用スロット `0x33FC40` へ移す
-
-ことで**書き込みを1回で済ませ**、競合そのものを無くしています（保持中の実測: 35秒で書き込み1回、
-連続フレーム差分 mean 0.50〜0.56 / frac>40 0.002 ＝静止時ノイズ以下）。
-
----
+Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
+「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
 
 ## 2. 動作環境
 
 | 項目 | 要件 |
 |---|---|
 | OS | Windows 10/11 |
-| エミュレータ | PCSX2 2.7.x（`EnablePINE = true` / `PINESlot = 28011`） |
-| ゲーム | FINAL FANTASY X-2 (Japan) `SLPS-25250` / CRC `8A6D7F14` |
-| Python | 3.12（`PySide6`, `numpy`, `zstandard`） |
+| エミュレータ | PCSX2 2.7.x。`PCSX2.ini` の `[EmuCore]` に `EnablePINE = true`・`PINESlot = 28011` |
+| Python | 3.12。`pip install -r requirements.txt`（PySide6、numpy、zstandard） |
+| 実機検証ツール（`tools/`）を使う場合 | 上に加えて pywin32、psutil、Pillow |
 
-PINE は PCSX2 標準機能です（`PCSX2.ini` の `[EmuCore]`）:
+> **PINE クライアントは同時に 1 つだけ**です。GUI とスクリプトを同時に動かすと、どちらかが
+> タイムアウトします。
 
-```ini
-EnablePINE = true
-PINESlot = 28011
-```
+## 3. 使い方
 
-GDB サーバは不要です（解析時のみ使用）。
+### 3.1 起動
 
----
+1. PCSX2 で対応ゲームを起動し、フィールドまで進めます。
+   - FFX-2 だけは追加条件があります: 視線の注入に `.pnach`（§5.1）が必要で、PCSX2 は再起動のたびに
+     `EnableCheats` が無効に戻ります。GUI の「ゲームパッチ」欄が「適用中」になっているか確認してください。
+2. `PS2UniversalCamera.bat` をダブルクリック（または `python run_gui.py`）。
+   PySide6 の入った Python を `.venv` → `..\python\venv` → 実行中の Python → PATH の順に探します。
+   依存関係を入れ直すには:
 
-## 3. 起動方法
+   ```powershell
+   python -m venv .venv
+   .venv\Scripts\python.exe -m pip install -r requirements.txt
+   ```
+3. 起動すると PINE に接続し、ゲームを識別して「接続済み」になります。未対応のゲームでは書き込みません。
 
-### 3.1 ゲームと PCSX2
+### 3.2 操作
 
-1. PCSX2 で FFX-2 を起動し、フィールド（例: カシル船内）まで進める
-2. `EnablePINE` が有効であることを確認（上記）
+1. **カメラモード → オービット**（または「カメラ MOD を有効化」）
+2. **右スティック**: 左右で水平回転、上下で仰角。離すとその角度を保持します（矢印キーでも同じ操作。
+   XInput とキーボードは併用でき、先に入力のあった方が使われます）
+3. 左スティックで歩く（歩行方向がカメラ基準になるかはゲームによる。§5）
+4. 「MOD を無効化して元のカメラに戻す」または「オリジナル」で、ゲーム本来のカメラ・入力に戻ります
 
-### 3.2 GUI の起動
+### 3.3 GUI 項目
 
-**かんたん**: `PS2UniversalCamera.bat` をダブルクリック（またはコマンドプロンプトから実行）。
-
-```powershell
-C:\PS2CameraLab\PS2UniversalMod\PS2UniversalCamera.bat
-```
-
-このランチャーは PySide6 が入っている Python を自動で探します（探索順:
-`<project>\.venv` → `<project>\..\python\venv` → 実行中の Python → PATH の `python`）。
-
-**どの Python からでも起動できます:**
-
-```powershell
-python run_gui.py
-```
-
-`python gui\camera_controller\app.py` を直接叩く方法は、**その Python に
-PySide6 が入っている場合のみ**動きます（本ラボでは
-`C:\PS2CameraLab\python\venv\Scripts\python.exe` にのみ入っています）。
-入っていない場合は、何をすればよいかを示すメッセージを出して終了します。
-
-**依存関係を入れ直す場合:**
-
-```powershell
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-起動すると自動的に PINE へ接続し、`SLPS-25250 / 8A6D7F14` を確認して
-`Connected` になります。ゲームが違う場合は書き込みを行いません。
-
-> **必ず `Connection → Look-at patch` が `active` になっていることを確認してください。**
-> `NOT APPLIED` の場合は PCSX2 側で `EnableCheats` を有効にするか、
-> `set_cheats_enabled(true)` + `reload_patches` を実行してください。
-> **PCSX2 を再起動すると `EnableCheats` は既定の無効に戻ります**（fork の `PCSX2.ini` は `false`）。
-> 再起動のたびに有効化が必要です。
-
-### 3.3 表示言語
-
-接続欄の **「表示言語 / Language」** で `日本語` と `English` を切り替えられます。
-**再起動は不要**で、選択はゲーム別に保存されます（既定は日本語）。
-
-翻訳は `gui/camera_controller/i18n.py` の辞書にあり、Qt Linguist のビルド工程は不要です。
-言語を追加する場合は `TEXT` に 1 列足すだけです。
-
-GUI のレビュー結果（見つけた不具合と未対応項目）は
-[`reports/GUI_REVIEW.md`](reports/GUI_REVIEW.md) にまとめてあります。
-
-### 3.4 操作
-
-1. **Camera Mode → Orbit** を選ぶ
-2. **右スティック**を左右に倒す → ユウナの周囲を回転
-3. 上下に倒す → 仰角・俯角
-4. 離す → その角度を保持
-5. 左スティックで歩く。**注意**: オービット中は進行方向がカメラ基準になりません（B-08、未解決）。
-   カメラを回した後は、キャラの向きを見ながら操作してください
-6. **Original** を押すとゲーム本来のカメラへ戻る
-
-キーボードでも操作できます（パッド未接続時は矢印キー）。
-
----
-
-## 4. GUI 項目一覧
+画面は上から「接続」「通知バー」「カメラモード / 操作」「カメラ回転 / カメラ位置」「カメラレンズ / ゲーム標準ズーム」「デバッグ表示」です。
+窓が小さいときはスクロールします（スライダー上のマウスホイールは、フォーカスがないと値を変えません）。
 
 | セクション | 項目 |
 |---|---|
-| Connection | PCSX2 / Game / Serial・CRC / Adapter / Runtime |
-| Camera Mode | Original・Orbit・Free Camera |
-| Camera Rotation | Yaw、Pitch、回転速度、感度、デッドゾーン、左右反転、上下反転、入力ソース |
-| Camera Position | 距離、Camera X/Y/Z オフセット、Target X/Y/Z オフセット |
-| Camera Lens | FOV（20〜110°）、FOV 有効化、現在値表示、FOV リセット |
-| Controls | Enable / Disable / Reset / Restore Original / Save Preset / Load Preset |
-| Debug | カメラ座標、プレイヤー座標、更新頻度、最終更新、警告 |
+| 接続 | PCSX2、ゲーム、シリアル / CRC、アダプタ、実行状態、ゲームパッチ、表示言語（日本語 / English、再起動不要）、再接続。「詳細を表示」でパッチを手動で読み込む／外すボタン |
+| 通知バー | 今いちばん大事な 1 件を平易な文で表示（PCSX2 に接続できない、未対応の版、フィールドカメラが止まっている、パッチ箇所が想定外、など）。重大度で色分け |
+| カメラモード | オリジナル / オービット / フリーカメラ（FFX-2 のみ）、有効化時にキャラクターを中央へ |
+| 操作 | **カメラ MOD を有効化**、**MOD を無効化して元のカメラに戻す**、キャラクターを中央に、ゲームの視点に合わせ直す、プリセット（読込 / 保存） |
+| カメラ回転 | Yaw、Pitch、回転速度、右スティック感度、デッドゾーン、左右反転、上下反転、入力ソース（auto / xinput / keyboard / scripted） |
+| カメラ位置 | 距離、注視点の高さ。「オフセット（詳細）」を開くとカメラ X/Y/Z・注視点 X/Y/Z（0 以外があると見出しに「設定あり」と出ます） |
+| カメラレンズ（FOV） | FOV（20〜110°）、上書きの適用、現在値、ゲーム値に戻す |
+| ゲーム標準ズーム（対応ゲームのみ） | 現在の段階、段階ボタン、R1 でオービット距離を連動（幻想水滸伝V。連動の設定はゲームごとに保存） |
+| デバッグ表示（既定で折りたたみ） | カメラ座標、プレイヤー座標、更新頻度、最終更新 |
 
-スライダーと数値入力は同期しており、「適用」ボタンは不要です。
-変更は次フレーム（約 16 ms 以内）に反映されます。
+挙動のルール:
+
+* **起動時は必ず「オリジナル」**です。保存された設定の値は読み込みますが、MOD は自分で有効にするまで動きません。
+* プリセットは**値だけ**を変え、カメラモードや表示言語は変えません。同名の保存は確認してから上書きします。
+* 接続がない・未対応の版・接続が切れたときは、カメラ関連の操作がすべて無効になり、通知バーに理由が出ます。
+  PCSX2 が戻れば自動で操作できるようになります。
+* ゲームの実装が使えない項目は個別に無効になります（例: シャイニング・フォース ネオのオフセット、FFX-2 以外のフリーカメラ）。
+* 距離・注視点の高さ・オフセット・Pitch の範囲は**ゲームごと**です（アダプターが決めます）。符号もゲームごとに違うので、
+  スライダーの下に説明が出ます（FFX-2・幻想水滸伝V は「注視点の高さ: 正で下、Pitch: 正でカメラが上」、
+  シャイニング・フォース ネオは「正で上、Pitch は負がカメラ上」）。
+* 矢印キーは、PCSX2 かこの画面が前面にあるときだけカメラを回します（他のアプリで押しても動きません）。
+* 同時に起動できるのは 1 つだけです（PCSX2 の PINE は 1 クライアントのため、2 つ目は起動時に断ります）。
+* 設定にない操作の失敗（例: 途中で PCSX2 が終了）は例外にならず通知バーに出て、`%APPDATA%\PS2UniversalCamera\gui.log` に記録されます。
+
+スライダーと数値入力は同期しており、「適用」ボタンはありません。変更は次フレーム（約 16 ms 以内）に反映されます。
+
+PCSX2 を閉じる・終了させても GUI は固まりません（「未接続」を表示し、PCSX2 が戻れば自動で復帰します）。
+監査の記録: [`docs/gui/GUI_AUDIT_2026-11-02.md`](docs/gui/GUI_AUDIT_2026-11-02.md)。
 
 ---
 
-## 5. 設定ファイル
+## 4. 設定とプリセット
 
 ```
-%APPDATA%\PS2UniversalCamera\settings.json     … ゲームIDごとの設定
-%APPDATA%\PS2UniversalCamera\presets\*.json    … 名前付きプリセット
+%APPDATA%\PS2UniversalCamera\settings.json     ゲーム ID ごとの設定（ゲーム間で混ざりません）
+%APPDATA%\PS2UniversalCamera\presets\*.json    名前付きプリセット
+presets\*.json                                  同梱プリセット（orbit-default、close-up）。読み取り専用
 ```
 
-`settings.json` はゲーム ID をキーにした構造なので、
-別タイトルのアダプターを追加しても設定が混ざりません。
+プリセットは**ゲーム ID ごと**に絞って表示されます。同梱の 2 つは FFX-2 用です。
 
----
+## 5. ゲーム別の要点
 
-## 6. 実装上の制約（重要）
+### 5.1 FFX-2
+- ゲームは視点と注視点を毎フレーム書き戻します。そこで視点は「ゲーム自身の加算フィールド」にオフセットを書き、
+  注視点は `.pnach` 1 命令で読み取り先を未使用スロットへ移して、書き込み競合そのものを無くしています。
+- `.pnach` は PCSX2 側（`pcsx2\fork-B056de99\cheats\8A6D7F14.pnach`）にあり、このリポジトリには含みません。
+  フック方式（ゲーム本体のカメラルーチンに軌道を渡す）のテンプレートは `patches/stock_camera_hook.pnach.txt`、
+  切り替えは `python tools/stock_hook.py status|enable|disable` です。
+- 歩行方向: フック方式（既定で有効）でオービットに追従します。測定は歩き始めの 0.3 秒のみで、
+  長い歩行は未確認です。フックは MOD 動作中だけ正しく働くため、使い終わったら `disable` します。
+- 演出カメラのあるエリア（`other_area_base`）では FOV の効果が限定的です。
+- 狭い通路で 180° 回すとカメラが壁の内側に入ることがあります（ゲームの衝突判定を経由しないため）。
+- 実装メモ・測定値: [`docs/games/ffx2/ADAPTER_NOTES.md`](docs/games/ffx2/ADAPTER_NOTES.md)
 
-### 6.1 視線の実体は `normalize(注視点 − 視点)`
+### 5.2 シャイニング・フォース ネオ
+- カメラの角度（yaw/pitch）・距離・注視点の高さはゲームのフィールドに書き、場所依存のスクリプトカメラ（町の門など）は
+  平滑化ゲートの 1 バイトで止めます。FOV と右スティック遮断はコードケーブです。
+- カメラ位置・注視点の X/Z オフセットは効きません（注視点の高さのみ）。
+- 既知: オービットを戻した直後のカメラ向きは、ゲームが決めるため元の向きと一致しません（既存の挙動）。
+- 解析記録: [`docs/games/shiningforceneo/CAMERA_ANALYSIS.md`](docs/games/shiningforceneo/CAMERA_ANALYSIS.md)
 
-描画用の向きは、毎フレーム呼ばれる look-at 行列ビルダ `FUN_001b07a0` が
+### 5.3 幻想水滸伝V
+- フィールドカメラ更新（`FUN_00243E10`）の出力処理にコードケーブを差し込み、注視点・距離・ピッチ・ヨー・FOV を上書きします。
+  歩行方向はゲームが読むヨーに従うので、**左スティックの進行方向もカメラ基準**になります。
+- 原作のカメラは固定角で、右スティックはカメラ回転ではなく**3 段階ズーム**に使われています（R1 も同じズーム、距離 400 → 300 → 200）。
+  オービット中は右スティックを MOD が使い、ゲーム側のスティックズームは遮断します。R1 は生きていて、
+  「ゲーム標準ズーム」欄のチェックを入れると R1 の段階に合わせてオービット距離も変わります。
+- 場所依存のカメラ（ピッチが 13° → 40° に変わる坂など）はオービット中は無視され、マップ移動後も設定が再適用されます。
+- オフセットはワールド座標で、リグ全体を動かします。近いズーム段階ほど画面上で大きく見えます。
+- 未検証: イベント・戦闘・メニュー（カメラ更新が止まるので MOD は手を出しません）。
+- 解析記録とテスト結果: [`docs/games/suikoden5/`](docs/games/suikoden5/)
 
+## 6. ローカルデータの場所（Git 管理外）
+
+ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます（`core/config/paths.py`）。
+
+| 環境変数 | 既定（元のラボ構成） | 内容 |
+|---|---|---|
+| `PS2_LAB_DIR` | リポジトリの親フォルダ | ラボのルート |
+| `PS2_PCSX2_DIR` | `<lab>/pcsx2/fork-B056de99` | PCSX2（ini・cheats） |
+| `PS2_GAME_DIR` | `<lab>/pcsx2/iso` | ゲームイメージ |
+| `PS2_BIOS_DIR` | `<lab>/pcsx2/bios` | BIOS |
+| `PS2_SAVESTATE_DIR` | `<lab>/sstates` | `.p2s` |
+| `PS2_DUMP_DIR` | `<lab>/work` | 展開したステート・RAM ダンプ・Ghidra プロジェクト |
+| `PS2_EVIDENCE_DIR` | `<lab>/test_evidence` | スクリーンショットとテスト証跡 |
+
+環境変数の代わりに `config/local_config.example.json` を `config/local_config.json`（Git 無視）へコピーして書いても構いません。
+ほかの PC へ移すときはこの設定だけで再構築できます。
+
+## 7. 検証
+
+```powershell
+python -m pytest tests -q          # 単体テスト（実機・エミュレータ不要。GUI は offscreen、Git 監査は一時リポジトリで試験）
+python tools/audit_repo.py --staged   # コミット前: Git インデックスの内容を監査（ゲームデータ・秘密情報・大きなファイル）
+python tools/audit_repo.py            # 追跡ファイルの作業ツリー上の内容（--commit REV / --history もあります）
 ```
-0x1B07F8  lqc2 $vf4, 0x00($s2)   ; 視点    0x340360
-0x1B07FC  lqc2 $vf5, 0x00($s1)   ; 注視点  0x33FC10   ← .pnach で 0x33FC40 へ
-0x1B0800  lqc2 $vf8, 0x00($s0)   ; up     0x33FBC0 = (0, -1, 0)
-```
 
-から組み立てています。実測で `normalize(注視点 − 視点)` は描画基底 `0x53ADA0` と
-小数5桁まで一致しました。つまり**注視点を書けば視線が回ります**。
+実機検証は PCSX2 でゲームを起動し、そのゲームの `base.p2s` を読み込んでから実行します（PINE クライアントは 1 つだけ）。
 
-`0x53AD80`（基底）・`0x33F620`（ビュー行列）・`0x3403B0`（yaw/pitch）はすべて
-**出力のミラー**で、書いても描画は変わりません。これが以前「回らない」原因でした。
-
-### 6.2 競合を無くす（ちらつき対策）
-
-ゲームは視点 `0x340360` と注視点 `0x33FC10` を**毎フレーム書き戻します**
-（外部から書いた値は 50 ms 以内に消える）。毎フレーム上書きし続ける方式では、
-レンダラがゲーム値を読むフレームが混ざってちらつきます（実測: 連続フレーム差分 mean 46.4）。
-
-本 MOD は競合を「勝つ」のではなく「無くします」。
-
-| 対象 | 方法 |
+| 対象 | コマンド |
 |---|---|
-| 視点 | ゲームが毎フレーム計算する `0x340360 = 0x340370 + 0x3403E0` の**加算項にオフセットを書く**。ゲーム自身が毎フレーム再現するので競合しない |
-| 注視点 | `.pnach` 1命令で読み取り先を `0x33FC10` → 未使用スロット `0x33FC40` へ変更。ゲームは `0x33FC40` を一切触らない |
+| 全ゲーム共通の回帰（Orbit・FOV・復帰） | `python tools/regression_check.py` |
+| GUI を PCSX2 の強制終了・再起動で試す | `python tools/gui_freeze_check.py --kill --relaunch` |
+| PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。ディスクとセーブステートは読むだけ） |
+| 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |
+| FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
-結果、**書き込みは値が変わったときだけ**（プレイヤーが歩いて基準点が動いたとき等）。
-保持中の実測は 35 秒で 1 回、連続フレーム差分 mean 0.50〜0.56 / frac>40 0.002。
+結果は表示と `reports/`（JSON）に出ます。スクリーンショットなどの証跡は Git 管理外です。幻想水滸伝V の結果一覧は
+[`docs/games/suikoden5/TEST_RESULTS.md`](docs/games/suikoden5/TEST_RESULTS.md) にあります。
 
-### 6.2.1 パッチ
+## 8. トラブルシューティング
 
-```
-pcsx2\fork-B056de99\cheats\8A6D7F14.pnach
-    patch=1,EE,001B07FC,word,DA250030
-```
+| 症状 | 対処 |
+|---|---|
+| 「未接続」のまま | PCSX2 が起動していて `EnablePINE = true` か確認。GUI とスクリプトを同時に使っていないか確認 |
+| 起動時に「すでに起動しています」 | 別のカメラコントローラーが開いています。閉じてから起動してください |
+| 未対応ゲームと表示される | Serial / CRC が違います。書き込みは行いません（安全） |
+| PCSX2 でゲームを切り替えた | GUI は約 0.25〜0.4 秒で気づき、前のゲームには何も書き込まず（元に戻す処理も行わず）、新しいゲーム用に選び直します。未対応ゲームなら書き込み不可の表示になります。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md) |
+| カメラが動かない | フィールドにいるか確認（戦闘・イベント・ロード中は自動で無効） |
+| カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。それでも戻らなければゲームを再開 |
+| PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 は `EnableCheats` を再度有効にし、「ゲームパッチ」欄を確認 |
+| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo は約 1 秒）で自動再適用されます |
+| 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか、「入力ソース」が keyboard / scripted になっていないか確認。矢印キーでも回せます |
+| 左スティックの向きがカメラと合わない | FFX-2 はフック方式（§5.1）を有効にする。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応 |
+| 狭い場所で画面が壁で埋まる | 距離を縮めるか Pitch を下げる（ゲームの衝突判定を通らないため） |
 
-PCSX2 側で `EnableCheats` を有効にするか、`set_cheats_enabled(true)` +
-`reload_patches` を実行してください。無効だと視線が回りません
-（GUI の `Look-at patch` 行が `NOT APPLIED` と警告します）。
+詳しい不具合記録: [`docs/lab/TROUBLESHOOTING_KB.md`](docs/lab/TROUBLESHOOTING_KB.md)、未解決事項: [`docs/lab/BLOCKERS.md`](docs/lab/BLOCKERS.md)。
 
-### 6.2.2 回転中心
-
-回転中心は**プレイヤー基準点 `0x340380`**、注視点も同じ点（+ `look_height`）です。
-ゲーム側の注視点がどこを向いていても、回転中心と注視点は常にユウナになります。
-`look_height` は既定 `-6.0`（+Y が下向きなので「基準点より 6 単位上」）。
-
-### 6.3 シーン判定
-
-`is_field_like()` が以下を満たさない場合は書き込みを停止します。
-
-* プレイヤー基準点が (0,0,0) でない（ロード中でない）
-* 視点-注視点距離が 1〜2000
-* 視点-プレイヤー距離が 400 以下
-
-カメラ切り替え（カットイン・エリア移動）ではゲーム本来の視点がプレイヤーから約 170 単位離れます。
-旧しきい値（120）ではここで書き込みが止まり、ユウナが中央に来ませんでした。
-現在は、オービットの視点を毎回プレイヤー基準で置くため、ゲーム側の視点は「妥当な値か」だけを見ます。
-（`base_chara_little_moved_and_cam_big_moved.p2s` で確認。ユウナは画面中央に来ます）
-
-戦闘・イベント・メニューでは自動的に無効化されます。
-
-書き込み中は約 10 ms ごとに視点オフセット `0x3403E0` と照準スロット `0x33FC40` を読み戻します。
-ゲームに上書きされていれば（場面切り替えや動画の後など）、次フレームに再書き込みします
-（`RuntimeStats.resyncs` で回数を確認できます）。
-
-### 6.5 既知の制限: 歩行方向はカメラに追従しない（B-08）
-
-ゲームの歩行は、MOD が動かしている描画カメラ（`0x3403E0`・`0x33FC40`）ではなく、
-ゲーム本来のカメラ状態から方向を決めています。そのため、オービットで視点を回しても
-左スティックの進行方向は変わりません。書き込み実験の詳細は
-[`reports/WALK_DIRECTION_INVESTIGATION.md`](reports/WALK_DIRECTION_INVESTIGATION.md) を参照してください。
-
-### 6.4 壁抜け
-
-Orbit は球面上にカメラを置くため、狭い通路で 180° 回すとカメラが壁や天井の
-内側に入り、床や壁で画面が埋まることがあります。ゲーム側のカメラ衝突判定を
-経由しないため避けられません。距離を短くするか Pitch を下げてください。
-
----
-
-## 7. ディレクトリ構成
+## 9. ディレクトリ構成
 
 ```
 PS2UniversalMod/
 ├─ core/
-│  ├─ camera_math/orbit.py        Orbit 計算・FOV 変換（ゲーム非依存）
-│  ├─ camera_runtime/engine.py    毎フレーム書き込みエンジン
-│  ├─ controller/sources.py       XInput / キーボード / スクリプト入力
-│  ├─ memory_backend/pine_backend.py  PINE クライアント
-│  └─ config/settings.py          設定・プリセット
-├─ adapters/ffx2/
-│  ├─ memory_map.py               FFX-2 のアドレス定義（ここだけがゲーム依存）
-│  └─ adapter.py                  アダプター実装
-├─ gui/camera_controller/app.py   PySide6 GUI
-├─ analysis/                      差分解析スクリプト（scripts/ から移設可）
-├─ tools/                         E2E・ flicker・検証ツール
-├─ tests/                         pytest
-├─ reports/                       解析結果・E2E 証拠・スクリーンショット
-├─ presets/                       同梱プリセット
-└─ README.md
+│  ├─ camera_math/orbit.py          Orbit 計算・FOV 変換（ゲーム非依存）
+│  ├─ camera_runtime/engine.py      毎フレーム書き込みエンジン
+│  ├─ controller/sources.py         XInput / キーボード / スクリプト入力
+│  ├─ memory_backend/pine_backend.py  PINE クライアント（PCSX2 が無いときは即座に失敗）
+│  ├─ memory_backend/guard.py       書き込みガード（Serial/CRC が違うゲームへは書かない）
+│  ├─ config/settings.py            設定・プリセット
+│  ├─ config/paths.py               ローカルデータの場所
+│  └─ mips_asm.py                   MIPS 命令エンコーダ（コードケーブ用）
+├─ adapters/
+│  ├─ ffx2/                         memory_map.py（アドレス）、adapter.py
+│  ├─ shiningforceneo/              + fov_cave.py、pad_cave.py
+│  └─ suikoden5/                    + caves.py
+├─ gui/camera_controller/           PySide6 GUI（app.py、i18n.py）
+├─ analysis/                        差分解析・Ghidra スクリプト
+├─ tools/                           実機検証・監査ツール
+├─ tests/                           pytest
+├─ docs/                            文書（入口: docs/README.md）
+├─ reports/                         生成された数値の要約（JSON・差分表）
+├─ config/                          local_config.example.json
+├─ presets/                         同梱プリセット（FFX-2 用）
+├─ patches/                         FFX-2 の .pnach テンプレート
+├─ ADAPTER_GUIDE.md                 新しいゲームの追加方法
+└─ run_gui.py / PS2UniversalCamera.bat
 ```
 
----
+## 10. リポジトリ運用（Git）
 
-## 8. 検証
+* **GitHub のプライベートリポジトリ** `yutokure/PS2UniversalMod` に置いています（非公開のまま運用します）。
+  ブランチ: `main` = FFX-2 とシャイニング・フォース ネオの動作確認済みベースライン、
+  `feature/suikoden5-adapter` = 幻想水滸伝V と GUI 修正・文書整理（`main` へは未マージ）。
+* リポジトリのルートは `PS2UniversalMod/` だけです。ゲームデータの置き場（`pcsx2/`・`sstates/`・`work/` など）はこの外にあり、
+  親フォルダを `git init` してはいけません。
+* コミット対象はコード・テスト・文書・アドレス／関数名／ハッシュなどの要約のみ。ISO・BIOS・`.p2s`・RAM ダンプ・
+  スクリーンショット・Ghidra プロジェクトと逆コンパイル出力・ログは `.gitignore` で除外済みです（Git LFS も使いません）。
+* ステージングは `git add <明示的なパス>`。`git add .` / `-A` は使いません。
+  コミット前に `git diff --cached --name-only` と `python tools/audit_repo.py --staged` で確認します。
+  `--staged` は作業ツリーではなく **Git インデックスの中身** を検査します（`git add` の後で書き換えても結果は変わりません）。
+* 任意のコミット前フック: `git config core.hooksPath tools/git-hooks` で有効化、`git config --unset core.hooksPath` で解除
+  （標準では無効。1 回だけ飛ばすには `git commit --no-verify`）。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md)。
+* 新しいゲームの追加手順は [`ADAPTER_GUIDE.md`](ADAPTER_GUIDE.md)（末尾の「Git での追加手順」）。
 
-```powershell
-# 単体テスト
-python -m pytest tests -q
+## 11. 文書
 
-# 実機 E2E（PCSX2 + ゲーム起動中）
-python tools/e2e.py
-
-# ちらつき検査
-python tools/flicker_test.py --yaw 120 --frames 24
-
-# サバステート照合
-python tools/verify_state.py --state base
-```
-
-結果は `reports/e2e/e2e_results.json`、`reports/flicker/flicker_result.json` に残ります。
-
----
-
-## 9. 解析資料
-
-| ファイル | 内容 |
-|---|---|
-| `reports/SAVESTATE_INVENTORY.md` | 既存4ステートの同定・情景・差分条件 |
-| `reports/CAMERA_MEMORY_MAP.md` | カメラ／プレイヤーの全アドレスと根拠 |
-| `reports/FOV_ANALYSIS.md` | FOV の導出と角度換算 |
-| `reports/ghidra_camera.c` | 関連関数の Ghidra 逆コンパイル |
-| `reports/e2e/` | E2E 結果 JSON と全スクリーンショット |
-
----
-
-## 10. トラブルシューティング
-
-| 症状 | 対処 |
-|---|---|
-| `Disconnected` のまま | PCSX2 の `EnablePINE` を確認。ゲームが起動しているか確認 |
-| `unsupported game` | Serial/CRC が違う。書き込みは行わない（安全） |
-| カメラが動かない | フィールドにいるか確認（戦闘・イベント中は無効） |
-| カメラが元に戻らない | GUI で **Restore Original Camera** を押す。それでも戻らない場合はゲームを再開 |
-| PCSX2 再起動後 | GUI の **Reconnect** を押す（設定は保持）。`Look-at patch` が `NOT APPLIED` なら `EnableCheats` を再度有効にする |
-| 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか確認。接続後は自動検出されます。`rot.input` が `keyboard` や `scripted` になっていないか確認 |
-| 場面・エリア移動後にオービットが外れる | 自動で再書き込みされます（`resyncs` が増えます）。外れたままならエリアが戦闘・イベント扱いの可能性があります |
-| 左スティックの向きがカメラと合わない | 既知の制限（§6.5、B-08）です |
-
-## 11. ゲーム本体のカメラを使う方式（フック、既定で有効）
-
-オービットの視点・中心・歩行の向きを、ゲーム本体のカメラルーチンに任せる方式です。
-`.pnach` の差し替え（`patches/stock_camera_hook.pnach.txt`）で、ゲームの視点計算（`FUN_001B0388`）の
-入力を MOD 専用のスロットへ向けます。
-
-- 視点の角度・距離・中心（ユウナ）が指定どおりになることを確認済み（軌道 0/90/180°、距離 28.7、
-  ユウナは床・エリア切り替え・左寄りの 3 場面で中央）。
-- **歩行方向も軌道に追従**: 軌道 0° で直進（進行方向 −0.2°）、軌道 +90° で −90.2°、−90° で +89.8°
-  （いずれも歩き始めの 0.3 秒の実測。その後は壁で止まるため、広い場所での長い歩行は未確認）。
-
-### 有効・無効
-
-```bash
-python tools/stock_hook.py status
-python tools/stock_hook.py disable
-python tools/stock_hook.py enable
-```
-
-切り替えたら PCSX2 でゲームを再起動するか、パッチを再読込してください。
-
-### 注意
-
-この方式は、MOD が動いている間だけ正しく働きます。MOD を閉じた状態でフックが有効なままだと、
-ゲーム本来のカメラがスロットの古い値のまま崩れます。MOD を使い終わったら `disable` を実行してください。
-MOD 単体の起動中は、通常どおり操作できます（停止中のオービット補正は従来どおりの方式で行います）。
-
-詳細: `reports/WALK_DIRECTION_INVESTIGATION.md` §9。
-
-### 既知の制限（other_area_base）
-
-- 演出カメラのあるエリア（`other_area_base`）では、オービット中に FOV 制御の効果がまだありません。
-  視点・中心・歩行方向は軌道どおりになります。FOV は通常のフィールドでは効きます。
-  詳細は `reports/WALK_DIRECTION_INVESTIGATION.md` §11。
+入口は [`docs/README.md`](docs/README.md)（ゲーム別の解析、GUI レビュー、開発ラボの構築・トラブルシュート記録）。

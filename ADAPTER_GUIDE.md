@@ -15,7 +15,7 @@
 | `core/camera_runtime/engine.py` | 毎フレーム書き込みスレッド、モード管理、復帰処理 |
 | `core/controller/sources.py` | XInput / キーボード / スクリプト入力の抽象化 |
 | `core/config/settings.py` | ゲーム ID ごとの設定・プリセット保存 |
-| `gui/camera_controller/app.py` | PySide6 GUI（`ADAPTERS` に登録するだけ） |
+| `gui/camera_controller/app.py` | PySide6 GUI（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・`SUPPORTED_IDS` の 3 か所に登録） |
 
 共通基盤にゲーム固有のアドレスは **一切埋め込まれていません**。
 
@@ -96,18 +96,25 @@ Ghidra で逆コンパイルすると分かります（FFX-2 の `FUN_001b0008` 
 ### 3.4 アダプターを登録する
 
 ```python
-# gui/camera_controller/app.py
+# gui/camera_controller/app.py（3 か所）
 from adapters.mygame.adapter import MyGameAdapter
 ADAPTERS = {"FFX2": FFX2Adapter, "MYGAME": MyGameAdapter}
+ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPS-00000": MyGameAdapter}   # Serial -> クラス
+SUPPORTED_IDS = {"SLPS-25250", "SLPS-00000"}                                    # 対応する Serial
 ```
 
 `identify()` が一致しなければ GUI は書き込みを行いません。
+
+GUI はアダプターを `GuardedBackend`（`core/memory_backend/guard.py`）越しに動かし、`identify()` が返した Serial / CRC を約 0.25 秒ごとに再確認します。
+ゲームが替わると書き込みは自動で止まり、アダプターは `restore()` なしで破棄されます。アダプターは**必ず `self.backend` 経由**で書き込んでください
+（PINE のソケットや別のバックエンドを自分で持つと、この保護の外になります）。
 
 ---
 
 ## 4. チェックリスト
 
 - [ ] `identify()` が Serial と CRC の**両方**を検証している
+- [ ] 書き込みはすべて `self.backend` 経由（ゲーム切替ガードの対象にするため）
 - [ ] `is_field_like()` が戦闘・イベント・ロード中を弾く
 - [ ] `restore()` でゲーム本来のカメラに戻る
 - [ ] 「元の値」を保存し、FOV を確実に戻せる
@@ -158,3 +165,43 @@ forward = normalize(注視点 - 視点)
 `read_aim()` / `write_aim()` / `restore_aim()` / `patch_active()` です。
 `patch_active()` は GUI の `Look-at patch` 行に表示され、パッチ未適用を
 「動かない MOD」ではなく**明示的な警告**にします。
+
+---
+
+## v3 追記: ゲーム内のカメラ更新に「コードケーブ」を差し込む方式
+
+FFX-2（差分注入）、シャイニング・フォース ネオ（角度フィールド＋ゲート）、幻想水滸伝V の
+3 本で、ゲームごとにカメラの作りが異なることがわかりました。移植時は次の順に判断します。
+
+1. **カメラの更新関数を特定する**（書き込みウォッチポイントのバックトレース → Ghidra）。
+   外部から書いた値が 1 フレームで戻るなら、そのアドレスは出力であって入力ではありません。
+2. 更新関数が **入力（角度・距離・注視点・FOV）を出力へコピーする箇所**を探す。
+   幻想水滸伝V では `FUN_00243E10` の 8 個のストアがそれでした。
+3. その区間を **2 ワードのジャンプ**（`j cave; nop`）で置き換え、ケーブ内で同じストアを再現する。
+   ケーブは MOD ブロック（フラグ・上書き値・ハートビート・ゲーム本来の値・オブジェクトポインタ）を
+   読み書きする。フラグが全部 0 のときはゲームと同じ値を書く（実機で「何も変わらない」ことを確認）。
+4. 入力の競合（原作の右スティック機能など）は、**その入力を読む関数の入口**に小さなケーブを置き、
+   フラグ中だけ読まれるバイトを中立値にする。
+5. アダプターは `core/mips_asm.py` でケーブを組み立て、`caves.py` に compare-and-swap の
+   install/uninstall を持たせる（未知のワードが入っていたら例外・上書きしない）。
+6. 実機確認は `tools/su5_*_check.py` が雛形: 単体（PINE）→ エンジン → 実入力 → エリア遷移 →
+   GUI → 長時間。各段階で「ゲームの値が実際に変わったか」を読み戻す。
+
+ケーブ領域は、ELF と全セーブステートでゼロだった連続領域から選び、重ならないことをテストで検査します
+（`tests/test_suikoden5.py`）。
+
+## Git での追加手順（新しいゲーム）
+
+```bash
+git switch -c feature/<game>-adapter                # main は動作確認済みベースライン
+mkdir adapters/<game>                               # __init__.py / memory_map.py / adapter.py (+ caves.py)
+# アドレスは memory_map.py の定数にだけ書く。共通基盤（core/）にゲーム固有値を入れない
+git add adapters/<game> tests/test_<game>.py docs/<GAME>_CAMERA.md   # 明示的に指定する
+git diff --cached --name-only && git diff --cached --stat
+python tools/audit_repo.py --staged                  # Git インデックスの中身にゲームデータ・秘密情報・大きなファイルが無いこと
+git commit -m "<Game>: camera adapter ..."
+```
+
+GUI への登録は `gui/camera_controller/app.py` の 3 か所（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・
+`SUPPORTED_IDS`）。解析で作ったスクリーンショット・ダンプ・Ghidra プロジェクトは
+`test_evidence/`・`work/` に置き（Git 無視）、文書にはアドレス・関数名・数値だけを書きます。

@@ -3,6 +3,8 @@ anchors.  Used to prove savestate restore is faithful (E2E-02).
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import argparse
 import json
 import sys
@@ -15,7 +17,7 @@ import numpy as np  # noqa: E402
 
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 
-EXTRACT = Path(r"C:\PS2CameraLab\work\sstates_extracted")
+EXTRACT = _paths.WORK / "sstates_extracted"
 WATCH = {
     "player_anchor": 0x3312D0,
     "cam_eye": 0x340360,

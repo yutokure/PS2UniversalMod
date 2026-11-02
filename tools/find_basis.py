@@ -7,6 +7,8 @@ eye and target and searches every savestate for matching unit vectors.
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import argparse
 import json
 import math
@@ -14,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(r"C:\PS2CameraLab\work\sstates_extracted")
+ROOT = _paths.WORK / "sstates_extracted"
 STATES = ["base", "base_only_wait", "base_left_moved",
           "base_chara_little_moved_and_cam_big_moved"]
 EYE = 0x340360
@@ -65,7 +67,7 @@ def main() -> None:
             if hits:
                 print(f"  {name[:22]:22s} {label:6s} {len(hits)} hits: "
                       f"{[hex(h) for h in hits[:8]]}")
-    Path(r"C:\PS2CameraLab\PS2UniversalMod\reports\camera_basis.json").write_text(
+    (_paths.REPO / "reports" / "camera_basis.json").write_text(
         json.dumps(rows, indent=1), encoding="utf-8")
 
 

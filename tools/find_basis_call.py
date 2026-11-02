@@ -10,10 +10,12 @@ This scans the ELF for `jal 0x001B0388` and decodes the preceding instructions.
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import struct
 from pathlib import Path
 
-ELF = Path(r"C:\PS2CameraLab\work\elf\SLPS_252.50")
+ELF = _paths.WORK / "elf" / "SLPS_252.50"
 TARGET = 0x001B0388
 
 

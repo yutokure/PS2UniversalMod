@@ -56,6 +56,8 @@ class AppSettings:
     pitch_min_deg: float = -25.0
     pitch_max_deg: float = 85.0
     input_source: str = "auto"
+    #: games with a built-in zoom: a zoom step of the game also steps the orbit distance
+    zoom_follow: bool = True
     #: UI language for the controller window ("ja" or "en")
     language: str = "ja"
 
@@ -134,8 +136,16 @@ class PresetStore:
                     continue
         return names
 
+    @staticmethod
+    def _safe_name(name: str) -> str:
+        return "".join(c if c.isalnum() or c in "-_ " else "_" for c in name).strip() or "preset"
+
+    def exists(self, name: str) -> bool:
+        """True when saving under ``name`` would overwrite the user's own preset."""
+        return (self.dir / f"{self._safe_name(name)}.json").exists()
+
     def save(self, name: str, settings: AppSettings) -> Path:
-        safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in name).strip() or "preset"
+        safe = self._safe_name(name)
         path = self.dir / f"{safe}.json"
         payload = {"name": safe, "game_id": settings.game_id, "settings": settings.to_dict()}
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

@@ -53,6 +53,10 @@ class SceneState:
 class FFX2Adapter:
     name = "FFX2"
     display_name = "Final Fantasy X-2"
+    #: GUI hints (shown under the sliders): the sign conventions of this game's values
+    LOOK_HEIGHT_POSITIVE_IS = "down"
+    PITCH_POSITIVE_IS = "above"
+    OFFSET_RANGE = (-80.0, 80.0)
     CAM_EYE_ADDR = mm.CAM_EYE
     #: the renderer builds its view direction as normalize(aim - eye).  With the
     #: companion .pnach the load reads CAM_AIM_SLOT (a dead slot) instead of the

@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"C:\PS2CameraLab\scripts")
+import _paths  # noqa: F401,E402  (repo + lab scripts on sys.path)
 
 from PIL import Image  # noqa: E402
 

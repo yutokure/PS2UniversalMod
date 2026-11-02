@@ -138,17 +138,74 @@ class XInputSource(InputSource):
         return (0.0, 0.0)
 
 
+def _foreground_process_name() -> str:
+    """Lower-case exe name of the window that has the keyboard focus ('' when unknown)."""
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return ""
+        pid = wintypes.DWORD(0)
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        handle = kernel32.OpenProcess(0x1000, False, pid.value)      # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520)
+            size = wintypes.DWORD(len(buf))
+            if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+                return buf.value.replace("/", "\\").rsplit("\\", 1)[-1].lower()
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def keyboard_focus_ok(name: str, own_exe: str | None = None) -> bool:
+    """True when the key presses are meant for the game or for this program.
+
+    Arrow keys are global state: without this check the camera would turn whenever an arrow key is
+    pressed in *any* window (a text editor, a browser).  The game window (PCSX2) and the controller
+    itself count; an unknown foreground window counts as "not for us".
+    """
+    if not name:
+        return False
+    own = (own_exe or "").lower()
+    return name.startswith("pcsx2") or name in ("python.exe", "pythonw.exe") or (own != "" and name == own)
+
+
 class KeyboardSource(InputSource):
-    """Right-stick emulation from the keyboard (arrows by default)."""
+    """Right-stick emulation from the keyboard (arrows by default).
+
+    The keys are read only while PCSX2 or this program is the foreground window
+    (``foreground_only=True``); pass False to read them regardless (tests, headless use).
+    """
 
     name = "keyboard"
 
     VK = {"left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28}
 
-    def __init__(self) -> None:
+    def __init__(self, foreground_only: bool = True) -> None:
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
+        self.foreground_only = foreground_only
+        self._focus_checked = 0.0
+        self._focus_ok = True
+
+    def _focused(self) -> bool:
+        if not self.foreground_only:
+            return True
+        now = time.monotonic()
+        if now - self._focus_checked >= 0.1:            # the pump polls at 120 Hz; look at 10 Hz
+            self._focus_checked = now
+            self._focus_ok = keyboard_focus_ok(_foreground_process_name())
+        return self._focus_ok
 
     def poll(self) -> tuple[float, float]:
+        if not self._focused():
+            return (0.0, 0.0)
+
         def down(vk: int) -> bool:
             return bool(self._user32.GetAsyncKeyState(vk) & 0x8000)
 

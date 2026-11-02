@@ -165,6 +165,21 @@ class CameraRuntime:
         self.stats.running = False
         self._sync_stick_block(False)
 
+    def abandon(self) -> None:
+        """Stop for good without touching the game.
+
+        ``stop()`` + ``restore()`` write the game's stock words back, which is right for the game
+        this runtime was made for and wrong for any other.  When the running game is no longer that
+        one (see ``GuardedBackend``), this is the way out: the thread is ended, nothing is written,
+        and the runtime must not be used again.
+        """
+        self._stop.set()
+        thread, self._thread = self._thread, None
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+        self.stats.running = False
+        self.stats.connected = False
+
     @property
     def running(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
@@ -347,7 +362,7 @@ class CameraRuntime:
         want = self._patch_wanted(mode)
         set_patch = getattr(self.adapter, "set_patch", None)
         if callable(set_patch) and (force or self._patch_on != want
-                                    or now - self._patch_checked >= 1.0):
+                                    or now - self._patch_checked >= self._recheck_s()):
             self._patch_checked = now
             try:
                 if want and self._patch_on is not True:
@@ -391,7 +406,7 @@ class CameraRuntime:
                 self.stats.last_error = f"stick block: {exc}"
                 return
         self._stick_block = on
-        self._stick_checked_at = now + PATCH_RETRY_S
+        self._stick_checked_at = now + self._recheck_s()
 
     def _seed_slots(self) -> None:
         """Fill the slots the patched loads will read with the stock values first.
@@ -485,6 +500,9 @@ class CameraRuntime:
                 self._tick(dt, last_pose)
                 last_pose = self.stats_applied_pose()
                 self.stats.connected = True
+                if "write blocked" in self.stats.last_error:
+                    # a refusal by the game guard is temporary unless the GUI abandons us
+                    self.stats.last_error = ""
             except Exception as exc:  # noqa: BLE001
                 self.stats.last_error = f"{type(exc).__name__}: {exc}"
                 self.stats.connected = False
@@ -673,6 +691,10 @@ class CameraRuntime:
         except Exception as exc:  # noqa: BLE001
             self.stats.last_error = f"fov: {exc}"
 
+    def _recheck_s(self) -> float:
+        """How often the patch and the stick block are checked while on (adapters may ask for less)."""
+        return float(getattr(self.adapter, "patch_recheck_s", PATCH_RETRY_S))
+
     def _hook_ok(self) -> bool:
         """Whether the look-at and stock-hook words are applied (see _sync_patch)."""
         return self._patch_on is True
@@ -683,11 +705,17 @@ class CameraRuntime:
 
         Returns True when something was written.
         """
+        pos = tuple(round(v, 4) for v in self.settings.pos_offset)
         key = (tuple(round(v, 4) for v in centre), round(yaw_deg, 4),
-               round(pitch_deg, 4), round(distance, 4))
+               round(pitch_deg, 4), round(distance, 4), pos)
         if key == self._last_orbit_key:
             return False
-        self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance)
+        if getattr(self.adapter, "accepts_pos_offset", False):
+            # an adapter that moves the whole camera rig takes the camera-position offsets too
+            self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance,
+                                            pos_offset=Vec3(*self.settings.pos_offset))
+        else:
+            self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance)
         self._last_orbit_key = key
         return True
 
