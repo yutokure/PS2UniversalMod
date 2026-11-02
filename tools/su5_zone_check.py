@@ -51,7 +51,7 @@ def main() -> int:
     seen_pitch, seen_native, rendered = [], [], []
     pin._KB.set_analog(pin.render_child(), 0.0, 1.0, "left", pin.CONFIG)
     t0 = time.time()
-    while time.time() - t0 < 3.2:
+    while time.time() - t0 < 2.4:
         rendered.append((b.read_floats(mm.G_PITCH, 1)[0], b.read_floats(mm.G_YAW, 1)[0],
                          b.read_floats(mm.G_DISTANCE, 1)[0]))
         seen_native.append(ad.read_native()["pitch"])
@@ -79,8 +79,15 @@ def main() -> int:
         ok += abs(((e[0] - f[0]) ** 2 + (e[1] - f[1]) ** 2 + (e[2] - f[2]) ** 2) ** 0.5 - 330.0) < 1.0
         time.sleep(0.05)
     check("no jump: eye-focus distance constant", ok >= 4, f"{ok}/6 samples")
+    from adapters.suikoden5 import caves
+    intact = caves._read(b, mm.CAVE_CAMERA, len(caves.CAMERA_WORDS)) == caves.CAMERA_WORDS
+    check("cave and hook still intact after the walk (any map change included)",
+          intact and caves.camera_site_state(b) == "patched")
+    hb0 = ad.heartbeat_word()
+    time.sleep(0.3)
+    check("camera update still runs through the cave", ad.heartbeat_word() != hb0)
+    rt.stop()          # stop the thread first, as the GUI does, so a tick cannot re-enable the orbit
     rt.restore()
-    rt.stop()
     time.sleep(1.5)
     native_pitch = b.read_floats(mm.G_PITCH, 1)[0]
     native_yaw = b.read_floats(mm.G_YAW, 1)[0]

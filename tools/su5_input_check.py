@@ -127,8 +127,8 @@ def main() -> int:
     check("R1 stepped the stage", st2 is not None and st2 != st0, f"{st0} -> {st2}")
     check("walk/controls unaffected: left stick still reaches the game", True)
 
+    rt.stop()          # stop the thread first, as the GUI does, so a tick cannot re-enable the orbit
     rt.restore()
-    rt.stop()
     time.sleep(0.6)
     print("orbit off: the game's own right-stick zoom is back")
     sa = stage(ad)

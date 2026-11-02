@@ -105,8 +105,8 @@ def main() -> int:
     time.sleep(0.8)
 
     # restore
+    rt.stop()          # stop the thread first, as the GUI does, so a tick cannot re-enable the orbit
     rt.restore()
-    rt.stop()
     time.sleep(0.5)
     g4 = g(b)
     check("restore: hooks removed", caves.camera_site_state(b) == "original" and caves.zoom_site_state(b) == "original")
