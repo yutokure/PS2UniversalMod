@@ -88,6 +88,8 @@ class Suikoden5Adapter:
     uses_offset_injection = False
     #: the engine passes the GUI camera-position offsets to write_orbit_params
     accepts_pos_offset = True
+    #: a savestate load or reset puts the stock code back; the engine looks again this often
+    patch_recheck_s = 0.2
     field_projection_centre = 0.0
     DISTANCE_RANGE = DISTANCE_RANGE
     LOOK_HEIGHT_RANGE = LOOK_HEIGHT_RANGE
@@ -98,6 +100,8 @@ class Suikoden5Adapter:
         self.backend = backend
         self.info = AdapterInfo()
         self._lock = threading.RLock()
+        #: the orbit values last published; a re-installed hook starts from them (no jump)
+        self._last_orbit: tuple | None = None
         self._hb_seen: int | None = None
         self._hb_time = 0.0
         self.features = {
@@ -260,6 +264,7 @@ class Suikoden5Adapter:
         if pos_offset is not None:
             dx, dy, dz = dx + pos_offset.x, dy + pos_offset.y, dz + pos_offset.z
         b = self.backend
+        self._last_orbit = (float(distance), float(pitch_deg), _wrap_deg(yaw_deg - 180.0), (dx, -dy, dz))
         with self._lock:
             b.write_floats(self._mb(mm.MB_DISTANCE), [float(distance)])
             b.write_floats(self._mb(mm.MB_PITCH), [float(pitch_deg)])
@@ -396,13 +401,35 @@ class Suikoden5Adapter:
         if on:
             caves.install_camera(self.backend)
             with self._lock:
-                caves.write_flags(self.backend, caves.read_flags(self.backend) | mm.FLAGS_ORBIT)
+                flags = caves.read_flags(self.backend)
+                if flags & mm.FLAGS_ORBIT != mm.FLAGS_ORBIT:
+                    self._seed_block()
+                caves.write_flags(self.backend, flags | mm.FLAGS_ORBIT)
         else:
             if caves.block_valid(self.backend):
                 with self._lock:
                     caves.write_flags(self.backend,
                                       caves.read_flags(self.backend) & ~mm.FLAGS_ORBIT)
                     self._release_camera_hook_if_idle()
+
+    def _seed_block(self) -> None:
+        """Fill the override slots before the flags go on: the last orbit, else what the game draws.
+
+        A fresh block is all zeros; switching the flags on first would draw one frame at
+        distance 0 / yaw 0 until the orbit publishes its own values (a visible camera jump).
+        """
+        b = self.backend
+        if self._last_orbit is not None:
+            d, p, y, off = self._last_orbit
+        else:
+            d = b.read_floats(mm.G_DISTANCE, 1)[0]
+            p = b.read_floats(mm.G_PITCH, 1)[0]
+            y = b.read_floats(mm.G_YAW, 1)[0]
+            off = (0.0, 0.0, 0.0)
+        b.write_floats(self._mb(mm.MB_DISTANCE), [d])
+        b.write_floats(self._mb(mm.MB_PITCH), [p])
+        b.write_floats(self._mb(mm.MB_YAW), [y])
+        b.write_floats(self._mb(mm.MB_OFF_X), list(off))
 
     def patch_state(self) -> str:
         """applied, stock or unknown for the camera hook."""

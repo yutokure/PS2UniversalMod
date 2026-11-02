@@ -12,6 +12,8 @@ cheats file.
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import sys
 from pathlib import Path
 

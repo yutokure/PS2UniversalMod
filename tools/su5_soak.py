@@ -53,7 +53,7 @@ def main() -> int:
     time.sleep(1.0)
     rnd = random.Random(7)
     stats = {"samples": 0, "jumps": 0, "lost_hook": 0, "repairs": 0, "errors": set(), "max_yaw_step": 0.0,
-             "walks": 0, "r1": 0, "param_changes": 0, "max_loss_s": 0.0}
+             "walks": 0, "r1": 0, "loading_samples": 0, "param_changes": 0, "max_loss_s": 0.0}
     last_yaw = None
     lost_since = None
     next_action = 0.0
@@ -111,6 +111,12 @@ def main() -> int:
             last_yaw = None
         if lost_since is not None and now - lost_since > REPAIR_S:
             stats["errors"].add("hook not repaired")
+        # the game's own camera init (yaw 180, distance 30) is on screen while a map loads: not a mod jump
+        loading = abs(yaw - 180.0) < 1e-3 and abs(dist_g - 30.0) < 1e-3
+        if loading:
+            stats["loading_samples"] = stats.get("loading_samples", 0) + 1
+            last_yaw = None
+            continue
         if hooks_ok and last_yaw is not None and f != [0.0, 0.0, 0.0]:
             step = abs((yaw - last_yaw + 540) % 360 - 180)
             stats["max_yaw_step"] = max(stats["max_yaw_step"], step)

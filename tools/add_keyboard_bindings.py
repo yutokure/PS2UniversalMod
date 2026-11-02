@@ -8,6 +8,8 @@ BLOCKERS B-02).  Physical pad bindings are preserved verbatim.
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import shutil
 import sys
 from pathlib import Path

@@ -273,3 +273,40 @@ def test_gui_registers_the_adapter():
     from gui.camera_controller import app
     assert app.ADAPTER_BY_GAME_ID["SLPM-66286"] is Suikoden5Adapter
     assert "SLPM-66286" in app.SUPPORTED_IDS
+
+
+def test_switching_the_orbit_on_never_shows_a_zero_frame(be):
+    """The flags go on only after the override slots hold what the game draws now."""
+    ad = Suikoden5Adapter(be)
+    order = []
+    real = be.write_u32
+
+    def spy(a, v):
+        if a == mm.MOD_BLOCK + mm.MB_FLAGS and v & mm.FLAGS_ORBIT:
+            order.append(tuple(be.read_floats(mm.MOD_BLOCK + mm.MB_DISTANCE, 3)))
+        real(a, v)
+
+    be.write_u32 = spy
+    ad.set_patch(True)
+    assert order and order[0] == pytest.approx((400.0, 13.0, 244.0))
+
+
+def test_a_reinstalled_hook_starts_from_the_last_orbit_not_the_game_camera(be):
+    """After a savestate load the hook comes back at the orbit the user had (no jump)."""
+    ad = Suikoden5Adapter(be)
+    ad.set_patch(True)
+    ad.write_orbit_params(ad.read_player(), 10.0, 33.0, 280.0)
+    be.mem.clear()                      # a savestate load: RAM reverts, our words are gone
+    be.stock()
+    be.write_floats(mm.G_FOCUS, [65.6, 14.4, 5.1]); be.write_floats(mm.G_YAW, [244.0])
+    order = []
+    real = be.write_u32
+
+    def spy(a, v):
+        if a == mm.MOD_BLOCK + mm.MB_FLAGS and v & mm.FLAGS_ORBIT:
+            order.append(tuple(be.read_floats(mm.MOD_BLOCK + mm.MB_DISTANCE, 3)))
+        real(a, v)
+
+    be.write_u32 = spy
+    ad.set_patch(True)
+    assert order[0] == pytest.approx((280.0, 33.0, 190.0))

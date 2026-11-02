@@ -583,6 +583,10 @@ class MainWindow(QMainWindow):
         self.sl_dist.set_range(lo, hi)
         lo, hi = getattr(adapter, "LOOK_HEIGHT_RANGE", (-40.0, 40.0))
         self.sl_look.set_range(lo, hi)
+        # a game whose adapter cannot place a detached camera has no Free Camera mode
+        free_ok = bool(getattr(adapter, "features", {}).get("free_camera", True))
+        self.rb_free.setEnabled(free_ok)
+        self.rb_free.setToolTip("" if free_ok else self._t("mode.free_unsupported"))
 
     def _sync_mode_radios(self, mode: str) -> None:
         """Select the radio that matches ``mode`` without firing _on_mode."""

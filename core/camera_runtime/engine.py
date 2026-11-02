@@ -347,7 +347,7 @@ class CameraRuntime:
         want = self._patch_wanted(mode)
         set_patch = getattr(self.adapter, "set_patch", None)
         if callable(set_patch) and (force or self._patch_on != want
-                                    or now - self._patch_checked >= 1.0):
+                                    or now - self._patch_checked >= self._recheck_s()):
             self._patch_checked = now
             try:
                 if want and self._patch_on is not True:
@@ -391,7 +391,7 @@ class CameraRuntime:
                 self.stats.last_error = f"stick block: {exc}"
                 return
         self._stick_block = on
-        self._stick_checked_at = now + PATCH_RETRY_S
+        self._stick_checked_at = now + self._recheck_s()
 
     def _seed_slots(self) -> None:
         """Fill the slots the patched loads will read with the stock values first.
@@ -672,6 +672,10 @@ class CameraRuntime:
                 self._fov_released = False
         except Exception as exc:  # noqa: BLE001
             self.stats.last_error = f"fov: {exc}"
+
+    def _recheck_s(self) -> float:
+        """How often the patch and the stick block are checked while on (adapters may ask for less)."""
+        return float(getattr(self.adapter, "patch_recheck_s", PATCH_RETRY_S))
 
     def _hook_ok(self) -> bool:
         """Whether the look-at and stock-hook words are applied (see _sync_patch)."""

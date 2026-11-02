@@ -104,6 +104,8 @@ TEXT: dict[str, dict[str, str]] = {
     "lens.current": {"en": "current: {fov:.2f}° (scale {scale:.1f})",
                      "ja": "現在: {fov:.2f}°（スケール {scale:.1f}）"},
     "lens.current_none": {"en": "current: -", "ja": "現在: -"},
+    "mode.free_unsupported": {"en": "Not available for this game (Orbit follows the character).",
+                              "ja": "このゲームでは利用できません（Orbit がキャラクターを追従します）。"},
     # --- native zoom (games with a built-in zoom, e.g. Suikoden V) -------
     "group.zoom": {"en": "Native zoom (game)", "ja": "ゲーム標準ズーム"},
     "zoom.live": {"en": "Game stage", "ja": "現在の段階"},
