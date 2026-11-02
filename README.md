@@ -16,6 +16,9 @@ GUI 単体で動きます（それらは解析・自動テストのときだけ�
 共通基盤（`core/`・GUI）にゲーム固有のアドレスは入れません。ゲームごとの違いは
 `adapters/<game>/` に閉じています。
 
+開発・解析を AI に依頼するときの判断基準は [`AGENTS.md`](AGENTS.md)。親ラボへの配置方法は
+[`docs/README.md`](docs/README.md#agentsmd-の配置) を参照してください。
+
 ## 1. 対応ゲーム
 
 | ゲーム | アダプター | Serial / CRC | できること | 詳細 |
@@ -233,14 +236,14 @@ PS2UniversalMod/
 ## 10. リポジトリ運用（Git）
 
 * **GitHub のプライベートリポジトリ** `yutokure/PS2UniversalMod` に置いています（非公開のまま運用します）。
-  ブランチ: `main` = FFX-2 とシャイニング・フォース ネオの動作確認済みベースライン、
-  `feature/suikoden5-adapter` = 幻想水滸伝V と GUI 修正・文書整理（`main` へは未マージ）。
+  `main` には 3 ゲームのアダプターと GUI 修正・ゲーム切替ガードが統合済みです（PR #1）。
+  新しい作業は既存 PR と現在の Git 状態を確認して作業ブランチで進めます。
 * リポジトリのルートは `PS2UniversalMod/` だけです。ゲームデータの置き場（`pcsx2/`・`sstates/`・`work/` など）はこの外にあり、
   親フォルダを `git init` してはいけません。
 * コミット対象はコード・テスト・文書・アドレス／関数名／ハッシュなどの要約のみ。ISO・BIOS・`.p2s`・RAM ダンプ・
   スクリーンショット・Ghidra プロジェクトと逆コンパイル出力・ログは `.gitignore` で除外済みです（Git LFS も使いません）。
 * ステージングは `git add <明示的なパス>`。`git add .` / `-A` は使いません。
-  コミット前に `git diff --cached --name-only` と `python tools/audit_repo.py --staged` で確認します。
+  コミット前に `git diff --cached --name-only`、`git diff --cached --stat`、`python tools/audit_repo.py --staged` で確認します。
   `--staged` は作業ツリーではなく **Git インデックスの中身** を検査します（`git add` の後で書き換えても結果は変わりません）。
 * 任意のコミット前フック: `git config core.hooksPath tools/git-hooks` で有効化、`git config --unset core.hooksPath` で解除
   （標準では無効。1 回だけ飛ばすには `git commit --no-verify`）。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md)。
