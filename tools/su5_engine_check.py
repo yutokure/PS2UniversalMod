@@ -42,6 +42,8 @@ def main() -> int:
     info = ad.identify()
     check("identify", info.matched, f"{info.game_id}/{info.crc}")
     ad.uninstall_all()
+    time.sleep(0.2)
+    native0 = g(b)
     d = ad.default_settings()
     s = CameraSettings(**{k: v for k, v in d.items() if k in CameraSettings().__dict__})
     rt = CameraRuntime(ad, s)
@@ -110,8 +112,9 @@ def main() -> int:
     check("restore: hooks removed", caves.camera_site_state(b) == "original" and caves.zoom_site_state(b) == "original")
     check("restore: flags cleared", caves.read_flags(b) == 0 if caves.block_valid(b) else True)
     nat = (g4["pitch"], g4["yaw"], g4["dist"])
-    check("restore: game values back", abs(g4["yaw"] - mm.STOCK_YAW) < 1.0 and abs(g4["pitch"] - mm.STOCK_PITCH) < 1.0
-          and abs(g4["dist"] - mm.STOCK_DISTANCE) < 1.0 and abs(g4["fov"] - mm.STOCK_FOV) < 0.2, str(nat) + f" fov={g4['fov']:.1f}")
+    check("restore: the game's own camera values are back",
+          all(abs(g4[k] - native0[k]) < 1.0 for k in ("yaw", "pitch", "dist")) and abs(g4["fov"] - native0["fov"]) < 0.2,
+          f"{nat} fov={g4['fov']:.1f} (before the mod: {native0['pitch']}, {native0['yaw']}, {native0['dist']})")
     bad = [r for r in RES if not r[1]]
     print(f"\n{len(RES) - len(bad)}/{len(RES)} passed")
     return 1 if bad else 0
