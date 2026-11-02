@@ -1,0 +1,26 @@
+{
+  "name": "close-up",
+  "game_id": "SLPS-25250",
+  "settings": {
+    "game_id": "SLPS-25250",
+    "mode": "orbit",
+    "yaw_deg": -89.4,
+    "pitch_deg": 8.0,
+    "distance": 14.0,
+    "pos_offset": [0.0, 0.0, 0.0],
+    "target_offset": [0.0, 0.0, 0.0],
+    "free_eye": [0.0, 0.0, 0.0],
+    "free_target": [0.0, 0.0, 0.0],
+    "fov_deg": 45.0,
+    "use_fov": true,
+    "look_height": -6.0,
+    "sensitivity": 1.4,
+    "rotate_speed_deg": 220.0,
+    "deadzone": 0.10,
+    "invert_x": false,
+    "invert_y": false,
+    "smoothing": 0.25,
+    "pitch_min_deg": -20.0,
+    "pitch_max_deg": 85.0
+  }
+}

@@ -1,0 +1,105 @@
+# ---- Game images -------------------------------------------------
+*.iso
+*.ISO
+*.chd
+*.cso
+*.zso
+*.cue
+*.mdf
+*.nrg
+*.img
+
+# ---- BIOS and extracted binaries ---------------------------------
+bios/
+games/
+extracted/
+extracted_data/
+*.bin
+*.elf
+*.irx
+
+# ---- Save data ---------------------------------------------------
+savestates/
+sstates/
+states/
+memcards/
+memory_cards/
+*.p2s
+*.ps2
+*.mcd
+*.psu
+*.max
+*.cbs
+*.xps
+*.sav
+*.srm
+*.state*
+
+# ---- Memory dumps and reverse engineering ------------------------
+memory_dumps/
+dumps/
+ghidra_projects/
+*.dmp
+*.raw
+*.gpr
+*.rep
+*.gzf
+# Ghidra decompiler output of the game's code
+reports/ghidra_*.c
+reports/ghidra_*.c.json
+*.disasm
+*.dis.txt
+
+# ---- Extracted assets and evidence (kept locally, never in git) --
+assets_extracted/
+screenshots/
+shots/
+recordings/
+test_evidence/
+reports/raw/
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.gif
+*.mp4
+*.webm
+*.avi
+
+# ---- Archives ----------------------------------------------------
+*.zip
+*.7z
+*.rar
+*.zst
+*.gz
+
+# ---- Python ------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ---- Build outputs -----------------------------------------------
+build/
+dist/
+*.exe
+*.dll
+*.pyd
+
+# ---- Logs and temporary files ------------------------------------
+*.log
+*.tmp
+*.bak
+cache/
+temp/
+work/
+
+# ---- Local configuration and secrets -----------------------------
+local_config.json
+local.env
+.env
+.env.*
+!.env.example
+*secret*
+*credentials*

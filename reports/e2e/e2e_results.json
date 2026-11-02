@@ -1,0 +1,186 @@
+{
+ "generated": "2026-10-31T16:26:53+0900",
+ "seconds": 33.2,
+ "game": {
+  "id": "SLPS-25250",
+  "crc": "8a6d7f14",
+  "title": "ファイナルファンタジーⅩ-2"
+ },
+ "pass": 11,
+ "fail": 0,
+ "results": [
+  {
+   "id": "E2E-01",
+   "name": "startup & connection",
+   "pass": true,
+   "game_id": "SLPS-25250",
+   "crc": "8a6d7f14",
+   "matched": true
+  },
+  {
+   "id": "E2E-03",
+   "name": "right stick horizontal orbit",
+   "pass": true,
+   "yaw_before": -0.58,
+   "yaw_after": -93.39,
+   "visual_delta": {
+    "mean": 34.01166915893555,
+    "p99": 170.3333282470703,
+    "frac_gt16": 0.4779256557888791
+   },
+   "hold_delta": {
+    "mean": 0.0,
+    "p99": 0.0,
+    "frac_gt16": 0.0
+   },
+   "writes_per_sec": 80.0,
+   "mode": "orbit",
+   "last_error": ""
+  },
+  {
+   "id": "E2E-04",
+   "name": "right stick vertical orbit",
+   "pass": true,
+   "pitch_before": 21.39,
+   "pitch_after": 85.0,
+   "visual_delta": {
+    "mean": 41.101402282714844,
+    "p99": 172.3333282470703,
+    "frac_gt16": 0.5209462651167553
+   }
+  },
+  {
+   "id": "E2E-05",
+   "name": "camera follows moving player",
+   "pass": true,
+   "player_before": [
+    0.6645298004150391,
+    -7.251853942871094,
+    99.25077819824219
+   ],
+   "player_after": [
+    0.8143646717071533,
+    -7.251853942871094,
+    84.37650299072266
+   ],
+   "target_minus_player": 6.0
+  },
+  {
+   "id": "E2E-06",
+   "name": "GUI yaw/pitch changes the view",
+   "pass": true,
+   "visual_delta": {
+    "mean": 40.83660888671875,
+    "p99": 184.0,
+    "frac_gt16": 0.6113181183046111
+   },
+   "yaw": 38.72624237523176,
+   "pitch": 9.51468623410689
+  },
+  {
+   "id": "E2E-07",
+   "name": "GUI FOV changes the view and restores",
+   "pass": true,
+   "fov80_delta": {
+    "mean": 34.02028274536133,
+    "p99": 164.6666717529297,
+    "frac_gt16": 0.4976480459291705
+   },
+   "fov40_delta": {
+    "mean": 33.23481369018555,
+    "p99": 153.6666717529297,
+    "frac_gt16": 0.5269467209730219
+   },
+   "restore_delta": {
+    "mean": 1.2828329801559448,
+    "p99": 28.33333396911621,
+    "frac_gt16": 0.020828997743841813
+   },
+   "scale_seen": 381.36114501953125
+  },
+  {
+   "id": "E2E-08",
+   "name": "GUI distance changes radius",
+   "pass": true,
+   "visual_delta": {
+    "mean": 36.911529541015625,
+    "p99": 146.3333282470703,
+    "frac_gt16": 0.5884658454647257
+   },
+   "measured_distance": 12.000000000000004
+  },
+  {
+   "id": "E2E-09",
+   "name": "GUI XYZ / target offsets",
+   "pass": true,
+   "posX": {
+    "mean": 34.36396408081055,
+    "p99": 162.3333282470703,
+    "frac_gt16": 0.4840367724055007
+   },
+   "posY": {
+    "mean": 37.20427322387695,
+    "p99": 174.0,
+    "frac_gt16": 0.5370928262097533
+   },
+   "posZ": {
+    "mean": 29.376569747924805,
+    "p99": 155.6666717529297,
+    "frac_gt16": 0.4702818050586832
+   },
+   "targetX": {
+    "mean": 34.518646240234375,
+    "p99": 165.6666717529297,
+    "frac_gt16": 0.569045707848986
+   },
+   "targetY": {
+    "mean": 41.380645751953125,
+    "p99": 173.0,
+    "frac_gt16": 0.6656063053510258
+   },
+   "restore": {
+    "mean": 1.2857739925384521,
+    "p99": 31.66666603088379,
+    "frac_gt16": 0.022873744330700597
+   }
+  },
+  {
+   "id": "E2E-10",
+   "name": "simultaneous move + rotate",
+   "pass": true,
+   "yaw_delta": 109.09,
+   "visual_delta": {
+    "mean": 39.71828842163086,
+    "p99": 182.0,
+    "frac_gt16": 0.5673626732997057
+   },
+   "writes_per_sec": 321.0,
+   "last_error": ""
+  },
+  {
+   "id": "E2E-11",
+   "name": "restore original camera",
+   "pass": true,
+   "modded_vs_original": {
+    "mean": 39.346710205078125,
+    "p99": 171.6666717529297,
+    "frac_gt16": 0.6071691656178669
+   },
+   "original_stability": {
+    "mean": 1.4877976179122925,
+    "p99": 32.33333206176758,
+    "frac_gt16": 0.02586323651342629
+   }
+  },
+  {
+   "id": "E2E-FREE",
+   "name": "free camera detached viewpoint",
+   "pass": true,
+   "visual_delta": {
+    "mean": 26.318605422973633,
+    "p99": 151.3333282470703,
+    "frac_gt16": 0.4473634660932127
+   }
+  }
+ ]
+}

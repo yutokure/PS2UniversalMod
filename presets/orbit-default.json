@@ -1,0 +1,26 @@
+{
+  "name": "orbit-default",
+  "game_id": "SLPS-25250",
+  "settings": {
+    "game_id": "SLPS-25250",
+    "mode": "orbit",
+    "yaw_deg": -89.4,
+    "pitch_deg": 11.6,
+    "distance": 32.3,
+    "pos_offset": [0.0, 0.0, 0.0],
+    "target_offset": [0.0, 0.0, 0.0],
+    "free_eye": [0.0, 0.0, 0.0],
+    "free_target": [0.0, 0.0, 0.0],
+    "fov_deg": 54.68,
+    "use_fov": false,
+    "look_height": -6.0,
+    "sensitivity": 1.0,
+    "rotate_speed_deg": 150.0,
+    "deadzone": 0.12,
+    "invert_x": false,
+    "invert_y": false,
+    "smoothing": 0.35,
+    "pitch_min_deg": -20.0,
+    "pitch_max_deg": 85.0
+  }
+}

@@ -1,0 +1,5944 @@
+{
+ "states": [
+  "base",
+  "base_only_wait",
+  "base_left_moved",
+  "base_chara_little_moved_and_cam_big_moved"
+ ],
+ "sizes": {
+  "base": 33554432,
+  "base_only_wait": 33554432,
+  "base_left_moved": 33554432,
+  "base_chara_little_moved_and_cam_big_moved": 33554432
+ },
+ "changed_triples": 342233,
+ "verified_camera_words": {
+  "0x00340360": {
+   "label": "render eye",
+   "values": {
+    "base": [
+     -1.30859,
+     -26.05065,
+     131.90512
+    ],
+    "base_only_wait": [
+     -1.30859,
+     -26.05065,
+     131.90512
+    ],
+    "base_left_moved": [
+     1.6135,
+     -26.06817,
+     131.91617
+    ],
+    "base_chara_little_moved_and_cam_big_moved": [
+     12.89967,
+     -23.23095,
+     301.69913
+    ]
+   }
+  },
+  "0x00340370": {
+   "label": "game eye (base for the additive offset)",
+   "values": {
+    "base": [
+     -1.30859,
+     -26.05065,
+     131.90512
+    ],
+    "base_only_wait": [
+     -1.30859,
+     -26.05065,
+     131.90512
+    ],
+    "base_left_moved": [
+     1.6135,
+     -26.06817,
+     131.91617
+    ],
+    "base_chara_little_moved_and_cam_big_moved": [
+     12.89967,
+     -23.23095,
+     301.69913
+    ]
+   }
+  },
+  "0x00340380": {
+   "label": "player anchor / camera target",
+   "values": {
+    "base": [
+     -0.73772,
+     -7.25185,
+     110.24788
+    ],
+    "base_only_wait": [
+     -0.73772,
+     -7.25185,
+     110.24788
+    ],
+    "base_left_moved": [
+     4.14936,
+     -7.25185,
+     110.31221
+    ],
+    "base_chara_little_moved_and_cam_big_moved": [
+     -0.97203,
+     -11.25185,
+     133.00827
+    ]
+   }
+  },
+  "0x0033FC10": {
+   "label": "look-at point consumed by FUN_001b07a0",
+   "values": {
+    "base": [
+     -0.44263,
+     -0.07232,
+     66.14873
+    ],
+    "base_only_wait": [
+     -0.44263,
+     -0.07232,
+     66.14873
+    ],
+    "base_left_moved": [
+     2.48961,
+     -0.07975,
+     66.18732
+    ],
+    "base_chara_little_moved_and_cam_big_moved": [
+     -0.97203,
+     -11.25185,
+     133.00827
+    ]
+   }
+  },
+  "0x003312D0": {
+   "label": "auxiliary orbit camera centre",
+   "values": {
+    "base": [
+     -0.73772,
+     -12.25185,
+     110.24788
+    ],
+    "base_only_wait": [
+     -0.73772,
+     -12.25185,
+     110.24788
+    ],
+    "base_left_moved": [
+     4.14936,
+     -12.25185,
+     110.31221
+    ],
+    "base_chara_little_moved_and_cam_big_moved": [
+     -0.97203,
+     -12.25185,
+     133.00827
+    ]
+   }
+  }
+ },
+ "top": [
+  {
+   "addr": "0x00329AB0",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0032CC0C",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 1e-06,
+   "changes": 3
+  },
+  {
+   "addr": "0x0047F690",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0047F6A0",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0047F6B0",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0047F6B4",
+   "values": [
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0047F6E0",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x0056D65C",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF660",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF66C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF670",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF680",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF690",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF700",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF710",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x005FF720",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x00601CE0",
+   "values": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0,
+   "changes": 3
+  },
+  {
+   "addr": "0x006022AC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.011227,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060233C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001812,
+   "changes": 3
+  },
+  {
+   "addr": "0x006024BC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003827,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060251C",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00392,
+   "changes": 3
+  },
+  {
+   "addr": "0x006027EC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004612,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060281C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000369,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602B1C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004282,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602B7C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007545,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602BAC",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.015969,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602C0C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0096,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602C6C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010475,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602DBC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.012661,
+   "changes": 3
+  },
+  {
+   "addr": "0x00602E1C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001961,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060320C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.011227,
+   "changes": 3
+  },
+  {
+   "addr": "0x006032CC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003344,
+   "changes": 3
+  },
+  {
+   "addr": "0x006034DC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000612,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060350C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003907,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060362C",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.01005,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060365C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000927,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060368C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007925,
+   "changes": 3
+  },
+  {
+   "addr": "0x006036BC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00178,
+   "changes": 3
+  },
+  {
+   "addr": "0x006036EC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002408,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060392C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002228,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060398C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.016759,
+   "changes": 3
+  },
+  {
+   "addr": "0x00603A50",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x00603BA0",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x00603C00",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x00603E3C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008667,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060410C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.012146,
+   "changes": 3
+  },
+  {
+   "addr": "0x006046AC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000927,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604ACC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007899,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604AFC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004612,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604BEC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.019842,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604DFC",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007544,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604E2C",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00375,
+   "changes": 3
+  },
+  {
+   "addr": "0x00604F1C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017937,
+   "changes": 3
+  },
+  {
+   "addr": "0x00605130",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x00605134",
+   "values": [
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007479,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060521C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.019842,
+   "changes": 3
+  },
+  {
+   "addr": "0x00605280",
+   "values": [
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x006052E0",
+   "values": [
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060548C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000369,
+   "changes": 3
+  },
+  {
+   "addr": "0x006054BC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000612,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060584C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.014598,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060587C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017435,
+   "changes": 3
+  },
+  {
+   "addr": "0x00605B4C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003827,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060608C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007077,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060626C",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005723,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060638C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001836,
+   "changes": 3
+  },
+  {
+   "addr": "0x006063BC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003907,
+   "changes": 3
+  },
+  {
+   "addr": "0x006067AC",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0197,
+   "changes": 3
+  },
+  {
+   "addr": "0x006067DC",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010082,
+   "changes": 3
+  },
+  {
+   "addr": "0x00606810",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x00606960",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x006069C0",
+   "values": [
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x00606B6C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.018639,
+   "changes": 3
+  },
+  {
+   "addr": "0x00606FEC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003248,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060704C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00458,
+   "changes": 3
+  },
+  {
+   "addr": "0x006070AC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007761,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060722C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008936,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060737C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004593,
+   "changes": 3
+  },
+  {
+   "addr": "0x006073AC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005689,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060740C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.019495,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060788C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00042,
+   "changes": 3
+  },
+  {
+   "addr": "0x00607D6C",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007544,
+   "changes": 3
+  },
+  {
+   "addr": "0x00607E90",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x00607FE0",
+   "values": [
+    [
+     -1,
+     0,
+     -1
+    ],
+    [
+     -1,
+     0,
+     -1
+    ],
+    [
+     -1,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x00608040",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x006080FC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017777,
+   "changes": 3
+  },
+  {
+   "addr": "0x006082DC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010069,
+   "changes": 3
+  },
+  {
+   "addr": "0x006084EC",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.013603,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060866C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0096,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060884C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017435,
+   "changes": 3
+  },
+  {
+   "addr": "0x00608D90",
+   "values": [
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x00608EE0",
+   "values": [
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     -1,
+     0,
+     1
+    ],
+    [
+     -1,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x00608F40",
+   "values": [
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x006090EC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008479,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060914C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005865,
+   "changes": 3
+  },
+  {
+   "addr": "0x006094DC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001812,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060950C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002592,
+   "changes": 3
+  },
+  {
+   "addr": "0x006096EC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017777,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060971C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005784,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060977C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007761,
+   "changes": 3
+  },
+  {
+   "addr": "0x006097DC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00458,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060983C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003248,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060989C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002408,
+   "changes": 3
+  },
+  {
+   "addr": "0x006099BC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010475,
+   "changes": 3
+  },
+  {
+   "addr": "0x006099EC",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010269,
+   "changes": 3
+  },
+  {
+   "addr": "0x00609A1C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002041,
+   "changes": 3
+  },
+  {
+   "addr": "0x00609D7C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.019842,
+   "changes": 3
+  },
+  {
+   "addr": "0x00609DAC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008019,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A01C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010475,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A04C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003611,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A07C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002041,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A2F0",
+   "values": [
+    [
+     -1,
+     0,
+     -1
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     -1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A440",
+   "values": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A4A0",
+   "values": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A4CC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007925,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A4FC",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.013414,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A64C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001836,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060A85C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002347,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060ABBC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004746,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060AD3C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010475,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060AD6C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0096,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060AD9C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003611,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060ADCC",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.015969,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060AEBC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003686,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B00C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004746,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B0CC",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.0078,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B6CC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004425,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B6FC",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010082,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B90C",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001105,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060B9D0",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BB20",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BB24",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BB80",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BB84",
+   "values": [
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005366,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BBDC",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.016908,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BE4C",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001105,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BEAC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00042,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BF9C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004364,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060BFCC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004425,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C0EC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008101,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C26C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.016802,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C4AC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002382,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C50C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002637,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C53C",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007596,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C59C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.013414,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C77C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017435,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C89C",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.012227,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C95C",
+   "values": [
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008667,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060C9EC",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.019495,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060CB0C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004593,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060CBCC",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.016908,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060CBFC",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008403,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D020",
+   "values": [
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D10C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007899,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D170",
+   "values": [
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D1D0",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D55C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.016759,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D58C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002228,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D5BC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001961,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060D64C",
+   "values": [
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.006535,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060DC7C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.001928,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060DCAC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002414,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060DDFC",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007077,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060DE2C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.017937,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E09C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003827,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E2DC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002909,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E42C",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00392,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E5DC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003905,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E670",
+   "values": [
+    [
+     1,
+     0,
+     -1
+    ],
+    [
+     1,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     -1
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E7C0",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E7C4",
+   "values": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004326,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E820",
+   "values": [
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E84C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002382,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E9CC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007925,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060E9FC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.000927,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060EA2C",
+   "values": [
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     0,
+     1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002175,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060EBDC",
+   "values": [
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     0,
+     -1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005723,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060EC0C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002382,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060EC6C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004282,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060F32C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010537,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060F4AC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004282,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060F4DC",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008403,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060F59C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.003205,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060F5CC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.002909,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FA4C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00042,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FCBC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004746,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FCF0",
+   "values": [
+    [
+     1,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007657,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FE40",
+   "values": [
+    [
+     -1,
+     0,
+     1
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     -1,
+     1,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.00889,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FEA0",
+   "values": [
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     -1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     -1
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.005522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0060FFBC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.014642,
+   "changes": 3
+  },
+  {
+   "addr": "0x006101CC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.011216,
+   "changes": 3
+  },
+  {
+   "addr": "0x006101FC",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008522,
+   "changes": 3
+  },
+  {
+   "addr": "0x0061034C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     0,
+     -1,
+     1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007899,
+   "changes": 3
+  },
+  {
+   "addr": "0x0061082C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.004612,
+   "changes": 3
+  },
+  {
+   "addr": "0x0061094C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.006535,
+   "changes": 3
+  },
+  {
+   "addr": "0x00610A6C",
+   "values": [
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     0,
+     1,
+     -1
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.01005,
+   "changes": 3
+  },
+  {
+   "addr": "0x00610A9C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.007925,
+   "changes": 3
+  },
+  {
+   "addr": "0x00610D6C",
+   "values": [
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.010774,
+   "changes": 3
+  },
+  {
+   "addr": "0x00610F7C",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.008121,
+   "changes": 3
+  },
+  {
+   "addr": "0x00610FAC",
+   "values": [
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     0,
+     -1,
+     0
+    ],
+    [
+     1,
+     0,
+     0
+    ]
+   ],
+   "score": 5.5,
+   "unit_length": true,
+   "length_spread": 0.006191,
+   "changes": 3
+  }
+ ]
+}

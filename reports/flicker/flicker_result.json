@@ -1,0 +1,107 @@
+{
+ "frames": [
+  {
+   "frame": 0,
+   "frac_gt16": 0.6723,
+   "leak": false
+  },
+  {
+   "frame": 1,
+   "frac_gt16": 0.6723,
+   "leak": false
+  },
+  {
+   "frame": 2,
+   "frac_gt16": 0.6722,
+   "leak": false
+  },
+  {
+   "frame": 3,
+   "frac_gt16": 0.6725,
+   "leak": false
+  },
+  {
+   "frame": 4,
+   "frac_gt16": 0.6726,
+   "leak": false
+  },
+  {
+   "frame": 5,
+   "frac_gt16": 0.6728,
+   "leak": false
+  },
+  {
+   "frame": 6,
+   "frac_gt16": 0.6725,
+   "leak": false
+  },
+  {
+   "frame": 7,
+   "frac_gt16": 0.6719,
+   "leak": false
+  },
+  {
+   "frame": 8,
+   "frac_gt16": 0.6722,
+   "leak": false
+  },
+  {
+   "frame": 9,
+   "frac_gt16": 0.6726,
+   "leak": false
+  },
+  {
+   "frame": 10,
+   "frac_gt16": 0.6727,
+   "leak": false
+  },
+  {
+   "frame": 11,
+   "frac_gt16": 0.6725,
+   "leak": false
+  },
+  {
+   "frame": 12,
+   "frac_gt16": 0.6724,
+   "leak": false
+  },
+  {
+   "frame": 13,
+   "frac_gt16": 0.6725,
+   "leak": false
+  },
+  {
+   "frame": 14,
+   "frac_gt16": 0.6729,
+   "leak": false
+  },
+  {
+   "frame": 15,
+   "frac_gt16": 0.6727,
+   "leak": false
+  },
+  {
+   "frame": 16,
+   "frac_gt16": 0.6725,
+   "leak": false
+  },
+  {
+   "frame": 17,
+   "frac_gt16": 0.6724,
+   "leak": false
+  },
+  {
+   "frame": 18,
+   "frac_gt16": 0.6723,
+   "leak": false
+  },
+  {
+   "frame": 19,
+   "frac_gt16": 0.6721,
+   "leak": false
+  }
+ ],
+ "leaks": 0,
+ "writes_per_sec": 679.0,
+ "pass": true
+}

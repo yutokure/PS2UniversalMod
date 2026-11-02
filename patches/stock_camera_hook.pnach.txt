@@ -1,0 +1,23 @@
+comment=== Stock camera hook (orbit drives the game's own camera) ===
+comment=The field camera routine FUN_001B0388 takes yaw, -pitch, distance and a
+comment=centre pointer from the camera struct 0x340350 (offsets 0x60/0x64/0x68/0x8C).
+comment=These loads are retargeted to a private block the mod owns:
+comment=  0x3403C0 yaw slot      = 89.85 deg - orbit yaw   (radians)
+comment=  0x3403C4 -pitch slot   = -pitch                  (radians)
+comment=  0x3403C8 distance slot = orbit distance
+comment=  0x3403F0 centre        = party anchor + look height (vec4)
+comment=Loads at 0x1A9600/0x1A967C/0x1AC7C0 take the centre as base+0xA0 instead of
+comment=the stock pointer.  Only the three field call sites are patched; the other
+comment=callers of FUN_001B0388 (battle/event) are left untouched.
+patch=1,EE,001A9600,word,262500A0
+patch=1,EE,001A9604,word,C62C0070
+patch=1,EE,001A960C,word,C62D0074
+patch=1,EE,001A9614,word,C62E0078
+patch=1,EE,001A967C,word,262500A0
+patch=1,EE,001A9684,word,C62C0070
+patch=1,EE,001A9688,word,C62D0074
+patch=1,EE,001A9690,word,C62E0078
+patch=1,EE,001AC7C0,word,260500A0
+patch=1,EE,001AC7C8,word,C60C0070
+patch=1,EE,001AC7CC,word,C60D0074
+patch=1,EE,001AC7D4,word,C60E0078
