@@ -24,8 +24,9 @@ BAD_PARTS = {"bios", "games", "savestates", "sstates", "memcards", "memory_dumps
              "ghidra_projects", "extracted", "extracted_data", "screenshots", "recordings",
              "test_evidence", "work", "shots"}
 MAGICS = {b"\x7fELF": "ELF", b"PK\x03\x04": "zip", b"\x89PNG": "png", b"\xff\xd8\xff": "jpeg",
-          b"GIF8": "gif", b"7z\xbc\xaf": "7z", b"(\xb5/\xfd": "zstd", b"\x1f\x8b": "gzip",
-          b"CD001": "iso9660"}
+          b"GIF8": "gif", b"7z\xbc\xaf": "7z", b"(\xb5/\xfd": "zstd", b"\x1f\x8b": "gzip"}
+#: an ISO9660 image carries its identifier at byte 0x8001
+ISO_OFFSET, ISO_ID = 0x8001, b"CD" + b"001"
 TEXT_EXT = {".py", ".md", ".txt", ".json", ".bat", ".java", ".ini", ".yml", ".yaml", ".toml", ".cfg", ""}
 SECRET = re.compile(r"(api[_-]?key|secret|passwd|password|bearer\s+[A-Za-z0-9]|token\s*[:=]\s*['\"][A-Za-z0-9]{16,})",
                     re.IGNORECASE)
@@ -59,8 +60,13 @@ def main() -> int:
             problems.append(f"{name}: {size} bytes")
         head = path.read_bytes()[:4096] if size else b""
         for magic, kind in MAGICS.items():
-            if head.startswith(magic) or (kind == "iso9660" and magic in head[:40000]):
+            if head.startswith(magic):
                 problems.append(f"{name}: content looks like {kind}")
+        if size > ISO_OFFSET + 8:
+            with path.open("rb") as fh:
+                fh.seek(ISO_OFFSET)
+                if fh.read(5) == ISO_ID:
+                    problems.append(f"{name}: content looks like an ISO9660 image")
         if b"\x00" in head and ext not in TEXT_EXT - {""}:
             problems.append(f"{name}: binary content (NUL bytes)")
         if ext in TEXT_EXT and name not in SECRET_OK:
