@@ -358,3 +358,61 @@ MOD 単体の起動中は、通常どおり操作できます（停止中のオ�
 - 演出カメラのあるエリア（`other_area_base`）では、オービット中に FOV 制御の効果がまだありません。
   視点・中心・歩行方向は軌道どおりになります。FOV は通常のフィールドでは効きます。
   詳細は `reports/WALK_DIRECTION_INVESTIGATION.md` §11。
+
+---
+
+## 12. 対応ゲーム一覧
+
+| ゲーム | アダプター | Serial / CRC | 状態 |
+|---|---|---|---|
+| FINAL FANTASY X-2 | `adapters/ffx2` | SLPS-25250 / 8A6D7F14 | Orbit・FOV・オフセット |
+| シャイニング・フォース ネオ | `adapters/shiningforceneo` | SLPM-65908 / 64F241D2 | Orbit・FOV・右スティック遮断 |
+| 幻想水滸伝V | `adapters/suikoden5` | SLPM-66286 / 7380A572 | Orbit（yaw/pitch/距離）・FOV・注視点/カメラ位置オフセット・右スティックのズーム遮断・R1 3段階ズーム連携 |
+
+幻想水滸伝V の解析記録は [`docs/SUIKODEN5_CAMERA.md`](docs/SUIKODEN5_CAMERA.md)、
+5 ステートの差分は [`reports/SUIKODEN5_STATE_DIFF.md`](reports/SUIKODEN5_STATE_DIFF.md)、
+検証結果は [`docs/SUIKODEN5_TEST_RESULTS.md`](docs/SUIKODEN5_TEST_RESULTS.md) にあります。
+
+### 幻想水滸伝V の使い方
+
+1. PCSX2 で `suikoden5.iso` を起動し、フィールドまで進める（`EnablePINE = true`）
+2. `PS2UniversalCamera.bat` で GUI を起動 → 自動で `SLPM-66286 / 7380A572` を確認して接続
+3. **Camera Mode → Orbit**（または「有効化」）。右スティックで水平・垂直回転、
+   左スティックで歩くと進行方向もカメラ基準になる（ゲームの歩行処理が回転後の yaw を読むため）
+4. **ゲーム標準ズーム**欄: R1 の 3 段階（400/300/200）の現在段階を表示。チェック時は
+   R1 でオービット距離も段階変更。オービット中は右スティックのゲーム側ズームは遮断
+5. **Original / 純正カメラ復帰** でフックを外し、右スティックズーム・R1・エリアのカメラが元に戻る
+
+注意: PINE クライアントは同時に 1 つだけにしてください（GUI とスクリプトを同時に動かすと
+タイムアウトします）。
+
+## 13. ローカルデータの場所（Git 管理外）
+
+ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます
+（`core/config/paths.py`）。
+
+| 環境変数 | 既定（旧ラボ構成） | 内容 |
+|---|---|---|
+| `PS2_LAB_DIR` | リポジトリの親 | ラボのルート |
+| `PS2_PCSX2_DIR` | `<lab>/pcsx2/fork-B056de99` | PCSX2（ini・cheats） |
+| `PS2_GAME_DIR` | `<lab>/pcsx2/iso` | ゲームイメージ |
+| `PS2_BIOS_DIR` | `<lab>/pcsx2/bios` | BIOS |
+| `PS2_SAVESTATE_DIR` | `<lab>/sstates` | `.p2s` |
+| `PS2_DUMP_DIR` | `<lab>/work` | 展開したステート・RAM ダンプ・Ghidra プロジェクト |
+
+`config/local_config.example.json` をコピーして `config/local_config.json`（Git 無視）にすれば、
+環境変数なしでも指定できます。ほかの PC への移行はこの設定だけで再構築できます。
+
+## 14. リポジトリ運用（Git）
+
+* リポジトリのルートは `PS2UniversalMod/` だけです。ゲームデータの置き場
+  （`pcsx2/`・`sstates/`・`work/` など）はこの外にあり、親ディレクトリを `git init` してはいけません。
+* コミット対象はコード・テスト・文書・アドレス/関数名/ハッシュなどの要約のみ。
+  ISO・BIOS・`.p2s`・RAM ダンプ・スクリーンショット・Ghidra プロジェクトと逆コンパイル出力・
+  ログは `.gitignore` で除外済みです（Git LFS でも管理しません）。
+* ステージングは `git add <明示的なパス>`。`git add .` / `-A` は使いません。
+* コミット前の確認: `git diff --cached --name-only`、`git diff --cached --stat`、
+  `python tools/audit_repo.py`（追跡ファイルの種別・サイズ・秘密情報パターンを検査）。
+* 作業は機能ブランチで行い、ベースライン（`main` の最初のコミット）は FF10-2 と
+  シャイニング・フォース ネオの動作確認済み状態です。リモートの作成・push は明示指示があるまで行いません。
+* 新しいゲームの追加手順は [`ADAPTER_GUIDE.md`](ADAPTER_GUIDE.md) の「Git での追加手順」を参照。

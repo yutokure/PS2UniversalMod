@@ -7,13 +7,15 @@ renderer actually reads -- which is where a code hook or a write must land.
 """
 from __future__ import annotations
 
+import _paths  # noqa: F401  (repo + lab paths)
+
 import argparse
 import math
 from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(r"C:\PS2CameraLab\work\sstates_extracted")
+ROOT = _paths.WORK / "sstates_extracted"
 STATES = ["base", "base_only_wait", "base_left_moved",
           "base_chara_little_moved_and_cam_big_moved"]
 EYE = 0x340360

@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CHEATS = Path(r"C:\PS2CameraLab\pcsx2\fork-B056de99\cheats\8A6D7F14.pnach")
+CHEATS = _paths.PCSX2_DIR / "cheats" / "8A6D7F14.pnach"
 HOOK = ROOT / "patches" / "stock_camera_hook.pnach.txt"
 MARK = "=== Stock camera hook"
 

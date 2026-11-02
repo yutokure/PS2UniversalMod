@@ -12,7 +12,7 @@ import shutil
 import sys
 from pathlib import Path
 
-INI = Path(r"C:\PS2CameraLab\pcsx2\fork-B056de99\inis\PCSX2.ini")
+INI = _paths.PCSX2_DIR / "inis" / "PCSX2.ini"
 
 KEYBOARD = {
     "Up": "Up", "Down": "Down", "Left": "Left", "Right": "Right",

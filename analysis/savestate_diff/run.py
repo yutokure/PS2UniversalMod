@@ -5,7 +5,7 @@ filters the noise, and ranks float32 / float32-triple candidates by how well the
 behave like a coordinate or a direction vector.
 
 The savestates themselves are only ever read.  Extraction results are cached in
-``C:\\PS2CameraLab\\work\\sstates_extracted\\<state>\\`` and reused.
+``<dump dir>/sstates_extracted/<state>/`` and reused.
 
     python analysis/savestate_diff/run.py                # full report
     python analysis/savestate_diff/run.py --top 20       # shorter console output
@@ -22,7 +22,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-LAB = Path(r"C:\PS2CameraLab")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from core.config import paths  # noqa: E402
+
+LAB = paths.lab_dir()
 STATES = LAB / "sstates"
 EXTRACTED = LAB / "work" / "sstates_extracted"
 OUT = LAB / "PS2UniversalMod" / "reports" / "savestate_diff.json"

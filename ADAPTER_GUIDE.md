@@ -158,3 +158,43 @@ forward = normalize(注視点 - 視点)
 `read_aim()` / `write_aim()` / `restore_aim()` / `patch_active()` です。
 `patch_active()` は GUI の `Look-at patch` 行に表示され、パッチ未適用を
 「動かない MOD」ではなく**明示的な警告**にします。
+
+---
+
+## v3 追記: ゲーム内のカメラ更新に「コードケーブ」を差し込む方式
+
+FFX-2（差分注入）、シャイニング・フォース ネオ（角度フィールド＋ゲート）、幻想水滸伝V の
+3 本で、ゲームごとにカメラの作りが異なることがわかりました。移植時は次の順に判断します。
+
+1. **カメラの更新関数を特定する**（書き込みウォッチポイントのバックトレース → Ghidra）。
+   外部から書いた値が 1 フレームで戻るなら、そのアドレスは出力であって入力ではありません。
+2. 更新関数が **入力（角度・距離・注視点・FOV）を出力へコピーする箇所**を探す。
+   幻想水滸伝V では `FUN_00243E10` の 8 個のストアがそれでした。
+3. その区間を **2 ワードのジャンプ**（`j cave; nop`）で置き換え、ケーブ内で同じストアを再現する。
+   ケーブは MOD ブロック（フラグ・上書き値・ハートビート・ゲーム本来の値・オブジェクトポインタ）を
+   読み書きする。フラグが全部 0 のときはゲームと同じ値を書く（実機で「何も変わらない」ことを確認）。
+4. 入力の競合（原作の右スティック機能など）は、**その入力を読む関数の入口**に小さなケーブを置き、
+   フラグ中だけ読まれるバイトを中立値にする。
+5. アダプターは `core/mips_asm.py` でケーブを組み立て、`caves.py` に compare-and-swap の
+   install/uninstall を持たせる（未知のワードが入っていたら例外・上書きしない）。
+6. 実機確認は `tools/su5_*_check.py` が雛形: 単体（PINE）→ エンジン → 実入力 → エリア遷移 →
+   GUI → 長時間。各段階で「ゲームの値が実際に変わったか」を読み戻す。
+
+ケーブ領域は、ELF と全セーブステートでゼロだった連続領域から選び、重ならないことをテストで検査します
+（`tests/test_suikoden5.py`）。
+
+## Git での追加手順（新しいゲーム）
+
+```bash
+git switch -c feature/<game>-adapter                # main は動作確認済みベースライン
+mkdir adapters/<game>                               # __init__.py / memory_map.py / adapter.py (+ caves.py)
+# アドレスは memory_map.py の定数にだけ書く。共通基盤（core/）にゲーム固有値を入れない
+git add adapters/<game> tests/test_<game>.py docs/<GAME>_CAMERA.md   # 明示的に指定する
+git diff --cached --name-only && git diff --cached --stat
+python tools/audit_repo.py --staged                  # ゲームデータ・秘密情報・大きなファイルが無いこと
+git commit -m "<Game>: camera adapter ..."
+```
+
+GUI への登録は `gui/camera_controller/app.py` の 3 か所（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・
+`SUPPORTED_IDS`）。解析で作ったスクリーンショット・ダンプ・Ghidra プロジェクトは
+`test_evidence/`・`work/` に置き（Git 無視）、文書にはアドレス・関数名・数値だけを書きます。

@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-VENDOR = r"C:\PS2CameraLab\vendor\PCSX2_MCP\src"
+VENDOR = str(_paths.paths.mcp_src_dir())
 if VENDOR not in sys.path:
     sys.path.insert(0, VENDOR)
 
@@ -19,7 +19,7 @@ import win32process  # noqa: E402
 
 import pcsx2_mcp.keyboard_input as kbi  # noqa: E402
 
-CONFIG = Path(r"C:\PS2CameraLab\pcsx2\fork-B056de99\inis\PCSX2.ini")
+CONFIG = _paths.PCSX2_DIR / "inis" / "PCSX2.ini"
 
 
 def _pcsx2_pids() -> set[int]:

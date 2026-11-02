@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, r"C:\PS2CameraLab\scripts")
+import _paths  # noqa: F401,E402  (repo + lab scripts on sys.path)
 
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 from sweep_camera import Window, diffscore  # noqa: E402

@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy to local_config.json (git-ignored). Environment variables PS2_*_DIR win over this file.",
+  "lab_dir": "C:/PS2CameraLab",
+  "pcsx2_dir": "C:/PS2CameraLab/pcsx2/fork-B056de99",
+  "game_dir": "C:/PS2CameraLab/pcsx2/iso",
+  "bios_dir": "C:/PS2CameraLab/pcsx2/bios",
+  "savestate_dir": "C:/PS2CameraLab/sstates",
+  "dump_dir": "C:/PS2CameraLab/work",
+  "evidence_dir": "C:/PS2CameraLab/test_evidence"
+}

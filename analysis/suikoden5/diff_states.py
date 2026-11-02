@@ -1,13 +1,16 @@
 r"""Suikoden V savestate differencing (offline, uses extracted eeMemory.bin).
 
 Usage: python diff_states.py A B [--top N]
-States are looked up under PS2_DUMP_DIR/su5_extracted (default C:\PS2CameraLab\work\su5_extracted).
+States are looked up under <dump dir>/su5_extracted (see core/config/paths.py).
 """
 from __future__ import annotations
 import argparse, os, struct, sys
 import numpy as np
 
-ROOT = os.environ.get("PS2_SU5_EXTRACTED", r"C:\PS2CameraLab\work\su5_extracted")
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2]))
+from core.config import paths  # noqa: E402
+
+ROOT = os.environ.get("PS2_SU5_EXTRACTED") or str(paths.dump_dir() / "su5_extracted")
 NAMES = {
     "S0": "base", "S1": "base_only_wait", "S2": "base_no_move_and_cam_zoom_only",
     "S3": "chara_and_cam_moved_from_base",
