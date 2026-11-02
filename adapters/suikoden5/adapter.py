@@ -78,6 +78,9 @@ def fov_from_scale(sx: float) -> float:
 
 class Suikoden5Adapter:
     name = "SUIKODEN5"
+    LOOK_HEIGHT_POSITIVE_IS = "down"      # GUI hints: shown in the FFX-2 frame (see the module docstring)
+    PITCH_POSITIVE_IS = "above"
+    OFFSET_RANGE = (-200.0, 200.0)
     display_name = "Suikoden V"
     CAM_EYE_ADDR = SCRATCH_EYE
     CAM_TARGET_ADDR = SCRATCH_AIM

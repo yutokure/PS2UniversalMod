@@ -11,7 +11,8 @@ the top-level `README.md` §14); documents refer to them only by local path.
 |---|---|
 | [`../README.md`](../README.md) | what the mod does, how to start it, GUI items, settings, local data paths, Git policy |
 | [`../ADAPTER_GUIDE.md`](../ADAPTER_GUIDE.md) | how to add a game: finding the addresses, the hook styles, the Git steps |
-| [`gui/GUI_REVIEW.md`](gui/GUI_REVIEW.md) | review of the controller window (bugs found and fixed, open items) |
+| [`gui/GUI_REVIEW.md`](gui/GUI_REVIEW.md) | first review of the controller window (bugs found and fixed, open items) |
+| [`gui/GUI_AUDIT_2026-11-02.md`](gui/GUI_AUDIT_2026-11-02.md) | second audit: design, UX, robustness, consistency, game-specific behaviour — findings and fixes |
 
 ## Per game
 

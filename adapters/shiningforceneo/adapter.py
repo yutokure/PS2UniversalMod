@@ -78,6 +78,11 @@ def fov_from_scale(sx: float) -> float:
 
 class SFNeoAdapter:
     name = "SFNEO"
+    #: GUI hints: the values are the game's own (+Y up; the pitch is negative when the camera is above)
+    LOOK_HEIGHT_POSITIVE_IS = "up"
+    PITCH_POSITIVE_IS = "below"
+    PITCH_RANGE = (-90.0, 90.0)
+    OFFSET_RANGE = (-80.0, 80.0)
     display_name = "Shining Force Neo"
     #: the engine's offset path writes here; the game never reads these slots
     CAM_EYE_ADDR = mm.SCRATCH_EYE

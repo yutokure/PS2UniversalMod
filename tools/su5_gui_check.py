@@ -153,7 +153,7 @@ def main() -> int:
     check("settings saved under the game id", st.game_id == "SLPM-66286" and st.mode == "orbit", f"mode={st.mode}")
 
     # --- Original -----------------------------------------------------------------------------
-    win.btn_disable.click()
+    win.btn_restore.click()
     spin(app, 1.2)
     after = g(b)
     check("Original: hooks removed", caves.camera_site_state(b) == "original" and caves.zoom_site_state(b) == "original")
