@@ -1,7 +1,14 @@
 # Yuna-centred orbit — root cause and fix (2026-10-31)
 
-Status: **working**. Right-stick / GUI orbit around Yuna with the camera aimed at
-her, no flicker, no per-frame writes.
+Status at the recorded date: **working**. Right-stick / GUI orbit around Yuna
+with the camera aimed at her, no flicker, no per-frame writes in the idle hold test.
+
+**2026-11-02 update:** the shared-builder `.pnach` described below is historical,
+not the current installation method. The runtime now redirects only the main
+camera call at `0x001AE0F0` through a conditional cave, leaving `0x001B07FC`
+stock so minimap/auxiliary cameras retain their own targets. Orbit uses the actor
+anchor plus a fixed Y calibration, not the scripted camera's tracking height.
+See the [current correction and validation](<CAMERA_MEMORY_MAP.md#2026-11-02-訂正-演出カメラ切替時の-orbit-高さ>).
 
 ## 1. Why every earlier attempt failed
 
@@ -100,21 +107,18 @@ Flicker metric (mean abs pixel difference between two consecutive captures):
 Runtime write rate during a 35 s hold: **1 write** (`writes/sec=1`), against
 ~800/s before.
 
-## 5. Operation
+## 5. Operation (current, updated 2026-11-02)
 
-The aim injection needs the patch to be active:
+Use the GUI's Orbit / Free Camera modes. The runtime installs and removes the
+look-at and stock-camera hooks through the guarded PINE backend; an external
+`.pnach` and `EnableCheats` are not required. Remove any old external global
+look-at or stock-hook definitions before using this version, since reapplying
+them conflicts with runtime ownership. See the [usage guide](<../../../README.md#51-ffx-2>).
 
-```
-cheats/8A6D7F14.pnach   patch=1,EE,001B07FC,word,DA250030
-```
-
-Enable cheats in PCSX2 (`EnableCheats`) or call `set_cheats_enabled(true)` +
-`reload_patches`. Without it the eye still works (race free) but the aim write
-lands on a word the renderer ignores, so the view will not turn.
-
-Restoring the stock camera: `tools/orbit_final.py --restore` clears the eye
-offset and copies the captured stock aim into `0x33FC40`; `CameraRuntime.restore()`
-does the same.
+Original mode and normal shutdown restore stock call sites and clear the eye
+offset. `CameraRuntime.restore()` also mirrors the game's current aim into
+`0x33FC40` and releases projection overrides. Forced process termination cannot
+perform this restoration.
 
 ## 6. Address summary
 
@@ -122,10 +126,12 @@ does the same.
 |---|---|
 | `0x340360` | render eye (`= 0x340370 + 0x3403E0`) |
 | `0x340370` | base eye produced by the game's controller |
-| `0x340380` | party anchor (what the camera tracks) |
+| `0x340380` | camera tracking point; Y includes a variable scripted height (corrected 2026-11-02) |
+| `0x3312D0` | actor anchor; current Orbit uses this + fixed `(0,5,0)` to preserve normal-field settings |
 | `0x33FC10` | look-at point the engine rewrites every frame |
 | `0x33FC40` | **dead slot used by the patched load** |
 | `0x33FBC0` | up reference `(0, -1, 0)` |
 | `0x3403E0` | additive eye offset (never written by the game) |
 | `0x340B00` | projection scale (619.0 = 54.68 deg) |
-| `0x001B07A0` | look-at matrix builder (patched at `0x001B07FC`) |
+| `0x001B07A0` | shared look-at matrix builder (stock; old global patch retired) |
+| `0x001AE0F0` / `0x00080000` | runtime-owned main call redirect / conditional look-at cave |

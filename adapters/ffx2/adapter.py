@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from core.camera_math.orbit import CameraPose, Vec3, fov_deg_to_scale, scale_to_fov_deg
 
-from . import memory_map as mm
+from . import lookat_cave, memory_map as mm
 
 
 #: largest plausible stock eye-to-party distance in a field scene
@@ -59,10 +59,10 @@ class FFX2Adapter:
     OFFSET_RANGE = (-80.0, 80.0)
     CAM_EYE_ADDR = mm.CAM_EYE
     #: the renderer builds its view direction as normalize(aim - eye).  With the
-    #: companion .pnach the load reads CAM_AIM_SLOT (a dead slot) instead of the
-    #: word the game rewrites every frame, so writes here are race free.
+    #: runtime-owned main-camera hook the builder reads CAM_AIM_SLOT (a dead slot)
+    #: instead of the word the game rewrites every frame, so writes are race free.
     CAM_TARGET_ADDR = mm.CAM_AIM_SLOT
-    CAM_PLAYER_ADDR = mm.CAM_TARGET
+    CAM_PLAYER_ADDR = mm.PLAYER_ANCHOR
     CAM_EYE_BASE_ADDR = mm.CAM_EYE_BASE
     CAM_EYE_OFFSET_ADDR = mm.CAM_EYE_OFFSET
     #: projection centre of the field camera (see memory_map.STOCK_PROJ_CENTRE)
@@ -103,8 +103,16 @@ class FFX2Adapter:
 
     # --- reads ---------------------------------------------------------
     def read_player(self) -> Vec3:
+        """Stable orbit anchor, independent of scripted-camera subject height.
+
+        Keep the normal-field +5 Y reference for existing look_height settings.
+        The raw actor anchor must remain near zero during loading, otherwise
+        that compensation would turn (0,0,0) into a plausible (0,5,0).
+        """
         x, y, z, _w = self.backend.read_floats(mm.PLAYER_ANCHOR, 4)
-        return Vec3(x, y, z)
+        if max(abs(x), abs(y), abs(z)) < 0.05:
+            return Vec3(x, y, z)
+        return Vec3(x, y + mm.ORBIT_ANCHOR_Y_OFFSET, z)
 
     def read_game_pose(self) -> CameraPose:
         """The pose the game's own camera controller produced this frame."""
@@ -205,11 +213,10 @@ class FFX2Adapter:
 
     # --- scene helpers --------------------------------------------------
     def default_look_height(self) -> float:
-        """How far above the player anchor the field camera looks.
+        """Default offset from read_player()'s calibrated orbit anchor.
 
-        The game keeps the look-at point 5 units "up" from the anchor while the
-        camera is in its normal follow behaviour; the value is clamped because
-        scripted cameras move it around.
+        +Y points down.  -6 keeps the normal-field framing (raw actor Y -1),
+        regardless of the height chosen by the current scripted camera.
         """
         if self._look_height_cache is None:
             self._look_height_cache = -6.0
@@ -247,21 +254,22 @@ class FFX2Adapter:
         return mm.CAM_EYE
 
     def patch_active(self) -> bool:
-        """True when the look-at redirection .pnach is applied.
-
-        Without it the renderer keeps reading CAM_AIM (which the game rewrites
-        every frame) instead of CAM_AIM_SLOT, so the orbit rotates the eye but
-        the view never turns.  The GUI surfaces this so the failure is obvious
-        instead of looking like a broken mod.
-        """
+        """True when the main-only look-at redirect is complete and the builder is stock."""
         try:
-            return self.backend.read_u32(mm.LOOKAT_LOAD_SITE) == mm.LOOKAT_LOAD_PATCHED
+            return (self.backend.read_u32(mm.LOOKAT_CALL) == mm.LOOKAT_CALL_PATCHED
+                    and self.backend.read_u32(mm.LOOKAT_CALL + 4) == mm.LOOKAT_CALL_DELAY
+                    and self.backend.read_u32(mm.LOOKAT_LOAD_SITE) == mm.LOOKAT_LOAD_STOCK
+                    and self._lookat_cave_valid())
         except Exception:  # noqa: BLE001
             return False
 
+    def _lookat_cave_valid(self) -> bool:
+        return all(self.backend.read_u32(mm.LOOKAT_CAVE + 4 * i) == word
+                   for i, word in enumerate(lookat_cave.cave_words()))
+
     # --- stock camera hook -------------------------------------------------
     def hook_active(self) -> bool:
-        """True when the stock-camera .pnach is applied to the game's call sites.
+        """True when the runtime-owned stock-camera hook is applied to its call sites.
 
         With the hook the game's own eye routine is driven by the orbit slots;
         without it the runtime falls back to the eye-offset injection.
@@ -299,7 +307,7 @@ class FFX2Adapter:
         self.backend.write_float_block(mm.CAM_PROJ_SCALE, [scale])
 
     def set_projection_source(self, redirected: bool) -> None:
-        """Point the packet's projection source at CAM_PROJ_SCALE, or back to stock.
+        """Select the current bank's scale (CAM_PROJ_SCALE for main), or the stock row.
 
         Writes the one load instruction (memory_map.PROJ_SOURCE_LOAD), not a value.
         The game never rewrites that instruction, so this is not a per-frame race.
@@ -316,10 +324,22 @@ class FFX2Adapter:
     def set_patch(self, on: bool) -> None:
         """Apply (on) or remove (off) the look-at and stock-hook words.
 
-        Compare-and-swap over memory_map.PATCH_WORDS.  Every word is read first; if
-        any holds neither its stock nor its applied form, PatchConflict is raised
-        before anything is written.  Only the words that differ are written.
+        Preflight PATCH_WORDS, the shared load and the call delay slot before
+        writing.  Enabling also requires an empty or exact owned cave, installed
+        before attaching the call.  Known legacy global loads migrate to stock;
+        unknown code raises PatchConflict instead of being overwritten.
         """
+        # Preflight every site and the whole cave before making any write.
+        # A known old global patch is migrated back to stock in either mode.
+        legacy = self.backend.read_u32(mm.LOOKAT_LOAD_SITE)
+        if legacy not in (mm.LOOKAT_LOAD_STOCK, mm.LOOKAT_LOAD_PATCHED):
+            raise PatchConflict(f"legacy look-at 0x{mm.LOOKAT_LOAD_SITE:08X} holds 0x{legacy:08X}")
+        if self.backend.read_u32(mm.LOOKAT_CALL + 4) != mm.LOOKAT_CALL_DELAY:
+            raise PatchConflict("look-at call delay slot is not stock")
+        words = lookat_cave.cave_words()
+        have_cave = [self.backend.read_u32(mm.LOOKAT_CAVE + 4 * i) for i in range(len(words))]
+        if on and have_cave != words and any(have_cave):
+            raise PatchConflict(f"look-at cave 0x{mm.LOOKAT_CAVE:08X} is not free")
         plan = []
         for addr, stock, applied in mm.PATCH_WORDS:
             have = self.backend.read_u32(addr)
@@ -329,12 +349,21 @@ class FFX2Adapter:
             if have != (stock if on else applied):
                 raise PatchConflict(f"0x{addr:08X} holds 0x{have:08X}, neither stock nor patched")
             plan.append((addr, want))
+        if on and have_cave != words:
+            for i, word in enumerate(words):
+                self.backend.write_u32(mm.LOOKAT_CAVE + 4 * i, word)
+        if legacy != mm.LOOKAT_LOAD_STOCK:
+            self.backend.write_u32(mm.LOOKAT_LOAD_SITE, mm.LOOKAT_LOAD_STOCK)
         for addr, want in plan:
             self.backend.write_u32(addr, want)
 
     def patch_state(self) -> str:
         """Return applied, stock, partial or unknown for the look-at and stock-hook words."""
-        forms = set()
+        legacy = self.backend.read_u32(mm.LOOKAT_LOAD_SITE)
+        if (legacy not in (mm.LOOKAT_LOAD_STOCK, mm.LOOKAT_LOAD_PATCHED)
+                or self.backend.read_u32(mm.LOOKAT_CALL + 4) != mm.LOOKAT_CALL_DELAY):
+            return "unknown"
+        forms = {"applied"} if legacy == mm.LOOKAT_LOAD_PATCHED else set()
         for addr, stock, applied in mm.PATCH_WORDS:
             have = self.backend.read_u32(addr)
             if have == applied:
@@ -344,7 +373,7 @@ class FFX2Adapter:
             else:
                 return "unknown"
         if forms == {"applied"}:
-            return "applied"
+            return "applied" if legacy == mm.LOOKAT_LOAD_STOCK and self._lookat_cave_valid() else "partial"
         if forms == {"stock"}:
             return "stock"
         return "partial"
