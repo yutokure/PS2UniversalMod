@@ -14,6 +14,9 @@ Serial と CRC の両方を照合する。他地域版・別 CRC は未対応。
   **Free Camera は未対応**。
 - 原作の script camera 更新・native pose は止めず、render camera の world matrix を
   **view と frustum の生成中だけ**差し替える。生成後に native matrix を戻す。
+- Orbit 中は player の移動方向を計算する専用 forward getter 呼出しに、描画と同じ実 eye→target の
+  forward を渡す。原作 camera/pad の永続値、速度・deadzone・analog/D-pad の処理は変更しない。
+  この追加の静的根拠・実機未検証の区分は「移動方向 consumer」を参照。
 - host は player 相対の matrix・FOV 引数・actor の識別情報を二重バッファへ publish する。
   guest が camera 更新時点の player 座標を加えるため、追従を host の高頻度座標書込みに頼らない。
 - 確認場面では原作の右スティックは camera 等に割り当てられていない。
@@ -163,6 +166,43 @@ FOV-only でも対象判定・slot latch・cleanup のため同じ 3 hook を使
 この派生値の全 consumer は未網羅。view / projection / frustum の整合だけで、
 全描画・反射・特殊 effect の完全対応としない。
 
+### 移動方向 consumer（2026-11-03 追加）
+
+旧3hookでは native world を描画後に復元するため、移動処理が読む方向は原作 camera のままだった。
+player の analog / D-pad 処理 `00387C10` で、次の呼出しだけを追加 hook する。
+
+| hook | stock 2語（命令 / delay slot） | cave |
+|---|---|---|
+| `00388140` | `0C06D1F0 / 27A40160` — `jal 001B47C0; addiu a0,sp,160` | `000F1400` |
+
+静的な根拠（既存 base RAM / Ghidra `radiata_ram`）:
+
+- `001B47C0` は `a1=camera` の vtable+64 から world matrix を得て、`+08/+18/+28` の
+  第3列を `a0` の float4 へ書く forward getter。第4成分は1。
+- `00388140` の結果を `00388154` で `atan2(z,x)`、`00388174` で
+  `(3π/2-angle) mod 2π` に変換し、`f20` へ保持する。
+- 同じ関数内の analog は `00388244..54` で `stick_angle + (f20-π/2)`、
+  D-pad は `003882D8..00388410` で `f20` に cardinal/diagonal の定数角を加減する。
+  得た `f22` を `003885AC..B4` から quaternion 作成へ渡し、actor の移動に使用する。
+  任意の共通 atan/getter や別 camera consumer は変更しない。
+- 追加 hook の2語は提供された3つの比較 RAM で一致し、追加 cave は既存の zero survey 範囲内。
+  `00388140` は RAM の動的 code 領域にあるため、他 scene/overlay で異なる語なら拒否する。
+
+movement cave は `a0`/`a1` と saved registers を維持し、current `s0=actor record` が
+publish 済み player index に対応することを確認する。magic、Orbit global/bank flags、
+field camera==引数 camera==active renderer camera、camera class、scene 停止 flags、
+current player ID==bank ID==record ID、record count/index、object/node pointer と node class を再検査する。
+同じ偶数 sequence の間に bank の world 第3列を読み、**実際の offsets 適用後の eye→target** を返す。
+nominal yaw 値や前 frame の render latch に依存せず、native matrix / quaternion / pad は変更しない。
+拒否時、FOV-only、Orbit 解除時は元の `001B47C0` へ tail jump する。
+
+単体では cardinal/diagonal yaw、独立 eye offsets、別actor/scene/menu停止・不安定bank、
+FOV-only、解除・stock reload・未知語拒否を確認した。後続の実機でyaw180/270°のUpとyaw90°のRightが
+実視線基準へ変わること、getterのforward、全4hookのstock reload／Original復元を確認した。
+一方、狭い橋の反対方向には横ずれ・ほぼ無移動もあり、地形／衝突／旋回初動は未分離。
+数値と失敗条件は [検証記録](<TEST_RESULTS.md#5-orbit-のカメラ相対移動追加2026-11-03>) を参照。
+従来の短い追従測定を、この方向補正の実証として流用しない。
+
 ## 6. FOV と座標・パラメーター
 
 `001B4E20` の focal 算式は次のとおり。
@@ -200,10 +240,11 @@ guest snapshot（+200）、heartbeat を保持する。slot 内 sequence は hos
 guest はコピー前後の同じ偶数値を確認する。1 frame 中に host が2回以上 publish しても、tan は再利用される
 host bank でなく guest snapshot の FOV/flags を使う。新しい nested transaction は pending がある間拒否する。
 
-適用前に hook の stock / 現行 exact code と cave 全語を確認する。
+適用前に render3箇所とmovement1箇所の全4hookの stock / 現行 exact code と cave 全語を確認する。
 cave は **全ゼロまたは現行 exact code のみ**、control block も magic と空き状態を検査する。
-未知の hook 命令・占有データへ強制上書きしない。cleanup hook を先に接続し、最後に entry を接続する。
-解除は flag を落とし entry / tan hook を先に戻し、既存 pending の cleanup 完了後に finish hook を戻す。
+未知の hook 命令・占有データへ強制上書きしない。cleanup hook を entry より先に接続し、最後に entry を接続する。
+解除は flag を落とし entry / tan / movement hook を先に戻し、既存 pending の cleanup 完了後に finish hook を戻す。
+movement getter は永続値を変更せず、FOV-only では装着済みでも native pass-through になる。
 VM が transaction 内で止まり pending が解消しなければ、短い timeout 後に拒否し、resume 後の解除を要求する。
 
 低位領域の根拠は次の**確認条件付き**である。
@@ -230,5 +271,5 @@ ELF に有用な元 symbol はなく、camera / lookat / projection の名前付
 現時点で未確認: 全 map / 戦闘 / cutscene / 全メニュー / 通常ロードの全経路、
 長時間歩行と camera 遷移、offset・可動域の全組合せ、複数 camera / 特殊 effect、
 全 scene の右スティック機能、ゲーム切替を含む GUI 長時間実機回帰。
-主役中心の camera と原作歩行方向の全 yaw 対応は別項目であり、後者の方向測定は未実施。
-提供 state と限定 live 実証を、これらの保証へ一般化しない。
+主役中心の camera と歩行方向の全 yaw 対応は別項目。専用移動 hook の実機確認は上記の限定条件であり、
+offset込み歩行・広い場所の全方向・連続回転は未網羅。提供 state と限定 live 実証を、これらの保証へ一般化しない。

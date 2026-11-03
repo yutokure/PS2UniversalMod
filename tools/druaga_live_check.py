@@ -130,8 +130,9 @@ def main():
                 while not (d/'continue.txt').exists() and time.monotonic()<deadline:spin(.1)
                 if not (d/'continue.txt').exists():raise TimeoutError('reload handshake expired')
                 spin(2.0);p=a.read_game_pose();y,pt=map(math.degrees,p.yaw_pitch())
-                check('stock state reload automatically reapplies camera FOV and pad',
+                check('stock state reload automatically reapplies camera movement FOV and pad',
                       abs(y-90)<.03 and abs(pt+35)<.03 and abs(p.distance()-22)<.002
+                      and caves.movement_state(b)=='applied'
                       and abs(a.read_fov_deg()-90)<.03
                       and caves.read_words(b,mm.PAD_AXIS_HOOK,2)==caves.PAD_HOOK
                   and all(b.read_u32(addr)==neutral for (addr,_),neutral in zip(mm.PAD_ACTION_LOADS,mm.PAD_NEUTRAL_WORDS)),
@@ -141,7 +142,8 @@ def main():
             native_eye=Vec3(*b.read_floats(cam+(0x250 if a._dungeon(*a._camera()) else mm.CAM_NATIVE_EYE),3))
             native_fov=a.capture_original_fov()  # reload may select a different class/scene
             check('Original restores native matrix FOV and every instruction',
-                  caves.site_state(b)=='stock' and (p.eye-native_eye).length()<.001
+                  caves.site_state(b)=='stock' and caves.movement_state(b)=='stock'
+                   and (p.eye-native_eye).length()<.001
                   and abs(a.read_fov_deg()-native_fov)<.03
                   and caves.read_words(b,mm.PAD_AXIS_HOOK,2)==mm.PAD_AXIS_STOCK
                    and all(b.read_u32(addr)==word for addr,word in mm.PAD_ACTION_LOADS),

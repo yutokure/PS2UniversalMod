@@ -117,7 +117,7 @@ def seed_field(backend, *, native_fov_deg=25.0, player_slot=PLAYER_SLOT):
     backend.seed_floats(CAM + mm.CAM_NATIVE_FOV_DEG, [native_fov_deg])
     backend.seed_floats(CAM + mm.CAM_FOV_RAD, [math.radians(native_fov_deg)])
     projection_for(backend, math.radians(native_fov_deg))
-    for address, stock, _, _, _ in caves.RESOURCES:
+    for address, stock, _, _, _ in caves.RESOURCES + caves.MOVEMENT_RESOURCES:
         for i, word in enumerate(stock):
             backend.seed_u32(address + 4 * i, word)
     # Right-input patch sites, when present, are unrelated to the camera hook.
@@ -544,7 +544,10 @@ def test_double_buffer_is_filled_before_slot_flags_and_hook_are_published(be):
     addresses = [a for a, _ in be.writes]
     flip = addresses.index(mm.MOD_BLOCK + mm.MB_SLOT)
     flag = addresses.index(mm.MOD_BLOCK + mm.MB_FLAGS)
-    assert all(a in range(at_flip[0][0], at_flip[0][0]+0x28) for a in addresses[:flip])
+    assert addresses[0] == mm.MOD_BLOCK + mm.MB_MOVE_SEQ
+    assert all(a in range(at_flip[0][0], at_flip[0][0]+0x3C) for a in addresses[1:flip])
+    assert addresses[-1] == mm.MOD_BLOCK + mm.MB_MOVE_SEQ
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_MOVE_SEQ) % 2 == 0
     assert flip < flag
 
 
@@ -1183,3 +1186,302 @@ def test_pad_cave_is_filled_before_single_word_hook_and_state_reload_reapplies(b
     adapter.set_stick_block(False)
     assert_pad_stock(be)
     assert mm.PAD_AXIS_HOOK + 4 not in [address for address, _ in be.writes]
+
+
+def movement_frame(backend, *, dungeon=False, local=(0.0, 0.25, 1.0, 1.0),
+                   caller=0x0045598C, controller=None, manager=None, site=0,
+                   on_step=None):
+    """Execute the emitted movement wrapper, including unchanged hook delay.
+
+    Stops at native fallback or the verified continuation; it deliberately does
+    not model gameplay, native sector math, tile legality, or PS2 scheduling.
+    """
+    regs = [(1 << (70+i)) | (0x1000+i) for i in range(32)]
+    regs[0] = 0
+    regs[m.SP] = stack = 0x001E0000
+    regs[m.S0] = ROOT+mm.TOWN_CONTROLLER_OFFSET if controller is None else controller
+    regs[m.S2] = mm.DUNGEON_MANAGER if manager is None else manager
+    regs[m.A0] = regs[m.S2]
+    regs[31] = mm.DUNGEON_MOVE_SITES[site]+8 if dungeon else 0x0051B0A4
+    fpu = [0x3E800000+i for i in range(32)]
+    backend.seed_floats(stack+0x70, local)
+    backend.seed_u32(stack+0x40, caller)
+    config = 0x001A0000
+    backend.seed_u32(regs[m.S0]+0xC, config)
+    before_regs = list(regs)
+    before_fpu = list(fpu)
+    before = dict(backend.mem)
+
+    def put(reg, value):
+        if reg: regs[reg] = value & 0xFFFFFFFF
+
+    def execute(word):
+        op, rs, rt, rd = word >> 26, word >> 21 & 31, word >> 16 & 31, word >> 11 & 31
+        imm = word & 65535
+        signed = imm-65536 if imm & 32768 else imm
+        address = (regs[rs]+signed) & 0xFFFFFFFF
+        if not word: return
+        if op == 0:
+            fn, shift = word & 63, word >> 6 & 31
+            if fn == 0: put(rd, regs[rt] << shift)
+            elif fn == 2: put(rd, (regs[rt] & 0xFFFFFFFF) >> shift)
+            elif fn in (0x21, 0x2D): put(rd, regs[rs]+regs[rt])
+            elif fn == 0x23: put(rd, regs[rs]-regs[rt])
+            elif fn == 0x2B: put(rd, int((regs[rs] & 0xFFFFFFFF) < (regs[rt] & 0xFFFFFFFF)))
+            else: raise AssertionError(f'unmodelled movement R {word:08X}')
+        elif op == 0xF: put(rt, imm << 16)
+        elif op == 9: put(rt, regs[rs]+signed)
+        elif op == 0xD: put(rt, regs[rs] | imm)
+        elif op == 0xC: put(rt, regs[rs] & imm)
+        elif op == 0xB: put(rt, int((regs[rs] & 0xFFFFFFFF) < (signed & 0xFFFFFFFF)))
+        elif op == 0x23: put(rt, backend.read_u32(address))
+        elif op == 0x25: put(rt, int.from_bytes(backend.bytes_at(address, 2), 'little'))
+        elif op == 0x1E: regs[rt] = int.from_bytes(backend.bytes_at(address, 16), 'little')
+        elif op == 0x1F: backend.seed(address, regs[rt].to_bytes(16, 'little'))
+        elif op == 0x31: fpu[rt] = backend.read_u32(address)
+        elif op == 0x39: backend.seed_u32(address, fpu[rt])
+        elif op == 0x11 and rs == 16:
+            fs, ft, fd, fn = word >> 11 & 31, word >> 16 & 31, word >> 6 & 31, word & 63
+            x, z = (struct.unpack('<f', struct.pack('<I', fpu[r]))[0] for r in (fs, ft))
+            value = x+z if fn == 0 else x-z if fn == 1 else x*z if fn == 2 else None
+            assert value is not None, f'unmodelled FPU {word:08X}'
+            fpu[fd] = struct.unpack('<I', struct.pack('<f', value))[0]
+        else: raise AssertionError(f'unmodelled movement instruction {word:08X}')
+
+    execute(mm.DUNGEON_MOVE_STOCK[1] if dungeon else mm.TOWN_MOVE_STOCK[1])
+    pc = mm.DUNGEON_MOVE_CAVE if dungeon else mm.TOWN_MOVE_CAVE
+    for _ in range(500):
+        word = backend.read_u32(pc)
+        if on_step: on_step(pc, word)
+        op = word >> 26
+        if op in (2, 4, 5) or (op == 0 and word & 63 == 8):
+            rs, rt = word >> 21 & 31, word >> 16 & 31
+            imm = word & 65535
+            signed = imm-65536 if imm & 32768 else imm
+            dest = (word & 0x3FFFFFF) << 2 if op == 2 else regs[rs] if op == 0 else pc+4+signed*4
+            take = regs[rs] == regs[rt] if op == 4 else regs[rs] != regs[rt]
+            execute(backend.read_u32(pc+4))
+            if op in (0, 2):
+                assert regs[m.SP] == stack
+                assert fpu == before_fpu
+                except_regs = (m.V0,) if dungeon else (m.V0, m.V1)
+                assert all(regs[i] == before_regs[i] for i in range(32) if i not in except_regs)
+                # No global pad/camera/actor writes: stack save and local XZ only.
+                assert all(backend.mem.get(addr) == byte for addr, byte in before.items()
+                           if not stack-0xA0 <= addr < stack+0x80
+                           and not (on_step and mm.MOD_BLOCK+mm.MB_MOVE_SEQ <= addr < mm.MOD_BLOCK+mm.MB_MOVE_SEQ+4))
+                return dest, tuple(backend.read_floats(stack+0x70, 4)), regs
+            pc = dest if take else pc+8
+        else:
+            execute(word); pc += 4
+    raise AssertionError('movement cave never returned')
+
+
+@pytest.mark.parametrize('yaw', [0, 45, 90, 135, 180, 225, 270, -45])
+@pytest.mark.parametrize('local', [(0, 0.25, 0, 1), (0, 0.25, 0.1, 1), (0.1, 0.25, 0, 1),
+                                  (-0.06, 0.25, -0.08, 1)])
+def test_town_generated_movement_uses_actual_basis_and_preserves_speed_y_w(be, yaw, local):
+    adapter = DruagaAdapter(be)
+    adapter.write_orbit_params(PLAYER, yaw, -89.5, 22, pos_offset=Vec3(2, 1, -3),
+                               target_offset=Vec3(4, 2, 1))
+    bank = active_bank(be)
+    eye, target = (Vec3(*be.read_floats(bank+off, 3)) for off in (mm.SLOT_EYE, mm.SLOT_TARGET))
+    delta = target-eye
+    fx, fz = delta.x/math.hypot(delta.x, delta.z), delta.z/math.hypot(delta.x, delta.z)
+    dest, got, regs = movement_frame(be, local=local)
+    assert dest == mm.TOWN_MOVE_RETURN
+    x, y, z, w = local
+    assert got == pytest.approx((fz*x+fx*z, y, -fx*x+fz*z, w), abs=1e-7)
+    assert math.hypot(got[0], got[2]) == pytest.approx(math.hypot(x, z), abs=1e-7)
+    assert regs[m.V0] == 1  # stock hook delay slot kept
+
+
+@pytest.mark.parametrize('address,value', [(mm.ROOT_PTR, 0), (mm.CAMERA_PTR, CAM+16),
+    (ROOT, 0), (ROOT+4, 1), (CAM, 0), (CAM+mm.CAM_MODE, 1), (mm.GAME_STATE, 1),
+    (mm.EVENT_ACTIVE, 1), (mm.GAME_FLAGS_WORD, 0x40000000),
+    (ROOT+mm.RENDERER_OFFSET+mm.RENDER_CAMERA, 0), (PLAYER_RECORD, 0),
+    (PLAYER_RECORD+8, 999 << 16), (PLAYER_RECORD+mm.ENTITY_RENDERER, 0),
+    (mm.MOD_BLOCK+mm.MB_MAGIC, 0), (mm.MOD_BLOCK+mm.MB_FLAGS, mm.FLAG_FOV),
+    (mm.MOD_BLOCK+mm.MB_MOVE_SEQ, 1)])
+def test_town_movement_rejects_stale_scene_and_replays_displaced_lw(be, address, value):
+    DruagaAdapter(be).write_orbit_params(PLAYER, 90, -35, 22, target_offset=Vec3(0, 0, 0))
+    be.seed_u32(address, value)
+    local = (0.03, 0.25, -0.04, 1.0)
+    dest, got, regs = movement_frame(be, local=local)
+    assert dest == mm.TOWN_MOVE_NATIVE and got == pytest.approx(local)
+    assert regs[m.V1] == 0x001A0000 and regs[m.V0] == 1
+
+
+@pytest.mark.parametrize('bad', ['controller', 'root', 'camera', 'anchor', 'valid', 'reserved'])
+def test_town_movement_ownership_and_bank_validation(be, bad):
+    DruagaAdapter(be).set_patch(True)
+    bank = active_bank(be)
+    if bad == 'root': be.seed_u32(bank+mm.SLOT_ROOT, ROOT+16)
+    if bad == 'camera': be.seed_u32(bank+mm.SLOT_CAMERA, CAM+16)
+    if bad == 'anchor': be.seed_u32(bank+mm.SLOT_ANCHOR, mm.ENTITY_COUNT)
+    if bad == 'valid': be.seed_u32(bank+mm.SLOT_MOVE, 0)
+    if bad == 'reserved': be.seed_u32(bank+mm.SLOT_MOVE, mm.MOVE_VALID | 8)
+    dest, got, _ = movement_frame(be, controller=ROOT+mm.TOWN_CONTROLLER_OFFSET+(16 if bad=='controller' else 0))
+    assert dest == mm.TOWN_MOVE_NATIVE
+    assert got == (0, .25, 1, 1)
+
+
+@pytest.mark.parametrize('back_yaw,sector', [(0, 1), (45, 5), (90, 2), (135, 4),
+    (180, 0), (225, 7), (270, 3), (-45, 6), (22.49, 1), (22.51, 5), (-22.51, 6), (-22.49, 1)])
+@pytest.mark.parametrize('site', [0, 1])
+def test_dungeon_generated_movement_returns_native_quantized_sector(dungeon_be, back_yaw, sector, site):
+    adapter = DruagaAdapter(dungeon_be)
+    adapter.write_orbit_params(DUNGEON_PLAYER, back_yaw, -35, 22, target_offset=Vec3(0, 0, 0))
+    assert dungeon_be.read_u32(active_bank(dungeon_be)+mm.SLOT_MOVE) == mm.MOVE_VALID | sector
+    dest, _, regs = movement_frame(dungeon_be, dungeon=True, site=site)
+    assert dest == mm.DUNGEON_MOVE_SITES[site]+8 and regs[m.V0] == sector
+
+
+@pytest.mark.parametrize('caller,accepted', [(0x00452404, True), (0x0045598C, True),
+                                           (0x0055F4D8, False), (0, False)])
+def test_dungeon_movement_excludes_target_selection_ui(dungeon_be, caller, accepted):
+    DruagaAdapter(dungeon_be).set_patch(True)
+    dest, _, _ = movement_frame(dungeon_be, dungeon=True, caller=caller)
+    assert dest == (mm.DUNGEON_MOVE_SITES[0]+8 if accepted else mm.DUNGEON_SECTOR_FUN)
+
+
+@pytest.mark.parametrize('bad', ['manager', 'event', 'transition', 'actor', 'anchor', 'fov_only', 'town'])
+def test_dungeon_movement_falls_back_native_for_scene_and_owner_mismatch(dungeon_be, bad):
+    DruagaAdapter(dungeon_be).set_patch(True)
+    if bad == 'event': dungeon_be.seed_u32(mm.EVENT_ACTIVE, 1)
+    if bad == 'transition': dungeon_be.seed_u32(DUNGEON_CAM+0x2DC, 1 << 16)
+    if bad == 'actor': dungeon_be.seed_u32(DUNGEON_ACTOR+mm.ACTOR_ENTITY_PTR, 0)
+    if bad == 'anchor': dungeon_be.seed_u32(active_bank(dungeon_be)+mm.SLOT_ANCHOR, 64)
+    if bad == 'fov_only': dungeon_be.seed_u32(mm.MOD_BLOCK+mm.MB_FLAGS, mm.FLAG_FOV)
+    if bad == 'town': dungeon_be.seed_u32(DUNGEON_ROOT, mm.ROOT_VTABLE)
+    dest, _, _ = movement_frame(dungeon_be, dungeon=True,
+                                manager=mm.DUNGEON_MANAGER+(16 if bad=='manager' else 0))
+    assert dest == mm.DUNGEON_SECTOR_FUN
+
+
+@pytest.mark.parametrize('dungeon', [False, True])
+def test_movement_seq_change_during_read_rejects_without_partial_local_write(dungeon):
+    backend = seed_dungeon_field(FakeBackend()) if dungeon else seed_field(FakeBackend())
+    DruagaAdapter(backend).set_patch(True)
+    fired = []
+    def interleave(pc, word):
+        if not fired and word == m.lw(m.T6, m.T0, mm.MB_MOVE_SEQ):
+            fired.append(True)
+            backend.seed_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ, backend.read_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ)+2)
+    local = (.03, .25, .04, 1)
+    dest, got, _ = movement_frame(backend, dungeon=dungeon, local=local, on_step=interleave)
+    assert fired and got == pytest.approx(local)
+    assert dest == (mm.DUNGEON_SECTOR_FUN if dungeon else mm.TOWN_MOVE_NATIVE)
+
+
+@pytest.mark.parametrize('dungeon', [False, True])
+def test_movement_degenerate_actual_horizontal_vector_falls_back_but_near_vertical_works(dungeon):
+    backend = seed_dungeon_field(FakeBackend()) if dungeon else seed_field(FakeBackend())
+    adapter = DruagaAdapter(backend)
+    adapter.write_orbit_params(PLAYER, 0, -89.5, 22, target_offset=Vec3(0, 0, 0))
+    dest, _, _ = movement_frame(backend, dungeon=dungeon)
+    assert dest == (mm.DUNGEON_MOVE_SITES[0]+8 if dungeon else mm.TOWN_MOVE_RETURN)
+    # Cancel only horizontal eye offset exactly; there is no safe heading now.
+    eye = adapter._last_orbit[0]
+    adapter.write_orbit_params(PLAYER, 0, -89.5, 22, pos_offset=Vec3(0, 0, -eye.z), target_offset=Vec3(0, 0, 0))
+    assert backend.read_u32(active_bank(backend)+mm.SLOT_MOVE) == 0
+    dest, _, _ = movement_frame(backend, dungeon=dungeon)
+    assert dest == (mm.DUNGEON_SECTOR_FUN if dungeon else mm.TOWN_MOVE_NATIVE)
+
+
+@pytest.mark.parametrize('resource', range(3))
+@pytest.mark.parametrize('kind', ['hook', 'delay', 'cave'])
+def test_unknown_movement_resources_reject_activation_and_republish_with_zero_writes(be, resource, kind):
+    address, _, _, cave, words = caves.MOVEMENT_RESOURCES[resource]
+    target = address if kind == 'hook' else address+4 if kind == 'delay' else cave+len(words)*4-4
+    be.seed_u32(target, 0xDEADBEEF)
+    with pytest.raises(caves.PatchConflict): DruagaAdapter(be).set_patch(True)
+    assert not be.writes
+
+
+def test_movement_install_restore_fov_only_and_stock_reload(be):
+    adapter = DruagaAdapter(be)
+    adapter.write_fov_deg(60)
+    assert caves.movement_state(be) == 'stock'
+    adapter.set_patch(True)
+    assert caves.movement_state(be) == 'applied'
+    addresses = [a for a, _ in be.writes]
+    assert addresses.index(mm.MOD_BLOCK+mm.MB_MOVE_SEQ) < addresses.index(mm.TOWN_MOVE_HOOK)
+    assert all(address+4 not in addresses for address, *_ in caves.MOVEMENT_RESOURCES)
+    adapter.set_patch(False)
+    assert caves.movement_state(be) == 'stock' and caves.site_state(be) == 'applied'
+    adapter.restore_fov()
+    assert caves.site_state(be) == 'stock'
+    adapter.set_patch(True)
+    be.mem = seed_field(FakeBackend()).mem
+    adapter.set_patch(True)
+    assert caves.movement_state(be) == 'applied'
+    adapter.set_patch(False)
+    assert caves.movement_state(be) == 'stock'
+
+
+@pytest.mark.parametrize('resource', range(3))
+def test_active_unknown_movement_site_blocks_republish_and_restore_without_writes(be, resource):
+    adapter = DruagaAdapter(be)
+    adapter.set_patch(True)
+    be.seed_u32(caves.MOVEMENT_RESOURCES[resource][0], 0xDEADBEEF)
+    be.writes.clear()
+    with pytest.raises(caves.PatchConflict): adapter.write_fov_deg(60)
+    with pytest.raises(caves.PatchConflict): adapter.set_patch(False)
+    assert not be.writes
+
+
+def test_movement_known_mixed_reconnect_preflights_code_before_publish(be):
+    adapter = DruagaAdapter(be)
+    adapter.set_patch(True)
+    be.seed_u32(mm.TOWN_MOVE_HOOK, mm.TOWN_MOVE_STOCK[0])
+    be.seed_u32(mm.TOWN_MOVE_CAVE, 0xDEADBEEF)
+    be.writes.clear()
+    with pytest.raises(caves.PatchConflict): adapter.write_fov_deg(60)
+    assert not be.writes
+
+
+@pytest.mark.parametrize('dungeon', [False, True])
+def test_publish_odd_seq_rejects_each_partial_bank_and_slot_flags_transition(dungeon):
+    backend = seed_dungeon_field(FakeBackend()) if dungeon else seed_field(FakeBackend())
+    adapter = DruagaAdapter(backend)
+    adapter.write_orbit_params(PLAYER, 0, -35, 22, target_offset=Vec3(0, 0, 0))
+    seen = []
+    def observe(address, data):
+        if address not in range(mm.MOD_BLOCK, mm.MOD_BLOCK+mm.BLOCK_SIZE): return
+        odd = backend.read_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ) & 1
+        if not odd: return
+        dest, local, _ = movement_frame(backend, dungeon=dungeon, local=(.03, .25, .04, 1))
+        seen.append(address)
+        assert dest == (mm.DUNGEON_SECTOR_FUN if dungeon else mm.TOWN_MOVE_NATIVE)
+        assert local == pytest.approx((.03, .25, .04, 1))
+    backend.on_write = observe
+    adapter.write_orbit_params(PLAYER, 90, -35, 22, target_offset=Vec3(0, 0, 0))
+    backend.on_write = None
+    assert mm.MOD_BLOCK+mm.MB_SLOT in seen and mm.MOD_BLOCK+mm.MB_FLAGS in seen
+    assert len(seen) >= 17
+    dest, _, regs = movement_frame(backend, dungeon=dungeon)
+    assert dest == (mm.DUNGEON_MOVE_SITES[0]+8 if dungeon else mm.TOWN_MOVE_RETURN)
+    if dungeon: assert regs[m.V0] == 2
+
+
+def test_dungeon_sector_uses_offset_eye_target_not_yaw_setting(dungeon_be):
+    adapter = DruagaAdapter(dungeon_be)
+    adapter.write_orbit_params(PLAYER, 0, -35, 2, pos_offset=Vec3(10, 1, -2),
+                               target_offset=Vec3(4, 3, -7))
+    # Original yaw0 gives native sector1. Offset moves actual back to near +X.
+    dest, _, regs = movement_frame(dungeon_be, dungeon=True)
+    assert dest == mm.DUNGEON_MOVE_SITES[0]+8 and regs[m.V0] == 2
+
+
+def test_movement_cave_reservations_branch_targets_and_hook_delay_slots():
+    assert mm.MOD_BLOCK+mm.BLOCK_SIZE <= mm.TOWN_MOVE_CAVE
+    assert mm.TOWN_MOVE_CAVE+4*len(caves.TOWN_MOVE_WORDS) <= mm.TOWN_MOVE_CAVE_END <= mm.DUNGEON_MOVE_CAVE
+    assert mm.DUNGEON_MOVE_CAVE+4*len(caves.DUNGEON_MOVE_WORDS) <= mm.DUNGEON_MOVE_CAVE_END < 0x400000
+    assert caves.TOWN_MOVE_HOOK[1] == mm.TOWN_MOVE_STOCK[1]
+    assert caves.DUNGEON_MOVE_HOOK[1] == mm.DUNGEON_MOVE_STOCK[1]
+    for words in (caves.TOWN_MOVE_WORDS, caves.DUNGEON_MOVE_WORDS):
+        for i, word in enumerate(words):
+            if word >> 26 in (4, 5):
+                off = word & 65535
+                assert 0 <= i+1+(off-65536 if off & 32768 else off) < len(words)

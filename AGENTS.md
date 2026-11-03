@@ -51,8 +51,8 @@
 | シャイニング・フォース ネオ / `SLPM-65908` / `64F241D2` | 角度・距離・高さの制御値、平滑化ゲート、FOV / 右スティック用コードケーブ。[解析](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) | Free Camera・位置/注視点オフセット未対応。復帰後の yaw は原作が決め、元の角度との一致は既知の制限 |
 | シャイニング・フォース イクサ / `SLPM-66646` / `8B383FDF` | 原作の角度・距離・高さ・垂直 FOV 入力＋平滑化ゲート、右軸 load 2 命令の中立化。[解析](docs/games/shiningforceexa/CAMERA.md) | ネオに近いが actor offset・既定値・入力方式は別。Free Camera / offsets 非対応。FOV-only も gate を保持。全イベント・入力再生は未検証 |
 | 幻想水滸伝V / `SLPM-66286` / `7380A572` | カメラ更新の出力ストアをコードケーブで置換。[解析](docs/games/suikoden5/CAMERA.md)、[テスト結果](docs/games/suikoden5/TEST_RESULTS.md) | 原作右スティックは 3 段階ズーム。Orbit 中は競合を遮断し R1 は維持。Free Camera 未対応。イベント・戦闘・メニューは未検証 |
-| ナイトメア オブ ドルアーガ / `SLPS-25377` / `B476ED7A` | 城内・Dungeon別の最終行列出力cave、native状態を保持。右processed軸と派生bitのみ中立化。[解析](docs/games/nightmaredruaga/CAMERA.md)、[テスト結果](docs/games/nightmaredruaga/TEST_RESULTS.md) | Orbit・6軸offset・FOV対応、Free未対応。Dungeon playerは専用actor所有pointer（城内ID1000とは別）。Dungeon移動は方向キー、左analogはitem UI。全floor/イベントは未網羅 |
-| ラジアータ ストーリーズ / `SLPM-65800` / `AC73005E` | 描画view/frustum生成中だけworld行列を差替えてnativeへ復元、FOVはtan引数。player alias→actor所有nodeに追従。[解析](docs/games/radiatastories/CAMERA.md)、[テスト結果](docs/games/radiatastories/TEST_RESULTS.md) | Orbit・6軸offset・FOV対応、Free未対応。原作右スティック未割当で遮断なし。短い歩行・menu抑止・state再適用を確認。全scene/歩行方向/長時間は未網羅 |
+| ナイトメア オブ ドルアーガ / `SLPS-25377` / `B476ED7A` | 城内・Dungeon別の最終行列出力cave、native状態を保持。右processed軸と派生bitのみ中立化。[解析](docs/games/nightmaredruaga/CAMERA.md)、[テスト結果](docs/games/nightmaredruaga/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。Dungeon playerは専用actor所有pointer（城内ID1000とは別）。城内は連続方位、Dungeon方向キーは最寄り8方向、左analogはitem UI。全floor/イベントは未網羅 |
+| ラジアータ ストーリーズ / `SLPM-65800` / `AC73005E` | 描画view/frustum生成中だけworld行列を差替えてnativeへ復元、FOVはtan引数。player alias→actor所有nodeに追従。[解析](docs/games/radiatastories/CAMERA.md)、[テスト結果](docs/games/radiatastories/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。移動getterのみOrbit forwardへ差替え、原作右スティックは遮断なし。短い方向測定・state再適用を確認。橋の横ずれ等は未分離、全scene/方向/長時間は未網羅 |
 
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。

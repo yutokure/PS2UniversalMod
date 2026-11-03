@@ -10,6 +10,65 @@ Dungeon GUI実機 **15/15**、Dungeon→Town stockステート切替付き実機
 途中の移動失敗は、Dungeonの左analogが原作のitem UI操作だったことと壁条件を切り分け、
 原作の方向キーで通行可能な隣接タイルへ動かして再検証した。失敗履歴と最終成功を分けて以下に残す。
 
+## 0. 追加移動補正 — `fix/orbit-camera-relative-movement`
+
+2026-11-03、以下は Town / Dungeon 移動補正追加 source の **オフライン実装検証**。
+後述の旧 source に対する camera 追従・pad 実機結果とは区別する。
+担当 implementer は PCSX2 / MCP / GDB / PINE / 入力 / ゲーム起動を一切操作していない。
+親担当の新 source 実機確認は別の追加記録とする。
+
+```powershell
+C:\PS2CameraLab\python\venv\Scripts\python.exe -m pytest tests/test_druaga.py tests/test_gui.py -q --tb=short -k druaga
+```
+
+**326 passed / 58 deselected / 4.83秒**。Druaga 単体314件と GUI Druaga抽出12件。
+新 movement code の命令モデルを含み、実際の PS2 timing / gameplay / 全 UI をモデル化したものではない。
+
+- Town: 8方位×neutral/up/right/斜め入力、position offset・pitch−89.5°付き actual 基底、
+  local vector の長さ・Y/W維持、全scratch GPR128bit / FPR bit保存、displaced lw fallback、unchanged delay slot。
+- Dungeon: 両 wrapper callsite ×8方向と22.5°境界前後、native非連番sector、position offset反映、
+  manager / saved decoder gameplay caller 2経路所有と target-selection UI / unknown caller の除外。
+- guest scene / event / transition / active anchor / renderer / root / camera bank所有不一致の native fallback、
+  FOV-only不適用、水平視線消失時fallbackと真上近傍の有効基底。
+- 二重buffer+seq: 各bank部分書込み・slot/flags切替え中のodd拒否、読取り途中でseqが変わったときの
+  no-partial-vector write。host中断時のoddは安全側のnative fallback。
+- 新3hook・delay・専用2caveの unknown no-write preflight、active未知siteへの再publish/restore拒否、
+  mixed hook再接続前のcave preflight、FOV共有所有・通常解除・stock state reload再適用。
+- 既存 camera code bytes は変更せず、native goals / camera state / pad raw・processed を維持する命令境界を確認。
+
+### 追加 source の実機確認（2026-11-03 21:04–21:12）
+
+同版・fork-B056de99・原カードから複製した `orbit_walk_20261103_slot1/slot2.ps2` を使用。
+[移動方向ツール](<../../../tools/orbit_movement_check.py>) で実 eye→target の水平基準と実移動を比較した。
+原本stateは読取りのみで、短い歩行の前に同じstock stateを読み直した。
+
+| 場面 / 入力 | displacement (X,Z) | 期待方向とのalignment | 結果 |
+|---|---:|---:|---|
+| Town base、yaw90°、Up 0.15秒 | `(-0.60000,-0.0000019)` | `約1.00000` | PASS |
+| Town base、yaw180°、eye offset(+4,0,0)、Up 0.15秒 | `(-0.17514,+0.57387)` | `約1.00000` | PASS |
+| B1F、yaw90°、Up 0.15秒 | `(-1.60161,0)` | `1.00000` | PASS |
+| B1F、yaw0°、Right 0.15秒 | `(-1.60161,0)` | `1.00000` | PASS |
+
+Townは左アナログ、Dungeonは方向キー。Dungeon移動量はタイル補間途中の読取りであり、tile距離自体を変更していない。
+Town offset例はnominal yaw180°の真っ直ぐ+Zでなく、**実視線に合わせた斜め前進**であることも確認した。
+各測定後にOriginal／pad復元。原作の壁・tile通行判定は維持している。
+途中のstock Up試験はB1Fで無移動だった。別のstock Leftでは−Xへ通行できたため、
+同じ−Xを期待する2条件を選んだ。全方向の通行可能性を試したものではない。
+
+GUI/runtime統合は同じ追加sourceで **16/16 PASS**。
+Orbit4条件、6 offsets、FOV40/60/90°、右軸競合抑止、歩行追従、stock再読込、Original復元を再確認した。
+このGUI実行時のtoolは旧assertでmovement siteを直接数えていなかったため、続けて専用安全確認を実行した。
+安全確認は **5/5 PASS**：movement3hook有効 → stock base再読込 → 3hook再適用の命令読戻し
+（`080FC480 / 0C0FC600 / 0C0FC600`）→ Start menuでscene guard拒否 → menu内Originalで
+camera / movement3hook / pad / flags復元 → menuを閉じnative field復帰。
+その後 [GUIツール](<../../../tools/druaga_live_check.py>) のreload/restore assertもmovement stateを検査するよう更新した。
+
+今回の関連オフライン回帰は両adapter＋core＋identity/PINE＋GUI全件 **608 passed / 60.64秒**。
+途中の並行実行でDruaga GUI fixtureの新hook未seedにより1件失敗したが、fixtureを更新してこの最終実行で解消した。
+[ローカル証拠](<C:/PS2CameraLab/test_evidence/orbit_walk_20261103/>)。新sourceの全floor・全UI・長時間は未検証。
+終了時はcamera/movement3hook/pad/flagsがstockであること、breakpoint/watchpointなしを読戻し、
+開始時と同じくPCSX2を正常終了した。両card設定は元の名称へ戻し、原本state・原カードを実験に使用していない。
+
 ## 1. オフライン単体・GUI — 最新 pad cave 方式
 
 ```powershell
@@ -227,7 +286,8 @@ tool は finally で injected input を放し、GUI 通常 close を行う。
 - Dungeon歩行追従はB1Fの2単位D-pad移動で実証。全地形・全方向の長い移動へ外挿しない。
 - 全階層・長時間・全 menu / item UI・全イベント・戦闘の全遷移・死亡 / 再開・入力録画再生は未確認。
 - 右原作機能が必要な特殊 UI では Original へ戻す。scene guard 無効時の入力遮断自動解除は実装していない。
-- MOD eye に対する collision 再計算、歩行方向の camera 基準化、map / HUD の追加 patch は実装しない。
+- MOD eye に対する collision 再計算、map / HUD の追加 patch は実装しない。
+  歩行方向の camera 基準化は上記追加 source で実装した。旧sourceの追従成功を新補正の実機証明に読み替えない。
 - 実ディスク間 live switch と他ゲームの live 再実行は、この単体・GUI実行結果に含めない。
 - ユーザーの追加指示によりcommit / push / PR / mergeを行う。対象は自作source・tests・文書のみとし、
   Git indexのデータ保護監査を通してから公開する。ゲーム画像・ステート・カード・解析データ本体は含めない。

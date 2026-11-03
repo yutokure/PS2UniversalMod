@@ -43,6 +43,11 @@ FINISH_STOCK = (0x0C06CFDC, 0x7FA200C0)
 FUN_INVERSE = 0x001EB170
 FUN_TAN = 0x001215B8
 FUN_FRUSTUM = 0x001B3F70
+# FUN_00387C10: player analog/D-pad direction -> camera forward -> movement yaw.
+# This call alone is redirected; the shared getter stays native for other users.
+MOVE_HOOK = 0x00388140
+MOVE_STOCK = (0x0C06D1F0, 0x27A40160)
+FUN_FORWARD = 0x001B47C0
 # Below ELF min 0x100000, above populated kernel region ending near 0x95060.
 # Zero in all supplied states. Runtime refuses occupied resources. This is a
 # verified test-scene gap, not a guarantee about every future OS/game allocation.
@@ -51,6 +56,7 @@ FOV_CAVE = 0x000F0800
 FINISH_CAVE = 0x000F0C00
 MOD_BLOCK = 0x000F1000
 BLOCK_SIZE = 0x300
+MOVE_CAVE = 0x000F1400  # after the control block, within the surveyed 8 KiB gap
 MAGIC = 0x52414431  # RAD1
 MB_FLAGS = 0x04
 MB_SLOT = 0x08

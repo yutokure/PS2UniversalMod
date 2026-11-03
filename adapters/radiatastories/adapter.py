@@ -1,4 +1,4 @@
-"""Player-relative render Orbit for Radiata Stories, SLPM-65800/AC73005E."""
+"""Player-following render Orbit and camera-relative movement, SLPM-65800/AC73005E."""
 from __future__ import annotations
 
 import math
@@ -188,7 +188,8 @@ class RadiataStoriesAdapter:
         _,scale=self._lens(cam)
         state = caves.site_state(b)
         if state == 'unknown':raise caves.PatchConflict('unknown Radiata camera hook')
-        if not self._prepared or b.read_u32(mm.MOD_BLOCK)!=mm.MAGIC or state=='stock':
+        needs_install=any(b.read_u32(addr)==stock[0] for addr,stock,_,_,_ in caves.RESOURCES)
+        if not self._prepared or b.read_u32(mm.MOD_BLOCK)!=mm.MAGIC or needs_install:
             caves.prepare(b)
             self._prepared = True
         if self._last_orbit is None:

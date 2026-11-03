@@ -19,6 +19,7 @@ Serial と CRC の両方を照合する。他地域版・別 CRC は未対応。
 - host は actor 相対のパラメーターを二重バッファへ publish し、guest は各更新時の actor 座標を加算する。
   host が保持する数十 ms 前の actor 座標を camera の追従元にしない。
 - Orbit 中は原作の processed 右軸とその派生方向入力を中立化する。**raw 右軸は保持**し、MOD 側入力に使える。
+- Orbit 中の Town 移動は actual 視線の水平基底、Dungeon D-pad は同基底の最寄り8方向へ補正する（第8節）。
 
 初期接続は保存 mode に関係なく **Original**。設定・preset は既存 GUI のゲーム別保存を使用する。
 GUI の有効化は自動適用しない。通常の「Original / 復元」操作で camera・FOV・入力を返す。
@@ -194,12 +195,68 @@ raw bytes と buttons を書換えない。実機で **raw RX=255 のまま proc
 pad cave はゼロまたは現行 exact code のみ受理し、コード完成後に hook 1語を接続する。
 解除時も既知命令だけを stock に返し、cave 内容自体は消去しない。
 
-## 8. 安全・復元・未確認範囲
+## 8. Orbit 中の移動方向 — Town continuous / Dungeon tile8方向
+
+2026-11-03 の追加実装。render-only camera では native current が変わらないため、
+入力 consumer 側だけへ MOD の **actual eye-target** に対応する方向を渡す。
+以下の実装・単体確認と、過去の camera 追従 live 成功は別の根拠である。
+今回の実機方向確認は [検証記録](<TEST_RESULTS.md>) の追加結果を参照。
+
+### Town
+
+- `0051B3B0` が analog/D-pad を正規化し、歩行速度・dash を掛けた後の `sp+70` local float4 を回す。
+  Up は local **+Z**、Right は **+X**。raw / processed pad、速度、Y/W、actor current / goals は書き換えない。
+- `0051B760` の `8E03000C` 1語だけを J `003F1200` にし、delay `24020001` は保持する。
+  `s0 == current root+2310`（Town 埋込み player controller）と Town scene / active ID1000 anchor / renderer 所有を確認する。
+- 受理時は X/Z だけを置換し `0051B7D0` へ戻る。元の任意 native camera 変換 `0051B768..0051B7CC` を
+  skip するため、設定 byte `[[s0+C]+A4]` が1でも二重回転しない。
+  拒否時は displaced `lw v1,C(s0)` を再現し `0051B768` から元の処理へ戻る。
+
+```text
+F = (target-eye).XZ / horizontal_length
+screenRight = (Fz, -Fx)
+worldX = Fz*localX + Fx*localZ
+worldZ = -Fx*localX + Fz*localZ
+```
+
+### Dungeon
+
+- D-pad decoder `0045B7B0` 内の sector helper 呼出し2箇所 `0045B7F0 / 0045BEB0` の JAL 1語だけを
+  `003F1800` へ変更する。stock は両方 `0C117040`、delay `0240202D` は保持する。
+- wrapper は `a0 == s2 == 006CB790`（gameplay manager、その `+38` が player actor pointer）と
+  Dungeon scene / camera transition / actor-owned anchor を再検査する。
+  decoder の saved caller `[元sp+40]` は `00452404 / 0045598C` の gameplay 2経路のみ許可する。
+  target-selection UI の `0055F4D8` と未知 caller は拒否する。
+- actual back=`eye-target` の `theta=atan2(backX,backZ)` を最寄り45°へ量子化し、native sector enum を返す。
+  `q=floor((theta+π/8)/(π/4)) & 7`、sector=`(1,5,2,4,0,7,3,6)[q]`。
+  既存の8方向 table、held / pressed / repeat、斜め・R1 gate、tile legality と速度をそのまま使う。
+  連続的な camera 方向と tile 方向は最大22.5°ずれる仕様であり、任意角度の自由移動にはしない。
+- 受理時は `v0=sector; jr ra`、拒否時は native helper `0045C100` へ tail jump し caller RA を保持する。
+  左 analog は従来どおり item UI の入力であり、本補正の対象ではない。
+
+### Publish・領域・解除
+
+- host は camera と同じ bank 内 `+28/+2C` に Fx/Fz、`+30/+34` に root/camera、`+38` に valid と sector を置く。
+  position offset 適用後の eye と target から計算し、Orbit yaw 値だけからは作らない。
+- `MOD_BLOCK+1C` は movement 用 sequence。host は odd → 非active bank全体 → slot → flags → even の順に publish。
+  guest は読取り前後の同一 even sequence を要求する。host が中断して odd が残れば native fallback。
+  原作 camera cave の code bytes は今回変更しない。
+- ±89.5°の pitch 近傍も水平成分があれば正規化する。offset によって水平 eye-target が消えた場合
+  （水平長 `<=1e-6`）は valid を出さず native fallback。FOV-only は移動 hook を接続しない。
+- 専用予約は Town movement `[003F1200,003F1800)`、Dungeon movement `[003F1800,003F1E00)`。
+  提供 Town base / moved / wait の静的 RAM で `003F1200..003F2200` が zero と確認した。
+  他 MOD / 全 scene の未使用保証ではない。使用する全生成 bytes と3 hook / delay を camera resource と一括 preflight し、
+  未知の非zero cave・未知命令は最初の書込み前に拒否する。
+- Orbit 解除（FOV が残る場合も含む）で movement 3 hook を stock に返す。無効 scene 内の復元も可能。
+  stock state reload / 既知 mixed hook は bank を再 publish し復旧する。cave 自体は消去しない。
+  native goals と pad raw / processed は維持し、menu/event/所有不一致は guest で native fallback。
+
+## 9. 安全・復元・未確認範囲
 
 - 書込みは渡された `self.backend` のみ。GUI は既存 `GuardedBackend` と Serial+CRC を使用する。
   別ゲーム / 不明 identity への teardown は restore せず runtime を abandon する。
   identity lease の検出時間窓は既存仕様で、即時・完全遮断の保証ではない。
-- 同一ゲームの通常復元では両 camera hook・pad hook / 4 derived load を返す。
+- 同一ゲームの通常復元では両 camera hook・movement 3 hook・pad hook / 4 derived load を返す。
   Orbit / FOV が片方残る場合は必要 flag のみ維持する。menu 等で scene が無効でも、片方の解除が例外になり
   残りの解除を飛ばさない。matrix は次の stock update が再構築する。
 - FOV は同じ所有 camera で、現在値が最後の自分の値のままのときだけ native +22C から戻す。
@@ -210,5 +267,5 @@ pad cave はゼロまたは現行 exact code のみ受理し、コード完成�
   原作の右入力が必要な menu / UI では Original へ戻す。
 - **全階層・全イベント・全メニュー・長時間・死亡 / 再開・入力録画再生・他 MOD との共存は未確認**。
   城内のleft analog／B1FのD-pad歩行追従は実証。詳細は [検証記録](<TEST_RESULTS.md>) を参照。
-- MOD eye の壁抜け / terrain clipping 対策、歩行方向の camera 基準化、map / HUD 用追加 patch、Free Camera は実装していない。
+- MOD eye の壁抜け / terrain clipping 対策、map / HUD 用追加 patch、Free Camera は実装していない。
   native collision 計算を維持することと、自由な MOD eye の collision 解決は別である。
