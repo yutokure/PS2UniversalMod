@@ -306,6 +306,12 @@ def _patch_backend(applied: bool):
     for addr, stock, patched in mm.PATCH_WORDS:
         b.u[addr] = patched if applied else stock
     b.u[mm.PROJ_SOURCE_LOAD] = mm.PROJ_SOURCE_STOCK
+    b.u[mm.LOOKAT_LOAD_SITE] = mm.LOOKAT_LOAD_STOCK
+    b.u[mm.LOOKAT_CALL + 4] = mm.LOOKAT_CALL_DELAY
+    if applied:
+        from adapters.ffx2.lookat_cave import cave_words
+        for i, word in enumerate(cave_words()):
+            b.u[mm.LOOKAT_CAVE + 4 * i] = word
     return b
 
 
@@ -361,7 +367,7 @@ def test_copy_stock_params_mirrors_blend_and_centre():
     assert b.f[mm.ORBIT_YAW_SLOT] == pytest.approx(1.58)
     assert b.f[mm.ORBIT_NPITCH_SLOT] == pytest.approx(-0.48)
     assert b.f[mm.ORBIT_DIST_SLOT] == pytest.approx(63.6)
-    assert b.f[mm.ORBIT_CENTRE + 8] == pytest.approx(66.1)
+    assert b.read_floats(mm.ORBIT_CENTRE, 4) == pytest.approx((-0.44, -0.07, 66.1, 0.0))
 
 
 def test_runtime_passes_stock_values_through_when_patch_is_applied_in_original():
@@ -525,12 +531,18 @@ def test_patch_words_apply_from_stock_and_go_back_to_stock():
     ad = FFX2Adapter(b)
     ad.set_patch(True)
     assert ad.patch_state() == "applied"
-    assert len(b.u_writes) == len(mm.PATCH_WORDS)
+    from adapters.ffx2.lookat_cave import cave_words
+    count = len(mm.PATCH_WORDS) + len(cave_words())
+    assert len(b.u_writes) == count
+    assert b.u_writes[:len(cave_words())] == [
+        (mm.LOOKAT_CAVE + 4 * i, word) for i, word in enumerate(cave_words())
+    ]  # publish the complete cave before attaching the call site
     ad.set_patch(True)  # already applied: nothing to write
-    assert len(b.u_writes) == len(mm.PATCH_WORDS)
+    assert len(b.u_writes) == count
     ad.set_patch(False)
     assert ad.patch_state() == "stock"
-    assert len(b.u_writes) == 2 * len(mm.PATCH_WORDS)
+    assert len(b.u_writes) == count + len(mm.PATCH_WORDS)
+    assert b.u[mm.LOOKAT_LOAD_SITE] == mm.LOOKAT_LOAD_STOCK
 
 
 def test_patch_refuses_unknown_words_and_writes_nothing():
@@ -643,3 +655,228 @@ def test_failed_patch_write_waits_before_retrying():
     rt._tick(0.001, None)
     assert len(attempts) == 2
     assert ad.patch_state() == "applied"
+
+
+# --- FFX-2 scripted-camera anchor height ------------------------------------
+def _ffx2_field_backend(actor=Vec3(-0.73772, -12.25185, 110.24788), camera_height=5.0):
+    """The actor stays put while the scripted camera changes its subject height.
+
+    The protected base / camera-switch states measure camera_height = 5 / 1;
+    other_area_base measures 10.  0x3312D0 is independent of those offsets.
+    """
+    from adapters.ffx2 import memory_map as mm
+
+    b = _patch_backend(applied=False)
+    b.write_float_block(0x3312D0, (*actor.as_tuple(), 1.0))
+    b.write_float_block(mm.CAM_TARGET, (actor.x, actor.y + camera_height, actor.z, 0.0))
+    b.write_float_block(mm.CAM_EYE_BASE, (actor.x, actor.y - 15.0, actor.z + 25.0, 1.0))
+    b.write_float_block(mm.CAM_AIM, (actor.x, actor.y + camera_height, actor.z, 0.0))
+    b.write_float_block(mm.CAM_BASIS_FWD, (0.0, 0.5, -math.sqrt(0.75), 0.0))
+    b.f[mm.CAM_PROJ_SCALE] = 619.0
+    b.f[mm.CAM_PROJ_CENTRE] = mm.STOCK_PROJ_CENTRE
+    return b
+
+
+@pytest.mark.parametrize("camera_height", [5.0, 1.0, 10.0, -3.0])
+def test_ffx2_player_anchor_is_independent_of_scripted_camera_height(camera_height):
+    from adapters.ffx2.adapter import FFX2Adapter
+
+    ad = FFX2Adapter(_ffx2_field_backend(camera_height=camera_height))
+    # Keep the normal-field reference (+5) so existing look_height settings do
+    # not change framing, but never inherit the script's variable height.
+    assert ad.read_player().as_tuple() == pytest.approx((-0.73772, -7.25185, 110.24788))
+
+
+@pytest.mark.parametrize("hook", [True, False])
+def test_ffx2_orbit_height_stays_fixed_across_camera_switch_and_tracks_actor(hook):
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.adapter import FFX2Adapter
+    from core.camera_runtime.engine import CameraRuntime, MODE_ORBIT, CameraSettings
+
+    actor = Vec3(-0.73772, -12.25185, 110.24788)
+    b = _ffx2_field_backend(actor)
+    s = CameraSettings(mode=MODE_ORBIT, look_height=-6.0, target_offset=[2.0, -1.5, 3.0])
+    rt = CameraRuntime(FFX2Adapter(b), s)
+    if not hook:
+        rt.set_patch_override(False)  # exercise offset injection without the stock hook
+    rt.scene_refresh_ms = 0.0
+    rt._tick(0.001, None)
+    before = rt.stats.applied_pose
+    assert before[1] == pytest.approx((actor.x + 2.0, actor.y - 2.5, actor.z + 3.0))
+
+    # Same actor, new scripted camera and stock eye (the measured cut moves it
+    # ~170 units away).  No orbit input or settings change.
+    b.write_float_block(mm.CAM_TARGET, (actor.x, actor.y + 1.0, actor.z, 0.0))
+    b.write_float_block(mm.CAM_AIM, (actor.x, actor.y + 1.0, actor.z, 0.0))
+    b.write_float_block(mm.CAM_EYE_BASE, (12.9, -23.23, 301.7, 1.0))
+    rt._tick(0.001, None)
+    assert rt.stats.applied_pose == before
+    if hook:
+        assert b.read_floats(mm.ORBIT_CENTRE, 3) == pytest.approx(before[1])
+    assert b.read_floats(mm.CAM_AIM_SLOT, 3) == pytest.approx(before[1])
+    base = Vec3(*b.read_floats(mm.CAM_EYE_BASE, 3))
+    offset = Vec3(*b.read_floats(mm.CAM_EYE_OFFSET, 3))
+    assert (base + offset).as_tuple() == pytest.approx(before[0])
+
+    # Do not freeze world Y as a workaround: real elevation and X/Z movement
+    # must still translate the whole orbit, even in the switched camera.
+    delta = Vec3(2.0, -8.0, 4.0)
+    moved = actor + delta
+    b.write_float_block(0x3312D0, (*moved.as_tuple(), 1.0))
+    b.write_float_block(mm.CAM_TARGET, (moved.x, moved.y + 1.0, moved.z, 0.0))
+    rt._tick(0.001, None)
+    for old, new in zip(before, rt.stats.applied_pose):
+        assert new == pytest.approx((Vec3(*old) + delta).as_tuple())
+    if hook:
+        assert b.read_floats(mm.ORBIT_CENTRE, 3) == pytest.approx(rt.stats.applied_pose[1])
+    assert b.read_floats(mm.CAM_AIM_SLOT, 3) == pytest.approx(rt.stats.applied_pose[1])
+
+
+@pytest.mark.parametrize("actor", [Vec3(0.0, 0.0, 0.0), Vec3(0.01, -0.02, 0.03)])
+def test_ffx2_anchor_compensation_does_not_bypass_loading_guard(actor):
+    from adapters.ffx2.adapter import FFX2Adapter
+
+    ad = FFX2Adapter(_ffx2_field_backend(actor, camera_height=10.0))
+    scene = ad.read_scene()
+    assert scene.player == actor
+    assert not ad.is_field_like(scene)
+
+
+def test_ffx2_center_uses_the_same_stable_anchor_as_orbit():
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.adapter import FFX2Adapter
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+
+    b = _ffx2_field_backend(camera_height=1.0)
+    s = CameraSettings(look_height=-4.0, target_offset=[1.0, 2.0, 3.0])
+    rt = CameraRuntime(FFX2Adapter(b), s)
+    assert rt.center_on_target()
+    assert b.read_floats(mm.CAM_AIM_SLOT, 3) == pytest.approx((0.26228, -9.25185, 113.24788))
+
+
+# --- main-only look-at hook / minimap isolation -----------------------------
+@pytest.mark.parametrize("output,eye,target,redirect", [
+    (0x33F620, 0x340360, 0x33FC10, True),
+    (0x33F620, 0x3413B0, 0x340C60, False),  # another camera bank
+    (0x4FE3B0, 0x3403A0, 0x33FC50, False),  # alternate camera branch
+    (0x5FF000, 0x5FF010, 0x5FF020, False),  # stack-local wrapper target
+    (0x33F620, 0x340360, 0x33FC50, False),  # only target differs
+    (0x33F620, 0x3403A0, 0x33FC10, False),  # only eye differs
+    (0x33F7E0, 0x340360, 0x33FC10, False),  # only output differs
+])
+def test_ffx2_lookat_cave_redirects_only_main_camera(output, eye, target, redirect):
+    """Execute the emitted MIPS subset, including branch delay slots and tail jump.
+
+    Check argument isolation, not merely that a dictionary received a word.
+    """
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.lookat_cave import cave_words
+    from core import mips_asm as m
+
+    words = cave_words()
+    regs = [0x12340000 + i for i in range(32)]
+    regs[0], regs[m.A0], regs[m.A1], regs[m.A2] = 0, output, eye, target
+    regs[31] = mm.LOOKAT_CALL + 8
+    before = list(regs)
+    pc, steps, reached_builder = 0, 0, False
+    while pc < len(words):
+        steps += 1
+        assert steps <= len(words)
+        word = words[pc]
+        op, rs, rt = word >> 26, (word >> 21) & 31, (word >> 16) & 31
+        imm = word & 0xFFFF
+        signed = imm - 0x10000 if imm & 0x8000 else imm
+        if op == 15:
+            regs[rt] = imm << 16
+        elif op == 13:
+            regs[rt] = regs[rs] | imm
+        elif op == 9:
+            regs[rt] = (regs[rs] + signed) & 0xFFFFFFFF
+        elif op == 5:
+            assert words[pc + 1] == m.NOP
+            if regs[rs] != regs[rt]:
+                pc += 1 + signed
+                continue
+        elif op == 2:
+            assert (word & 0x03FFFFFF) << 2 == mm.FN_LOOKAT_BUILD
+            assert words[pc + 1] == m.NOP
+            reached_builder = True
+            break
+        else:
+            assert word == m.NOP
+        pc += 1
+    assert reached_builder
+    assert regs[m.A2] == target + (0x30 if redirect else 0)
+    for i in range(32):
+        if i not in (m.V0, m.A2):
+            assert regs[i] == before[i]  # especially ra and every other argument
+    assert 4 * len(words) <= 0x100
+    assert mm.LOOKAT_CALL_PATCHED == m.jal(mm.LOOKAT_CAVE)
+    assert mm.LOOKAT_CALL_DELAY == m.addiu(m.A2, m.A2, 0x50)
+
+
+@pytest.mark.parametrize("on", [True, False])
+def test_ffx2_migrates_legacy_global_lookat_without_touching_auxiliary_calls(on):
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.adapter import FFX2Adapter
+
+    b = _patch_backend(applied=False)
+    b.u[mm.LOOKAT_LOAD_SITE] = mm.LOOKAT_LOAD_PATCHED
+    ad = FFX2Adapter(b)
+    assert not ad.patch_active()
+    assert ad.patch_state() == "partial"
+    ad.set_patch(on)
+    assert b.u[mm.LOOKAT_LOAD_SITE] == mm.LOOKAT_LOAD_STOCK
+    assert ad.patch_state() == ("applied" if on else "stock")
+    assert ad.patch_active() == on
+    assert b.u[mm.LOOKAT_CALL + 4] == mm.LOOKAT_CALL_DELAY
+    untouched = {0x1AE0B0, 0x1AE03C, 0x1959E0}
+    assert not untouched.intersection(a for a, _ in b.u_writes)
+
+
+@pytest.mark.parametrize("where", ["legacy", "delay", "cave", "call"])
+def test_ffx2_scoped_hook_preflights_every_word_before_writing(where):
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.adapter import FFX2Adapter, PatchConflict
+
+    b = _patch_backend(applied=False)
+    addr = {"legacy": mm.LOOKAT_LOAD_SITE, "delay": mm.LOOKAT_CALL + 4,
+            "cave": mm.LOOKAT_CAVE + 8, "call": mm.LOOKAT_CALL}[where]
+    b.u[addr] = 0xDEADBEEF
+    with pytest.raises(PatchConflict):
+        FFX2Adapter(b).set_patch(True)
+    assert b.u_writes == []
+    assert b.u[addr] == 0xDEADBEEF
+    if where != "cave":
+        with pytest.raises(PatchConflict):
+            FFX2Adapter(b).set_patch(False)
+        assert b.u_writes == []
+    else:
+        # A damaged cave may be detached by restoring our known call word;
+        # do not overwrite the unknown cave as part of cleanup.
+        b.u[mm.LOOKAT_CALL] = mm.LOOKAT_CALL_PATCHED
+        FFX2Adapter(b).set_patch(False)
+        assert b.u[mm.LOOKAT_CALL] == mm.LOOKAT_CALL_STOCK
+        assert b.u[addr] == 0xDEADBEEF
+        assert b.u_writes == [(mm.LOOKAT_CALL, mm.LOOKAT_CALL_STOCK)]
+
+
+def test_ffx2_scoped_hook_reinstalls_after_savestate_and_restores_stock():
+    from adapters.ffx2 import memory_map as mm
+    from adapters.ffx2.adapter import FFX2Adapter
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings, MODE_ORBIT
+
+    b = _ffx2_field_backend()
+    ad = FFX2Adapter(b)
+    rt = CameraRuntime(ad, CameraSettings(mode=MODE_ORBIT))
+    rt.scene_refresh_ms = 0.0
+    rt._tick(0.001, None)
+    assert ad.patch_active()
+    b.u = dict(_patch_backend(applied=False).u)  # a stock savestate replaces code + cave
+    rt._patch_checked = 0.0
+    rt._tick(0.001, None)
+    assert ad.patch_active()
+    rt.restore()
+    assert ad.patch_state() == "stock"
+    assert b.u[mm.LOOKAT_CALL] == mm.LOOKAT_CALL_STOCK
+    assert b.u[mm.LOOKAT_LOAD_SITE] == mm.LOOKAT_LOAD_STOCK
