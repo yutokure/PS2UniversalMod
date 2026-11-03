@@ -78,10 +78,15 @@ def fov_from_scale(sx: float) -> float:
 
 class SFNeoAdapter:
     name = "SFNEO"
-    #: GUI hints: the values are the game's own (+Y up; the pitch is negative when the camera is above)
+    #: Internal/saved pitch stays in the game's convention (negative = eye above).
+    #: Present positive elevation to the user without changing existing saved angles.
     LOOK_HEIGHT_POSITIVE_IS = "up"
-    PITCH_POSITIVE_IS = "below"
-    PITCH_RANGE = (-90.0, 90.0)
+    PITCH_POSITIVE_IS = "above"
+    PITCH_DISPLAY_SIGN = -1.0
+    PITCH_INPUT_SIGN = -1.0
+    # Stop just short of the vertical look-at singularity; do not allow an underside pole.
+    PITCH_RANGE = (-89.5, 25.0)
+    accepts_look_height = True
     OFFSET_RANGE = (-80.0, 80.0)
     display_name = "Shining Force Neo"
     #: the engine's offset path writes here; the game never reads these slots
@@ -181,10 +186,13 @@ class SFNeoAdapter:
         pose = self.read_game_pose()
         ok = all(abs(v) < 1e6 for v in (*player.as_tuple(), *pose.eye.as_tuple(), *pose.target.as_tuple()))
         ok = ok and pose.distance() > 0.01
-        # the focus must be the party point plus the height; otherwise the controller is
-        # not in its field state (loading, events) and nothing should be written
-        if ok:
-            ok = abs(pose.target.y - (player.y + self.read_height())) < 1.0
+        # The stock follow path smooths the focus (FUN_001D7AF0/1D7BF0 and
+        # FUN_001D7C60).  On stairs it deliberately lags party.y + height.  Testing
+        # that equality stalls Orbit for the whole climb, then publishes all the
+        # accumulated input at once.  Inspect the controller's actual dispatch
+        # instead; do not make a moving/temporarily stale output a scene guard.
+        ok = ok and self.backend.read_u32(mm.CAM_MODE) in mm.FIELD_CAMERA_MODES
+        ok = ok and self.backend.read_u32(mm.CAM_FOCUS_MODE) == mm.PARTY_FOCUS_MODE
         return SceneState(player=player, game_pose=pose, fov_deg=0.0,
                           max_dist_game=pose.distance(),
                           valid=ok, reason="" if ok else "camera data not plausible")
@@ -205,7 +213,7 @@ class SFNeoAdapter:
         return None
 
     def write_orbit_params(self, centre: Vec3, yaw_deg: float, pitch_deg: float,
-                           distance: float) -> None:
+                           distance: float, *, look_height: float | None = None) -> None:
         """Publish the orbit to the game's camera controller.
 
         ``yaw_deg`` and ``pitch_deg`` are the eye angles the engine uses (the eye offset
@@ -213,11 +221,17 @@ class SFNeoAdapter:
         focus).  The yaw field holds ``yaw - 180`` and the controller adds 180 back.
 
         ``centre`` is the engine's orbit centre: the party anchor plus the look height.
-        The game's focus is the anchor plus the focus height, so the height field is set to
-        ``STOCK_HEIGHT + (centre.y - anchor.y)``: a look height of 0 is the stock framing.
+        The runtime supplies ``look_height`` directly, so the field is
+        ``STOCK_HEIGHT + look_height`` even when the party moves between samples.
+        Legacy direct callers may omit it to derive it from ``centre.y - anchor.y``.
+        A look height of 0 is the stock framing.
         """
-        anchor = self.read_player()
-        height = mm.STOCK_HEIGHT + (centre.y - anchor.y)
+        # The runtime has already sampled the party.  Re-reading it here and
+        # subtracting from a cached centre turns walking on stairs into a height
+        # command (and feeds the stock focus smoother with bogus offsets).
+        if look_height is None:
+            look_height = centre.y - self.read_player().y
+        height = mm.STOCK_HEIGHT + look_height
         field_yaw = _wrap_deg(yaw_deg - mm.YAW_FIELD_OFFSET_DEG)
         yaw_u16 = int(round(field_yaw * mm.ANGLE_UNITS_PER_DEG)) & 0xFFFF
         pitch_u16 = int(round(pitch_deg * mm.ANGLE_UNITS_PER_DEG)) & 0xFFFF

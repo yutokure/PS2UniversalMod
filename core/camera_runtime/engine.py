@@ -532,11 +532,17 @@ class CameraRuntime:
             nx = -nx
         if s.invert_y:
             ny = -ny
+        # Adapter angles stay in their native/saved convention.  A Y-up game
+        # needs the opposite input sign to the core's Y-down default, and its
+        # explicit pitch range must also override old saved generic limits.
+        ny *= getattr(self.adapter, "PITCH_INPUT_SIGN", 1.0)
+        pitch_lo, pitch_hi = getattr(self.adapter, "PITCH_RANGE",
+                                     (s.pitch_min_deg, s.pitch_max_deg))
         rate = s.rotate_speed_deg * s.sensitivity
         with self._lock:
             self.settings.yaw_deg += nx * rate * dt
             self.settings.pitch_deg = clamp(
-                self.settings.pitch_deg + ny * rate * dt, s.pitch_min_deg, s.pitch_max_deg)
+                self.settings.pitch_deg + ny * rate * dt, pitch_lo, pitch_hi)
             self.settings.yaw_deg = (self.settings.yaw_deg + 180.0) % 360.0 - 180.0
 
     def _tick(self, dt: float, _unused) -> None:
@@ -706,14 +712,18 @@ class CameraRuntime:
         Returns True when something was written.
         """
         pos = tuple(round(v, 4) for v in self.settings.pos_offset)
+        look_height = self.settings.look_height + self.settings.target_offset[1]
         key = (tuple(round(v, 4) for v in centre), round(yaw_deg, 4),
-               round(pitch_deg, 4), round(distance, 4), pos)
+               round(pitch_deg, 4), round(distance, 4), pos, round(look_height, 4))
         if key == self._last_orbit_key:
             return False
         if getattr(self.adapter, "accepts_pos_offset", False):
             # an adapter that moves the whole camera rig takes the camera-position offsets too
             self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance,
                                             pos_offset=Vec3(*self.settings.pos_offset))
+        elif getattr(self.adapter, "accepts_look_height", False):
+            self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance,
+                                            look_height=look_height)
         else:
             self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance)
         self._last_orbit_key = key

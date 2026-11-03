@@ -194,6 +194,111 @@ def test_field_like_accepts_the_orbit_distance_it_writes():
     assert ad.is_field_like(ad.read_scene())
 
 
+# --- moving field scene / pitch input regressions -----------------------------
+@pytest.mark.parametrize("dy", [-180.0, -12.0, 12.0, 180.0])
+def test_field_guard_accepts_smoothed_focus_lag_on_stairs(dy):
+    b = base_backend()
+    p = SFNeoAdapter(b).read_player()
+    b.write_float_block(mm.PARTY_POS, [p.x, p.y + dy, p.z])
+    ad = SFNeoAdapter(b)
+    assert ad.is_field_like(ad.read_scene())
+
+
+@pytest.mark.parametrize("mode", [2, 3, 4, 5, 99])
+def test_field_guard_rejects_fixed_transition_and_scripted_modes(mode):
+    b = base_backend()
+    b.write_u32(mm.CAM_MODE, mode)
+    ad = SFNeoAdapter(b)
+    assert not ad.is_field_like(ad.read_scene())
+
+
+@pytest.mark.parametrize("mode", [1, 2, 3, 4])
+def test_field_guard_rejects_non_party_focus_even_at_matching_height(mode):
+    b = base_backend()
+    b.write_u32(mm.CAM_FOCUS_MODE, mode)
+    ad = SFNeoAdapter(b)
+    assert not ad.is_field_like(ad.read_scene())
+
+
+def test_runtime_keeps_publishing_during_stair_height_change():
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings, MODE_ORBIT
+    b = base_backend()
+    b.write_u32(mm.PAD_CALL_SITE, mm.PAD_CALL_WORD)
+    ad = SFNeoAdapter(b)
+    s = CameraSettings(mode=MODE_ORBIT, distance=673.4, pitch_deg=-25, look_height=39.64)
+    rt = CameraRuntime(ad, s)
+    rt.set_stick(0.8, 0)
+    rt._tick(0.01, None)
+    writes = rt.stats.total_writes
+    p = ad.read_player()
+    # The party climbs, but the game's focus still holds the previous frame.
+    b.write_float_block(mm.PARTY_POS, [p.x, p.y + 100, p.z])
+    rt._scene_time = 0
+    rt._tick(0.01, None)
+    assert rt.stats.total_writes > writes
+    assert rt.stats.last_error == ""
+    assert b.read_floats(mm.CAM_HEIGHT, 1)[0] == pytest.approx(139.64)
+
+
+def test_runtime_passes_relative_height_not_a_second_player_sample():
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+    b = base_backend()
+    ad = SFNeoAdapter(b)
+    s = CameraSettings(look_height=39.64, target_offset=[0, 10, 0])
+    rt = CameraRuntime(ad, s)
+    # A centre computed from an earlier party sample must not be interpreted as
+    # a relative height by subtracting the party's newer Y.
+    old = ad.read_player()
+    b.write_float_block(mm.PARTY_POS, [old.x, old.y + 80, old.z])
+    rt._publish_orbit((old.x, old.y + 49.64, old.z), 130, -28, 2000)
+    assert b.read_floats(mm.CAM_HEIGHT, 1)[0] == pytest.approx(149.64)
+
+
+def test_sfneo_pitch_input_reaches_overhead_not_underside_with_old_limits():
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+    ad = SFNeoAdapter(base_backend())
+    s = CameraSettings(pitch_deg=-28, pitch_min_deg=-25, pitch_max_deg=85)
+    rt = CameraRuntime(ad, s)
+    rt.set_stick(1, 0)
+    rt._integrate(0.01)
+    assert s.pitch_deg == -28  # horizontal input must not snap a stock pitch
+    rt.set_stick(0, 1)
+    rt._integrate(10)
+    assert s.pitch_deg == ad.PITCH_RANGE[0] == -89.5
+    pose = orbit_pose(Vec3(0, 0, 0), 0, math.radians(s.pitch_deg), 2000)
+    assert pose.eye.y > 1999
+    rt.set_stick(0, -1)
+    rt._integrate(10)
+    assert s.pitch_deg == ad.PITCH_RANGE[1] == 25
+    rt.set_stick(0, 0)
+    rt._integrate(1)
+    assert s.pitch_deg == 25
+
+
+def test_sfneo_pitch_invert_is_additional_to_native_input_sign():
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+    s = CameraSettings(pitch_deg=-28, invert_y=True)
+    rt = CameraRuntime(SFNeoAdapter(base_backend()), s)
+    rt.set_stick(0, 1)
+    rt._integrate(0.1)
+    assert s.pitch_deg > -28
+
+
+@pytest.mark.parametrize("adapter_name", ["ffx2", "suikoden5"])
+def test_other_games_keep_the_existing_pitch_input_convention(adapter_name):
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+    from adapters.ffx2.adapter import FFX2Adapter
+    from adapters.suikoden5.adapter import Suikoden5Adapter
+    cls = {"ffx2": FFX2Adapter, "suikoden5": Suikoden5Adapter}[adapter_name]
+    s = CameraSettings(pitch_deg=20, pitch_min_deg=-5, pitch_max_deg=85)
+    rt = CameraRuntime(cls(base_backend()), s)
+    rt.set_stick(0, 1)
+    rt._integrate(0.1)
+    assert s.pitch_deg == pytest.approx(35)
+    rt._integrate(10)
+    assert s.pitch_deg == 85
+
+
 # --- defaults ----------------------------------------------------------------
 def test_default_settings_are_the_stock_framing():
     d = SFNeoAdapter(base_backend()).default_settings()

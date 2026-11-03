@@ -542,7 +542,7 @@ class MainWindow(QMainWindow):
         self.sl_sens = FloatSlider(0.1, 4.0, 1.0, 2, 0.05)
         self.sl_dead = FloatSlider(0.0, 0.6, 0.12, 2, 0.01)
         self.sl_yaw.valueChanged.connect(lambda v: self._set(yaw_deg=v))
-        self.sl_pitch.valueChanged.connect(lambda v: self._set(pitch_deg=v))
+        self.sl_pitch.valueChanged.connect(lambda v: self._set(pitch_deg=self._pitch_from_display(v)))
         self.sl_speed.valueChanged.connect(lambda v: self._set(rotate_speed_deg=v))
         self.sl_sens.valueChanged.connect(lambda v: self._set(sensitivity=v))
         self.sl_dead.valueChanged.connect(lambda v: self._set(deadzone=v))
@@ -712,14 +712,32 @@ class MainWindow(QMainWindow):
         self.sl_dist.set_range(lo, hi)
         lo, hi = getattr(adapter, "LOOK_HEIGHT_RANGE", (-40.0, 40.0))
         self.sl_look.set_range(lo, hi)
-        lo, hi = getattr(adapter, "PITCH_RANGE", (settings.pitch_min_deg, settings.pitch_max_deg))
-        self.sl_pitch.set_range(min(lo, -1.0), max(hi, 1.0))
+        pitch_range = getattr(adapter, "PITCH_RANGE", None)
+        if pitch_range is not None:
+            # Adapter limits are authoritative, including over old settings/preset bounds.
+            # Keep all persisted/runtime angles in the adapter's internal convention.
+            lo, hi = pitch_range
+            settings.pitch_min_deg, settings.pitch_max_deg = lo, hi
+            settings.pitch_deg = max(lo, min(hi, settings.pitch_deg))
+            self.app_settings.pitch_min_deg, self.app_settings.pitch_max_deg = lo, hi
+            self.app_settings.pitch_deg = settings.pitch_deg
+        else:
+            lo, hi = min(settings.pitch_min_deg, -1.0), max(settings.pitch_max_deg, 1.0)
+        sign = getattr(adapter, "PITCH_DISPLAY_SIGN", 1.0)
+        self.sl_pitch.set_range(*sorted((lo * sign, hi * sign)))
         lo, hi = getattr(adapter, "OFFSET_RANGE", (-80.0, 80.0))
         for sl in self.off:
             sl.set_range(lo, hi)
         self._update_hints()
         self._apply_feature_gates()
         self._update_title()
+
+    def _pitch_to_display(self, pitch: float) -> float:
+        """Only the GUI changes convention; settings and presets retain internal pitch."""
+        return pitch * getattr(self.adapter, "PITCH_DISPLAY_SIGN", 1.0)
+
+    def _pitch_from_display(self, pitch: float) -> float:
+        return pitch / getattr(self.adapter, "PITCH_DISPLAY_SIGN", 1.0)
 
     def _update_hints(self) -> None:
         ad = self.adapter
@@ -1084,6 +1102,7 @@ class MainWindow(QMainWindow):
             setattr(self.runtime.settings, k, list(v) if isinstance(v, list) else v)
             if hasattr(self.app_settings, k):
                 setattr(self.app_settings, k, list(v) if isinstance(v, list) else v)
+        self._apply_adapter_limits(self.adapter, self.runtime.settings)
         self._sync_widgets_from(self.runtime.settings)
         self._persist_later()
         self._status(self._t("status.preset_loaded", name=name))
@@ -1097,7 +1116,7 @@ class MainWindow(QMainWindow):
         self._updating = True
         try:
             self.sl_yaw.set_value(st.yaw_deg)
-            self.sl_pitch.set_value(st.pitch_deg)
+            self.sl_pitch.set_value(self._pitch_to_display(st.pitch_deg))
             self.sl_dist.set_value(st.distance)
             self.sl_look.set_value(st.look_height)
             self.sl_speed.set_value(st.rotate_speed_deg)
@@ -1200,8 +1219,9 @@ class MainWindow(QMainWindow):
             try:
                 if abs(self.sl_yaw.value() - cur.yaw_deg) > 0.05:
                     self.sl_yaw.set_value(cur.yaw_deg)
-                if abs(self.sl_pitch.value() - cur.pitch_deg) > 0.05:
-                    self.sl_pitch.set_value(cur.pitch_deg)
+                pitch = self._pitch_to_display(cur.pitch_deg)
+                if abs(self.sl_pitch.value() - pitch) > 0.05:
+                    self.sl_pitch.set_value(pitch)
                 if abs(self.sl_dist.value() - cur.distance) > 0.05:
                     self.sl_dist.set_value(cur.distance)
             finally:
