@@ -18,6 +18,8 @@ from adapters.shiningforceneo import memory_map as sf_mm  # noqa: E402
 from adapters.shiningforceexa import memory_map as ex_mm  # noqa: E402
 from adapters.suikoden5 import memory_map as su_mm  # noqa: E402
 from adapters.nightmaredruaga import memory_map as dr_mm  # noqa: E402
+from adapters.radiatastories import caves as ra_caves, memory_map as ra_mm  # noqa: E402
+from core.camera_math.orbit import Vec3, orbit_pose  # noqa: E402
 from core.memory_backend.guard import WriteBlocked  # noqa: E402
 from gui.camera_controller import app as gui  # noqa: E402
 from tests.test_suikoden5 import FakeBackend  # noqa: E402
@@ -154,6 +156,63 @@ class DruagaBackend(DruagaFakeBackend):
 
     def close(self):
         pass
+
+
+RADIATA_GAME_ID, RADIATA_CRC = "SLPM-65800", "AC73005E"
+
+
+class RadiataBackend(DruagaFakeBackend):
+    """Synthetic field and transport for GUI integration; no emulator or game dump."""
+
+    available = True
+    connected = True
+
+    def __init__(self):
+        import math
+        super().__init__(serial=RADIATA_GAME_ID, crc=RADIATA_CRC.lower())
+        field, owner, camera, target = 0x1000000, 0x1002000, 0x1003000, 0x1004000
+        scene, manager, records, actor, node, renderer = (
+            0x1005000, 0x1006000, 0x1007000, 0x1008000, 0x1009000, 0x100A000)
+        for address, value in (
+            (ra_mm.FIELD_MANAGER_PTR, field), (field + ra_mm.FIELD_OWNER, owner),
+            (owner + ra_mm.OWNER_CAMERA, camera), (owner + ra_mm.OWNER_TARGET, target),
+            (camera, ra_mm.CAMERA_VTABLE), (target, ra_mm.NODE_VTABLE),
+            (ra_mm.RENDERER_PTR, renderer), (renderer + ra_mm.RENDERER_CAMERA, camera),
+            (ra_mm.SCENE_PTR, scene), (scene + ra_mm.PLAYER_ID, 1),
+            (ra_mm.ACTOR_MANAGER_PTR, manager), (manager + ra_mm.ACTOR_COUNT, 1),
+            (manager + ra_mm.ACTOR_RECORDS, records), (records + ra_mm.ACTOR_ID, 1),
+            (records + ra_mm.ACTOR_OBJECT, actor), (records + ra_mm.ACTOR_NODE, node),
+            (node, ra_mm.NODE_VTABLE),
+        ):
+            self.seed_u32(address, value)
+        player = Vec3(100, 1000, -4000)
+        pose = orbit_pose(player + Vec3(0, -90, 0), math.pi, math.radians(20), 1500)
+        self.seed_floats(node + ra_mm.NODE_POS, (*player.as_tuple(), 1))
+        self.seed_floats(target + ra_mm.NODE_POS, (*pose.target.as_tuple(), 1))
+        self.seed_floats(camera + ra_mm.CAM_NATIVE_WORLD, gui.RadiataStoriesAdapter._matrix(pose))
+        self.seed_floats(camera + ra_mm.CAM_FOV, [math.radians(ra_mm.STOCK_FOV_DEG)])
+        self.seed_floats(camera + ra_mm.CAM_FOV_SCALE_X, [1, 1])
+        self.seed_floats(camera + ra_mm.CAM_VIEWPORT_MIN_X, [0])
+        self.seed_floats(camera + ra_mm.CAM_VIEWPORT_MAX_X, [640])
+        self.seed_floats(camera + ra_mm.CAM_FOCAL, [320 / math.tan(math.radians(ra_mm.STOCK_FOV_DEG) / 2)])
+        for address, stock, _, _, _ in ra_caves.RESOURCES:
+            for i, word in enumerate(stock):
+                self.seed_u32(address + 4 * i, word)
+
+    def title(self):
+        return "RADIATA STORIES"
+
+    def connect(self):
+        pass
+
+    def close(self):
+        pass
+
+
+@pytest.fixture()
+def radiata_gui(monkeypatch):
+    """Keep GUI/runtime stepping deterministic, but use real adapter methods on fake memory."""
+    monkeypatch.setattr(gui.CameraRuntime, "start", lambda self: None)
 
 
 class UnsupportedBackend(GuiBackend):
@@ -437,6 +496,165 @@ def test_druaga_and_exa_saved_settings_and_presets_remain_isolated(env):
     assert window.runtime.settings.distance == 32.0
     assert window.runtime.settings.mode == gui.MODE_ORIGINAL
     assert window.rb_original.isChecked()
+
+
+def test_radiata_registration_uses_only_the_verified_adapter_and_identity():
+    assert gui.ADAPTERS["RADIATA"] is gui.RadiataStoriesAdapter
+    assert gui.ADAPTER_BY_GAME_ID[RADIATA_GAME_ID] is gui.RadiataStoriesAdapter
+    assert RADIATA_GAME_ID in gui.SUPPORTED_IDS
+    assert gui.RadiataStoriesAdapter(RadiataBackend()).identify().matched
+    assert not gui.RadiataStoriesAdapter(DruagaBackend()).identify().matched
+    assert not gui.DruagaAdapter(RadiataBackend()).identify().matched
+
+
+@pytest.mark.parametrize("crc", [dr_mm.DISC_CRC, "DEADBEEF", "", RADIATA_CRC[:-1] + "0"])
+def test_radiata_serial_with_an_unverified_crc_is_read_only(env, radiata_gui, crc):
+    backend = RadiataBackend()
+    backend.disc_crc = crc
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.RadiataStoriesAdapter
+    assert window.runtime is None
+    assert not window.guard.writes_allowed
+    assert window.guard.expected == (RADIATA_GAME_ID, crc.upper())
+    assert all(not getattr(window, group).isEnabled() for group in CAMERA_GROUPS)
+    assert window.rb_original.isChecked()
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("saved_mode", [None, gui.MODE_ORBIT, gui.MODE_FREE])
+def test_radiata_uses_native_defaults_or_saved_values_but_always_starts_original(env, radiata_gui, saved_mode):
+    if saved_mode is not None:
+        saved = {"games": {RADIATA_GAME_ID: {
+            "mode": saved_mode, "distance": 2200.0, "look_height": -110.0,
+            "pitch_deg": 30.0, "pos_offset": [1, 2, 3], "target_offset": [4, 5, 6],
+        }}}
+        folder = env.tmp / "PS2UniversalCamera"
+        folder.mkdir(parents=True)
+        (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    backend = RadiataBackend()
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.RadiataStoriesAdapter
+    assert window.app_settings.game_id == RADIATA_GAME_ID
+    assert window.guard.expected == (RADIATA_GAME_ID, RADIATA_CRC)
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
+    if saved_mode is None:
+        for key, value in window.adapter.default_settings().items():
+            assert getattr(window.runtime.settings, key) == pytest.approx(value)
+    else:
+        assert window.runtime.settings.distance == 2200.0
+        assert window.runtime.settings.pitch_deg == 30.0
+        assert window.runtime.settings.look_height == -110.0
+        assert window.runtime.settings.pos_offset == [1, 2, 3]
+        assert window.runtime.settings.target_offset == [4, 5, 6]
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("language", ["ja", "en"])
+def test_radiata_limits_signs_features_and_independent_eye_tooltips(env, radiata_gui, language):
+    window = env.make(RadiataBackend)
+    window.cmb_lang.setCurrentIndex(window.cmb_lang.findData(language))
+    adapter = window.adapter
+    assert (window.sl_dist.spin.minimum(), window.sl_dist.spin.maximum()) == (150, 6000)
+    assert (window.sl_look.spin.minimum(), window.sl_look.spin.maximum()) == (-500, 500)
+    assert (window.sl_pitch.spin.minimum(), window.sl_pitch.spin.maximum()) == (-25, 89.5)
+    assert window.runtime.settings.pitch_min_deg == -25
+    assert window.runtime.settings.pitch_max_deg == 89.5
+    assert window.lbl_pitch_hint.text() == gui.tr("hint.pitch_above")
+    assert window.lbl_look_hint.text() == gui.tr("hint.look_down")
+    assert not window.rb_free.isEnabled()
+    assert window.rb_free.toolTip() == gui.tr("mode.free_unsupported")
+    assert window.rb_orbit.isEnabled()
+    assert not window.grp_zoom.isVisibleTo(window)
+    assert gui.tr("game.radiata") in window.windowTitle()
+    window.grp_offsets.setChecked(True)
+    for i, slider in enumerate(window.off):
+        assert slider.isEnabled()
+        assert (slider.spin.minimum(), slider.spin.maximum()) == (-1500, 1500)
+        key = "tip.cam_eye_offset" if i < 3 else "tip.tgt_offset"
+        assert slider.toolTip() == window._offset_labels[i].toolTip() == gui.tr(key)
+    window.sl_pitch.spin.setValue(42.0)
+    assert window.runtime.settings.pitch_deg == window.app_settings.pitch_deg == 42.0
+    for i, slider in enumerate(window.off):
+        slider.spin.setValue(i + 0.25)
+    assert window.runtime.settings.pos_offset == [0.25, 1.25, 2.25]
+    assert window.runtime.settings.target_offset == [3.25, 4.25, 5.25]
+    window.cmb_lang.setCurrentIndex(window.cmb_lang.findData("ja"))
+
+
+def test_radiata_enable_restore_updates_real_adapter_without_touching_native_input(env, radiata_gui):
+    backend = RadiataBackend()
+    window = env.make(lambda: backend)
+    # Arbitrary fake native input state must never become part of this adapter's writes.
+    input_address = 0x1100000
+    backend.seed(input_address, b"right-left-buttons-untouched")
+    before_input = backend.bytes_at(input_address, 27)
+    native_camera = window.adapter._camera()[0]
+    native_world = backend.read_floats(native_camera + ra_mm.CAM_NATIVE_WORLD, 16)
+    window.btn_enable.click()
+    window.runtime._tick(0.01, None)
+    assert not window.runtime.stats.last_error
+    assert window.runtime.settings.mode == gui.MODE_ORBIT
+    assert window.adapter.patch_state() == "applied"
+    assert backend.read_u32(ra_mm.MOD_BLOCK + ra_mm.MB_FLAGS) & ra_mm.FLAG_ORBIT
+    assert backend.read_floats(native_camera + ra_mm.CAM_NATIVE_WORLD, 16) == native_world
+    assert backend.bytes_at(input_address, 27) == before_input
+    window.chk_fov.setChecked(True)
+    window.sl_fov.spin.setValue(60)
+    window.runtime._fov_checked = 0
+    window.runtime._scene_time = 0
+    window.runtime._tick(0.01, None)
+    assert backend.read_u32(ra_mm.MOD_BLOCK + ra_mm.MB_FLAGS) & ra_mm.FLAG_FOV
+    window.btn_restore.click()
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
+    assert window.adapter.patch_state() == "stock"
+    assert backend.read_u32(ra_mm.MOD_BLOCK + ra_mm.MB_FLAGS) == 0
+    assert backend.read_floats(native_camera + ra_mm.CAM_NATIVE_WORLD, 16) == native_world
+    assert backend.bytes_at(input_address, 27) == before_input
+    assert all(address != input_address for address, _ in backend.writes)
+
+
+def test_radiata_and_druaga_settings_and_presets_stay_separate(env, radiata_gui):
+    saved = {"games": {
+        RADIATA_GAME_ID: {"distance": 2500.0, "look_height": -120.0, "pitch_deg": 35.0,
+                          "pos_offset": [1, 2, 3], "target_offset": [4, 5, 6], "mode": "orbit"},
+        dr_mm.GAME_ID: {"distance": 35.0, "look_height": 4.0, "pitch_deg": -50.0},
+    }}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    class SwitchingBackend:
+        def __init__(self): self.inner = RadiataBackend()
+        def __getattr__(self, name): return getattr(self.inner, name)
+    backend = SwitchingBackend()
+    window = env.make(lambda: backend)
+    assert window.runtime.settings.distance == 2500
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    window.presets.save("radiata-only", window.app_settings)
+    window._persist()
+    old_runtime = window.runtime
+    backend.inner = DruagaBackend()
+    window._reconnect()
+    assert not old_runtime.running and not old_runtime.stats.connected
+    assert type(window.adapter) is gui.DruagaAdapter
+    assert window.runtime.settings.distance == 35
+    assert window.runtime.settings.pitch_deg == -50
+    assert window.cmb_preset.findText("radiata-only") == -1
+    backend.inner = RadiataBackend()
+    window._reconnect()
+    assert type(window.adapter) is gui.RadiataStoriesAdapter
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.runtime.settings.distance == 2500
+    assert window.runtime.settings.look_height == -120
+    assert window.runtime.settings.pitch_deg == 35
+    assert window.runtime.settings.pos_offset == [1, 2, 3]
+    assert window.runtime.settings.target_offset == [4, 5, 6]
+    window.sl_dist.spin.setValue(3000)
+    window.cmb_preset.setCurrentText("radiata-only")
+    window.btn_load.click()
+    assert window.runtime.settings.distance == 2500
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
 
 
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):

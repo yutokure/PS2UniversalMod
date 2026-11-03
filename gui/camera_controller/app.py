@@ -61,6 +61,7 @@ from adapters.shiningforceneo.adapter import SFNeoAdapter  # noqa: E402
 from adapters.shiningforceexa.adapter import SFExaAdapter  # noqa: E402
 from adapters.suikoden5.adapter import Suikoden5Adapter  # noqa: E402
 from adapters.nightmaredruaga.adapter import DruagaAdapter  # noqa: E402
+from adapters.radiatastories.adapter import RadiataStoriesAdapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
     MODE_FREE, MODE_ORBIT, MODE_ORIGINAL, CameraRuntime, CameraSettings,
@@ -84,16 +85,18 @@ except ImportError:  # run as a script (python gui/camera_controller/app.py)
 log = logging.getLogger("ps2cam.gui")
 
 ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SFEXA": SFExaAdapter,
-            "SUIKODEN5": Suikoden5Adapter, "DRUAGA": DruagaAdapter}
+            "SUIKODEN5": Suikoden5Adapter, "DRUAGA": DruagaAdapter,
+            "RADIATA": RadiataStoriesAdapter}
 #: adapter class per game serial, chosen when the GUI connects
 ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
                       "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter,
-                      "SLPS-25377": DruagaAdapter}
+                      "SLPS-25377": DruagaAdapter, "SLPM-65800": RadiataStoriesAdapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
 #: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Shining Force Exa ``8B383FDF``,
-#: Suikoden V ``7380A572``, Nightmare of Druaga ``B476ED7A``), which only the Japanese
-#: releases satisfy; unverified versions are deliberately not listed here.
-SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286", "SLPS-25377"}
+#: Suikoden V ``7380A572``, Nightmare of Druaga ``B476ED7A``, Radiata Stories ``AC73005E``),
+#: which only the Japanese releases satisfy; unverified versions are deliberately not listed here.
+SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286", "SLPS-25377",
+                 "SLPM-65800"}
 
 #: severity styles of the notice bar (explicit foreground *and* background: readable on any theme)
 NOTICE_STYLE = {
@@ -371,12 +374,16 @@ class MainWindow(QMainWindow):
                 widget.setText(text)              # type: ignore[attr-defined]
         self._update_title()
         self._update_hints()
+        self._apply_feature_gates()
         self._update_offsets_title()
         self._last_text.clear()
         self._refresh()
 
     def _update_title(self) -> None:
         game = getattr(self.adapter, "display_name", "") if self.adapter is not None else ""
+        game_key = getattr(self.adapter, "display_name_key", "")
+        if game_key:
+            game = self._t(game_key)
         base = f"{tr('app.title')}  v{APP_VERSION}"
         self.setWindowTitle(tr("title.game", app=base, game=game) if game else base)
 
@@ -602,6 +609,7 @@ class MainWindow(QMainWindow):
         box_lay = QVBoxLayout(self.grp_offsets)
         box_lay.addWidget(inner)
         self.off = []
+        self._offset_labels = []
         names = ["pos.cam_x", "pos.cam_y", "pos.cam_z", "pos.tgt_x", "pos.tgt_y", "pos.tgt_z"]
         for i, nm in enumerate(names):
             sl = FloatSlider(-80, 80, 0.0, 2, 0.25)
@@ -611,7 +619,7 @@ class MainWindow(QMainWindow):
                 sl.valueChanged.connect(lambda v, k=i - 3: self._set_target_offset(k, v))
             sl.valueChanged.connect(lambda _v: self._update_offsets_title())
             self.off.append(sl)
-            self._row(oform, nm, sl, "tip.cam_offset" if i < 3 else "tip.tgt_offset")
+            self._offset_labels.append(self._row(oform, nm, sl))
         self._offsets_inner = inner
         self.grp_offsets.setChecked(False)
         inner.setVisible(False)
@@ -705,10 +713,15 @@ class MainWindow(QMainWindow):
         free_ok = bool(f.get("free_camera", True))
         self.rb_free.setEnabled(free_ok)
         self.rb_free.setToolTip("" if free_ok else self._t("mode.free_unsupported"))
+        independent_eye = bool(getattr(self.adapter, "accepts_orbit_offsets", False))
         for i, sl in enumerate(self.off):
             ok = bool(f.get("position_offsets", True)) if i < 3 else bool(f.get("target_offsets", True))
             sl.setEnabled(ok)
-            sl.setToolTip("" if ok else self._t("tip.offsets_unsupported"))
+            key = "tip.cam_eye_offset" if i < 3 and independent_eye else (
+                "tip.cam_offset" if i < 3 else "tip.tgt_offset")
+            tip = self._t(key if ok else "tip.offsets_unsupported")
+            sl.setToolTip(tip)
+            self._offset_labels[i].setToolTip(tip)
 
     def _apply_adapter_limits(self, adapter, settings: CameraSettings) -> None:
         """Slider ranges and hints for this game (the adapter knows them; the GUI does not)."""

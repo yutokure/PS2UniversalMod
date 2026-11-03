@@ -30,6 +30,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | シャイニング・フォース イクサ | `adapters/shiningforceexa` | `SLPM-66646` / `8B383FDF` | Orbit、距離、FOV、注視点の高さ、右スティック遮断、原作マップ回転連動 | [解析・確認範囲](docs/games/shiningforceexa/CAMERA.md) |
 | 幻想水滸伝V | `adapters/suikoden5` | `SLPM-66286` / `7380A572` | Orbit、距離、FOV、カメラ位置・注視点オフセット、右スティックのズーム遮断、R1 ズーム連動 | [`docs/games/suikoden5/`](docs/games/suikoden5/CAMERA.md) |
 | ザ・ナイトメア・オブ・ドルアーガ | `adapters/nightmaredruaga` | `SLPS-25377` / `B476ED7A` | 城内／ダンジョンの Orbit、距離、FOV、独立した位置・注視点6軸オフセット、右入力競合遮断 | [解析・確認範囲](docs/games/nightmaredruaga/CAMERA.md) |
+| ラジアータ ストーリーズ | `adapters/radiatastories` | `SLPM-65800` / `AC73005E` | Orbit、距離、FOV、独立した位置・注視点6軸オフセット（原作右スティックの遮断不要） | [解析・確認範囲](docs/games/radiatastories/CAMERA.md) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -200,6 +201,20 @@ presets\*.json                                  同梱プリセット（orbit-de
 - FOV は Orbit に付随して使います。現行共通runtimeは Original の FOV-only を実行しません。
 - [解析・安全条件](docs/games/nightmaredruaga/CAMERA.md)・[実行した確認と制限](docs/games/nightmaredruaga/TEST_RESULTS.md)
 
+### 5.6 ラジアータ ストーリーズ
+- 日本版 `SLPM-65800 / AC73005E` の通常フィールドに対応。右スティックは原作では未割当なので、入力遮断パッチを追加しません。
+- Orbit、距離 **150〜6000**、Pitch **−25〜+89.5°**、注視点高さ **−500〜500**、水平 FOV **20〜110°**。
+  視点 XYZ と注視点 XYZ は独立したオフセットです。高さは **負が上**、Free Camera は非対応です。
+- 原作の位置・回転・画角・スクリプト更新を保持し、描画用 view と frustum を生成する間だけ行列を置き換えて返します。
+  プレイヤーの最新座標を guest が加算するため、歩行追従をホストの連続座標書込みに依存しません。
+- メニューの player停止 flag と camera/actor 所有を host・guest の両方で確認。確認したステータスメニューでは抑止しましたが、
+  全イベント・戦闘・全ロード経路の判定保証ではありません。特殊場面では Original に戻してください。
+- Original／通常終了で3フックを復元。stock ステート読込み後も再適用します。実機では別の比較ステートで再適用・復元を確認しました。
+  FOV は Orbit に付随し、Original の FOV-only は共通runtimeの対象外です。
+- 原作のカメラ衝突補正は Orbit に適用しません。壁・未描画の裏面、原作と異なる歩行方向感覚が出る場合があります。
+  短い左スティック歩行と追従を確認しましたが、全 yaw の歩行方向は未測定です。
+- [解析・安全条件](docs/games/radiatastories/CAMERA.md)・[実行した確認と制限](docs/games/radiatastories/TEST_RESULTS.md)
+
 ## 6. ローカルデータの場所（Git 管理外）
 
 ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます（`core/config/paths.py`）。
@@ -235,6 +250,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |
 | シャイニング・フォース イクサ | `python tools/sfexa_live_check.py --out <lab>/test_evidence/exa/live.json`、`python tools/sfexa_gui_check.py --out <lab>/test_evidence/exa/gui`（GUI 検証は一時設定を使用、実キーボードpad入力あり。state再適用は解析文書参照） |
 | ドルアーガ | `python tools/druaga_live_check.py --out <lab>/test_evidence/druaga/run`（実入力あり。Dungeonは方向キーの通れる隣接タイルを `--dungeon-direction left` 等で指定。reload手順はゲーム別検証記録参照） |
+| ラジアータ | `python tools/radiata_live_check.py --out <lab>/test_evidence/radiata/run`（一時設定・GUI/Orbit/FOV/復元。`--move` は短い左スティック歩行、`--reload-handshake <empty-dir>` は外部state読込との同期。詳細はゲーム別検証記録） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
 結果は表示と `reports/`（JSON）に出ます。スクリーンショットなどの証跡は Git 管理外です。幻想水滸伝V の結果一覧は
@@ -251,7 +267,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | カメラが動かない | 対応するフィールドか確認。scene guardで書込みを控える場合がありますが、全戦闘・イベントの判別は保証しません。特殊場面ではOriginalへ戻してください |
 | カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。それでも戻らなければゲームを再開 |
 | PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 のパッチはモードに応じて runtime が管理します。`EnableCheats` は不要で、「ゲームパッチ」欄と旧外部パッチの競合を確認 |
-| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo・SF Exa・ドルアーガは約 1 秒）で自動再適用されます |
+| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo・SF Exa・ドルアーガ・ラジアータは約 1 秒）で自動再適用されます |
 | 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか、「入力ソース」が keyboard / scripted になっていないか確認。矢印キーでも回せます |
 | 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応、SF Exa は歩行保持を確認したものの全 yaw の方向測定は未実施 |
 | 狭い場所で画面が壁で埋まる | 距離を縮めるか Pitch を下げる（ゲームの衝突判定を通らないため） |

@@ -125,6 +125,7 @@ TEXT: dict[str, dict[str, str]] = {
                         "オービット距離（400 / 300 / 200）も切り替わります。"},
     # --- added by the 2026-11-02 GUI audit ---------------------------------
     "title.game": {"en": "{app} — {game}", "ja": "{app} — {game}"},
+    "game.radiata": {"en": "Radiata Stories", "ja": "ラジアータ ストーリーズ"},
     "group.offsets": {"en": "Offsets (advanced)", "ja": "オフセット（詳細）"},
     "group.offsets_set": {"en": "Offsets (advanced) - in use", "ja": "オフセット（詳細）― 設定あり"},
     "btn.advanced": {"en": "Show advanced", "ja": "詳細を表示"},
@@ -149,6 +150,8 @@ TEXT: dict[str, dict[str, str]] = {
                         "ja": "注視点を上下に動かします（符号はゲームによります。下の説明を参照）。"},
     "tip.cam_offset": {"en": "Moves the whole camera in the world; the viewing direction stays.",
                        "ja": "カメラ全体をワールド座標で動かします（向きは変わりません）。"},
+    "tip.cam_eye_offset": {"en": "Moves only the camera eye along world axes; the aim point stays in place, so the viewing direction changes.",
+                           "ja": "ワールド軸に沿って視点だけを動かします。注視点はそのままなので、見る方向も変わります。"},
     "tip.tgt_offset": {"en": "Moves the aim point in the world (the camera follows it).",
                        "ja": "注視点をワールド座標で動かします（カメラも付いていきます）。"},
     "tip.offsets_unsupported": {"en": "This game's adapter cannot use these offsets.",
