@@ -70,6 +70,31 @@ SLOT_EYE = 0x00
 SLOT_TARGET = 0x10
 SLOT_FOV = 0x20
 SLOT_ANCHOR = 0x24
+# Movement extends the existing 0x40-byte bank without changing camera cave bytes.
+# Global seqlock protects bank reuse AND the separate slot/flags publication.
+MB_MOVE_SEQ = 0x1C
+SLOT_FORWARD = 0x28  # horizontal actual target-eye: Fx, Fz
+SLOT_ROOT = 0x30
+SLOT_CAMERA = 0x34
+SLOT_MOVE = 0x38  # MOVE_VALID | native Dungeon sector (0..7)
+MOVE_VALID = 0x100
+MOVE_HORIZONTAL_EPS = 1e-6
+TOWN_CONTROLLER_OFFSET = 0x2310
+TOWN_MOVE_HOOK = 0x0051B760
+TOWN_MOVE_STOCK = (0x8E03000C, 0x24020001)
+TOWN_MOVE_NATIVE = 0x0051B768
+TOWN_MOVE_RETURN = 0x0051B7D0
+TOWN_MOVE_CAVE = 0x003F1200
+TOWN_MOVE_CAVE_END = 0x003F1800
+DUNGEON_MANAGER = 0x006CB790  # +0x38 owns DUNGEON_ACTOR_PTR
+# Saved decoder callers: player dispatcher and controllable-actor gameplay path.
+# Target-selection UI return 0x0055F4D8 is deliberately excluded.
+DUNGEON_MOVE_CALLERS = (0x00452404, 0x0045598C)
+DUNGEON_SECTOR_FUN = 0x0045C100
+DUNGEON_MOVE_SITES = (0x0045B7F0, 0x0045BEB0)
+DUNGEON_MOVE_STOCK = (0x0C117040, 0x0240202D)
+DUNGEON_MOVE_CAVE = 0x003F1800
+DUNGEON_MOVE_CAVE_END = 0x003F1E00
 FLAG_ORBIT = 1
 FLAG_FOV = 2
 # Raw packet is preserved. Only processed RX/RY and their derived direction bits

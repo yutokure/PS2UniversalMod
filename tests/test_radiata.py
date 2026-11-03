@@ -78,7 +78,7 @@ def assert_stock(b):
 
 
 class CaveMachine:
-    """Tiny R5900 subset with native inverse/tan/frustum represented as stubs."""
+    """Tiny R5900 subset with inverse/tan/frustum/forward represented as stubs."""
     def __init__(self, backend, camera=CAM):
         self.b = backend
         self.regs = [0] * 32
@@ -136,6 +136,10 @@ class CaveMachine:
         elif target == mm.FUN_FRUSTUM:
             self.calls.append(("frustum", self.regs[m.A0],
                                self.b.read_floats(self.regs[m.A0] + mm.CAM_NATIVE_WORLD, 16)))
+        elif target == mm.FUN_FORWARD:
+            matrix = self.b.read_floats(self.regs[m.A1] + mm.CAM_NATIVE_WORLD, 16)
+            self.b.write_float_block(self.regs[m.A0], [matrix[2], matrix[6], matrix[10], 1])
+            self.calls.append(("forward", self.regs[m.A1]))
         else:
             raise AssertionError(f"unexpected native boundary {target:08X}")
 
@@ -179,6 +183,11 @@ class CaveMachine:
     def finish(self):
         self.regs[m.A0] = self.regs[m.S0]
         self.run(mm.FINISH_CAVE)
+
+    def movement(self, record=RECORDS, camera=CAM):
+        self.regs[m.A0], self.regs[m.A1], self.regs[m.S0] = 0x01EE0000, camera, record
+        self.run(mm.MOVE_CAVE)
+        return self.b.read_floats(self.regs[m.A0], 4)
 
 
 @pytest.mark.parametrize("serial,crc,matched", [
@@ -298,6 +307,8 @@ def test_generated_caves_fit_regions_keep_delays_and_resolve_all_branches():
     assert mm.VIEW_CAVE + 4 * len(caves.VIEW_WORDS) <= mm.FOV_CAVE
     assert mm.FOV_CAVE + 4 * len(caves.FOV_WORDS) <= mm.FINISH_CAVE
     assert mm.FINISH_CAVE + 4 * len(caves.FINISH_WORDS) <= mm.MOD_BLOCK
+    assert mm.MOD_BLOCK + mm.BLOCK_SIZE <= mm.MOVE_CAVE
+    assert mm.MOVE_CAVE + 4 * len(caves.MOVE_WORDS) <= 0xF2000
     assert mm.SLOTS[0] + 0x80 <= mm.SLOTS[1]
     assert mm.SLOTS[1] + 0x80 <= mm.BLOCK_SIZE
     for _, stock, hook, _, words in caves.RESOURCES:
@@ -309,7 +320,7 @@ def test_generated_caves_fit_regions_keep_delays_and_resolve_all_branches():
                 assert 0 <= i + 1 + off < len(words)
 
 
-@pytest.mark.parametrize("site", range(3))
+@pytest.mark.parametrize("site", range(len(caves.RESOURCES)))
 @pytest.mark.parametrize("resource", ["hook", "delay", "cave"])
 def test_entire_hook_transaction_preflights_before_any_write(be, site, resource):
     address, _, _, cave, words = caves.RESOURCES[site]
@@ -323,6 +334,17 @@ def test_entire_hook_transaction_preflights_before_any_write(be, site, resource)
 def test_occupied_control_block_is_not_overwritten(be, address):
     be.seed_u32(address, 0xDEADBEEF)
     with pytest.raises(caves.PatchConflict): RadiataStoriesAdapter(be).set_patch(True)
+    assert not be.writes
+
+
+def test_partial_stock_reload_preflights_movement_cave_before_republishing(be):
+    ad = RadiataStoriesAdapter(be)
+    ad.write_orbit_params(PLAYER, 90, 20, 1500)
+    be.seed_u32(mm.MOVE_HOOK, mm.MOVE_STOCK[0])
+    be.seed_u32(mm.MOVE_CAVE, 0xDEADBEEF)
+    be.writes.clear()
+    with pytest.raises(caves.PatchConflict, match="occupied"):
+        ad.write_orbit_params(PLAYER, 180, 20, 1500)
     assert not be.writes
 
 
@@ -444,7 +466,7 @@ def test_flags_zero_is_native_pass_through_and_an_existing_transaction_is_not_ov
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_SAVED_WORLD) == 0x12345678
 
 
-def test_orbit_fov_release_independently_and_final_restore_returns_all_three_sites(be):
+def test_orbit_fov_release_independently_and_final_restore_returns_all_four_sites(be):
     ad = RadiataStoriesAdapter(be)
     ad.set_patch(True)
     ad.write_fov_deg(60)
@@ -464,7 +486,7 @@ def test_orbit_fov_release_independently_and_final_restore_returns_all_three_sit
     assert_stock(be)
 
 
-@pytest.mark.parametrize("site", range(3))
+@pytest.mark.parametrize("site", range(len(caves.RESOURCES)))
 def test_unknown_release_site_leaves_everything_untouched(be, site):
     ad = RadiataStoriesAdapter(be)
     ad.set_patch(True)
@@ -532,6 +554,128 @@ def test_runtime_dispatch_restore_and_abandon_respect_real_adapter_boundaries(be
     rt.abandon()
     assert not be.writes
     assert caves.site_state(be) == "applied"
+
+
+@pytest.mark.parametrize("yaw", [0, 90, 180, -90, 45, -135])
+@pytest.mark.parametrize("position", [Vec3(0, 0, 0), Vec3(700, -20, -450)])
+def test_movement_getter_uses_actual_offset_forward_before_any_render(be, yaw, position):
+    ad = RadiataStoriesAdapter(be)
+    target = Vec3(40, -90, 25)
+    ad.write_orbit_params(PLAYER, yaw, 30, 1500, pos_offset=position, target_offset=target)
+    native = be.read_floats(CAM + mm.CAM_NATIVE_WORLD, 16)
+    expected_pose = orbit_pose(target, math.radians(yaw), math.radians(30), 1500)
+    expected_pose = CameraPose(expected_pose.eye + position, expected_pose.target)
+    direction = expected_pose.target - expected_pose.eye
+    forward = direction.scaled(1 / direction.length())
+    machine = CaveMachine(be)
+    # Getter must not depend on MB_APPLIED / a previous view transaction.
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_APPLIED) == 0
+    result = machine.movement()
+    assert result == pytest.approx((*forward.as_tuple(), 1))
+    assert not machine.calls  # no native getter, tan or render update
+    assert be.read_floats(CAM + mm.CAM_NATIVE_WORLD, 16) == native
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 0
+    # Exactly the original consumer's atan2(z,x) -> 3pi/2-angle conversion.
+    actual_yaw = (1.5 * math.pi - math.atan2(result[2], result[0])) % math.tau
+    expected_yaw = (1.5 * math.pi - math.atan2(forward.z, forward.x)) % math.tau
+    assert actual_yaw == pytest.approx(expected_yaw, abs=1e-6)
+
+
+@pytest.mark.parametrize("address,value", [
+    (mm.MOD_BLOCK, 0), (mm.MOD_BLOCK + mm.MB_FLAGS, mm.FLAG_FOV),
+    (SCENE + 0x10, 1), (SCENE + 0x1C, 8), (SCENE + mm.PLAYER_ID, 0),
+    (SCENE + mm.PLAYER_ID, 2), (mm.FIELD_MANAGER_PTR, 0),
+    (FIELD + mm.FIELD_OWNER, 0), (OWNER + mm.OWNER_CAMERA, CAM + 0x1000),
+    (CAM, 0), (mm.RENDERER_PTR, 0), (RENDERER + mm.RENDERER_CAMERA, CAM + 0x1000),
+    (mm.ACTOR_MANAGER_PTR, 0), (MANAGER + mm.ACTOR_COUNT, 0),
+    (MANAGER + mm.ACTOR_COUNT, mm.ACTOR_LIMIT + 1), (MANAGER + mm.ACTOR_RECORDS, 0),
+    (RECORDS + mm.ACTOR_ID, 9), (RECORDS + mm.ACTOR_OBJECT, 0),
+    (RECORDS + mm.ACTOR_NODE, 0), (NODE, 0),
+])
+def test_movement_getter_guards_fall_back_without_persistent_writes(be, address, value):
+    ad = RadiataStoriesAdapter(be)
+    ad.write_orbit_params(PLAYER, 90, 20, 1500)
+    native = be.read_floats(CAM + mm.CAM_NATIVE_WORLD, 16)
+    be.seed_u32(address, value)
+    be.writes.clear()
+    machine = CaveMachine(be)
+    assert machine.movement() == pytest.approx((native[2], native[6], native[10], 1))
+    assert machine.calls == [("forward", CAM)]
+    assert all(0x01EE0000 <= a < 0x01EE0010 for a, _ in be.writes)
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 0
+
+
+def test_movement_rejects_other_actor_and_accepts_relocated_player_record():
+    b = seed_field(FakeBackend(), player_slot=3)
+    ad = RadiataStoriesAdapter(b)
+    ad.write_orbit_params(PLAYER, 90, 20, 1500)
+    machine = CaveMachine(b)
+    machine.movement(RECORDS)
+    assert machine.calls == [("forward", CAM)]
+    machine.calls.clear()
+    result = machine.movement(RECORDS + 3 * mm.ACTOR_STRIDE)
+    assert result[0] < -.9 and abs(result[2]) < 1e-6
+    assert not machine.calls
+
+
+@pytest.mark.parametrize("unstable", ["odd", "changed", "wrong_slot_id", "bad_index", "fov_bank", "disable_during_read"])
+def test_movement_bank_is_consistent_or_falls_back_to_native(be, unstable):
+    ad = RadiataStoriesAdapter(be)
+    ad.write_orbit_params(PLAYER, 90, 20, 1500)
+    bank = active_bank(be)
+    if unstable == "odd": be.seed_u32(bank + mm.SLOT_SEQUENCE, 3)
+    elif unstable == "wrong_slot_id": be.seed_u32(bank + mm.SLOT_ACTOR_ID, 2)
+    elif unstable == "bad_index": be.seed_u32(bank + mm.SLOT_ACTOR_INDEX, 2)
+    elif unstable == "fov_bank": be.seed_u32(bank + mm.SLOT_FLAGS, mm.FLAG_FOV)
+    else:
+        original = be.read_u32
+        def changed(address):
+            value = original(address)
+            if address == bank + mm.SLOT_SEQUENCE:
+                if unstable == "changed": be.seed_u32(address, value + 2)
+                else: be.seed_u32(mm.MOD_BLOCK + mm.MB_FLAGS, 0)
+            return value
+        be.read_u32 = changed
+    machine = CaveMachine(be)
+    machine.movement()
+    assert machine.calls == [("forward", CAM)]
+
+
+def test_movement_getter_preserves_arguments_saved_registers_ra_and_fpu(be):
+    ad = RadiataStoriesAdapter(be)
+    ad.write_orbit_params(PLAYER, 90, 25, 1500)
+    machine = CaveMachine(be)
+    for reg in range(m.S0, m.S4 + 1):
+        machine.regs[reg] = (1 << 100) | (reg << 60) | 0x12345678
+    machine.regs[m.S0] = RECORDS
+    machine.regs[m.A0], machine.regs[m.A1] = 0x01EE0000, CAM
+    machine.fpu = [i + .125 for i in range(32)]
+    before = list(machine.regs)
+    fpu = list(machine.fpu)
+    be.writes.clear()
+    machine.run(mm.MOVE_CAVE)
+    clobbered = set(range(m.T0, m.T7 + 1))
+    assert all(value == before[i] for i, value in enumerate(machine.regs) if i not in clobbered)
+    assert machine.fpu == fpu
+    assert len(be.writes) == 4 and all(0x01EE0000 <= addr < 0x01EE0010 for addr, _ in be.writes)
+
+
+def test_fov_only_and_orbit_release_use_native_movement_without_camera_mutation(be):
+    ad = RadiataStoriesAdapter(be)
+    ad.write_fov_deg(60)
+    machine = CaveMachine(be)
+    machine.movement()
+    assert machine.calls == [("forward", CAM)]
+    ad.write_orbit_params(PLAYER, 90, 25, 1500)
+    machine.calls.clear()
+    machine.movement()
+    assert not machine.calls
+    ad.set_patch(False)
+    assert caves.site_state(be) == "applied"  # FOV still owns the render hooks
+    machine.movement()
+    assert machine.calls == [("forward", CAM)]
+    ad.restore_fov()
+    assert_stock(be)
 
 
 def test_metadata_and_native_input_noop_are_explicit(be):

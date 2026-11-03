@@ -13,6 +13,23 @@ def _hfov(rad, scale=1.0):
     return math.degrees(2*math.atan(math.tan(rad/2)/(mm.PROJECTION_X_FACTOR*scale)))
 
 
+def _movement_basis(eye, target):
+    """Actual offset-inclusive horizontal look vector, never the yaw setting.
+
+    Exactly vertical/coincident geometry has no horizontal direction: fail closed.
+    Dungeon reuses its native, non-sequential sector IDs and direction table.
+    """
+    delta = target-eye
+    horizontal = math.hypot(delta.x, delta.z)
+    if not math.isfinite(horizontal) or horizontal <= mm.MOVE_HORIZONTAL_EPS:
+        return 0.0, 0.0, 0
+    fx, fz = delta.x/horizontal, delta.z/horizontal
+    back_angle = math.atan2(-fx, -fz)
+    octant = math.floor((back_angle+math.pi/8)/(math.pi/4)) % 8
+    sector = (1, 5, 2, 4, 0, 7, 3, 6)[octant]
+    return fx, fz, mm.MOVE_VALID | sector
+
+
 class DruagaAdapter:
     name = 'DRUAGA'
     display_name = 'The Nightmare of Druaga'
@@ -171,9 +188,14 @@ class DruagaAdapter:
     def _publish(self):
         cam, index, player = self._field()
         b = self.backend
+        # Hooks are checked every publish; full cave checks occur on activation,
+        # reconciliation and the runtime's periodic set_patch(True), not per frame.
         if caves.site_state(b) == 'unknown':
-            raise caves.PatchConflict('unknown Druaga camera hook instructions')
-        if not self._prepared or not self._valid_block() or caves.site_state(b) == 'stock':
+            raise caves.PatchConflict('unknown Druaga camera/movement hook instructions')
+        movement_reconnect = self._orbit and any(
+            b.read_u32(address) == stock[0] for address, stock, _, _, _ in caves.MOVEMENT_RESOURCES)
+        camera_reconnect = any(b.read_u32(address) == stock[0] for address, stock, _, _, _ in caves.RESOURCES)
+        if not self._prepared or not self._valid_block() or camera_reconnect or movement_reconnect:
             caves.prepare(b)
             self._prepared = True
         if self._last_orbit is None:
@@ -190,12 +212,23 @@ class DruagaAdapter:
             fov = 2*math.atan(mm.PROJECTION_X_FACTOR*scale*math.tan(math.radians(self._fov)/2))
         bank = (b.read_u32(mm.MOD_BLOCK+mm.MB_SLOT)&1)^1
         addr = mm.MOD_BLOCK+mm.SLOTS[bank]
+        fx, fz, movement = _movement_basis(eye, target)
+        # Odd while writing, even only once slot AND flags refer to this payload.
+        # On transport failure leave odd: the guest must fall back, not reuse it.
+        seq = (b.read_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ)+1) | 1
+        seq &= 0xFFFFFFFF
+        b.write_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ, seq)
         b.write_float_block(addr+mm.SLOT_EYE, (*eye.as_tuple(),1.0))
         b.write_float_block(addr+mm.SLOT_TARGET, (*target.as_tuple(),1.0))
         b.write_float_block(addr+mm.SLOT_FOV,[fov])
         b.write_u32(addr+mm.SLOT_ANCHOR,index)
+        b.write_float_block(addr+mm.SLOT_FORWARD, (fx, fz))
+        b.write_u32(addr+mm.SLOT_ROOT, cam-(mm.DUNGEON_CAMERA_OFFSET if b.read_u32(cam)==mm.DUNGEON_CAMERA_VTABLE else mm.CAMERA_OFFSET))
+        b.write_u32(addr+mm.SLOT_CAMERA, cam)
+        b.write_u32(addr+mm.SLOT_MOVE, movement if self._orbit else 0)
         b.write_u32(mm.MOD_BLOCK+mm.MB_SLOT,bank)  # publish complete bank atomically
         b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS,(mm.FLAG_ORBIT if self._orbit else 0)|(mm.FLAG_FOV if self._fov is not None else 0))
+        b.write_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ, (seq+1) & 0xFFFFFFFF)
         self._last_fov_rad = fov if self._fov is not None else None
         self._camera_owned = cam
         state = caves.site_state(b)
@@ -203,6 +236,7 @@ class DruagaAdapter:
             raise caves.PatchConflict('unknown Druaga camera hook instructions')
         if state == 'stock' or any(b.read_u32(addr) == stock[0] for addr,stock,_,_,_ in caves.RESOURCES):
             caves.install(b)
+        caves.set_movement(b, self._orbit)
 
     def write_orbit_params(self, centre, yaw_deg, pitch_deg, distance, *, pos_offset=None, target_offset=None):
         if not all(math.isfinite(x) for x in (*centre.as_tuple(),yaw_deg,pitch_deg,distance)):
@@ -239,7 +273,12 @@ class DruagaAdapter:
             raise caves.PatchConflict('unknown Druaga hook during release')
         if self._valid_block():
             flags = (mm.FLAG_ORBIT if self._orbit else 0)|(mm.FLAG_FOV if self._fov is not None else 0)
+            seq = ((b.read_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ)+1) | 1) & 0xFFFFFFFF
+            b.write_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ, seq)
             b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS, flags)
+            b.write_u32(mm.MOD_BLOCK+mm.MB_MOVE_SEQ, (seq+1) & 0xFFFFFFFF)
+        if not self._orbit:
+            caves.set_movement(b, False)
         if self._orbit or self._fov is not None:
             # A menu/event may stop camera updates. Dropping one owner must not
             # fail and prevent runtime.restore() from dropping the other owner.

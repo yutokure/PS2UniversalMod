@@ -29,8 +29,8 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | シャイニング・フォース ネオ | `adapters/shiningforceneo` | `SLPM-65908` / `64F241D2` | Orbit、距離、FOV、注視点の高さ、右スティック遮断 | [`docs/games/shiningforceneo/`](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) |
 | シャイニング・フォース イクサ | `adapters/shiningforceexa` | `SLPM-66646` / `8B383FDF` | Orbit、距離、FOV、注視点の高さ、右スティック遮断、原作マップ回転連動 | [解析・確認範囲](docs/games/shiningforceexa/CAMERA.md) |
 | 幻想水滸伝V | `adapters/suikoden5` | `SLPM-66286` / `7380A572` | Orbit、距離、FOV、カメラ位置・注視点オフセット、右スティックのズーム遮断、R1 ズーム連動 | [`docs/games/suikoden5/`](docs/games/suikoden5/CAMERA.md) |
-| ザ・ナイトメア・オブ・ドルアーガ | `adapters/nightmaredruaga` | `SLPS-25377` / `B476ED7A` | 城内／ダンジョンの Orbit、距離、FOV、独立した位置・注視点6軸オフセット、右入力競合遮断 | [解析・確認範囲](docs/games/nightmaredruaga/CAMERA.md) |
-| ラジアータ ストーリーズ | `adapters/radiatastories` | `SLPM-65800` / `AC73005E` | Orbit、距離、FOV、独立した位置・注視点6軸オフセット（原作右スティックの遮断不要） | [解析・確認範囲](docs/games/radiatastories/CAMERA.md) |
+| ザ・ナイトメア・オブ・ドルアーガ | `adapters/nightmaredruaga` | `SLPS-25377` / `B476ED7A` | 城内／ダンジョンの Orbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット、右入力競合遮断 | [解析・確認範囲](docs/games/nightmaredruaga/CAMERA.md) |
+| ラジアータ ストーリーズ | `adapters/radiatastories` | `SLPM-65800` / `AC73005E` | Orbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット（原作右スティックの遮断不要） | [解析・確認範囲](docs/games/radiatastories/CAMERA.md) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -70,7 +70,7 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 1. **カメラモード → オービット**（または「カメラ MOD を有効化」）
 2. **右スティック**: 左右で水平回転、上下で仰角。離すとその角度を保持します（矢印キーでも同じ操作。
    XInput とキーボードは併用でき、先に入力のあった方が使われます）
-3. 左スティックで歩く（歩行方向がカメラ基準になるかはゲームによる。§5）
+3. 左スティックで歩く（ドルアーガのダンジョンは方向キー）。ラジアータとドルアーガも Orbit のカメラ基準で移動します（ダンジョンは最寄り8方向）。ゲーム別の確認範囲は §5 を参照
 4. 「MOD を無効化して元のカメラに戻す」または「オリジナル」で、ゲーム本来のカメラ・入力に戻ります
 
 ### 3.3 GUI 項目
@@ -194,7 +194,9 @@ presets\*.json                                  同梱プリセット（orbit-de
   プレイヤー座標をゲーム内で毎フレーム加算するので、ホストが止まっても古い絶対座標へ固定しません。
 - Orbit 中は processed RX/RY と派生方向ビットを中立化。raw 入力・左軸・ボタンは保ち、アイテム操作との競合を抑えます。
   原作で右軸を使うメニューでは Original に戻してください。ダンジョンの歩行は原作の方向キー操作です。
-- Original／通常終了で両 camera hook・pad hook・派生入力4命令・FOVを原作へ返します。
+- Orbit 中の城内移動は実際の視点→注視点の水平方向へ変換します。ダンジョンは同じ方位を最寄り8方向へ丸め、
+  原作のタイル移動へ渡します。位置オフセットで変わった視線も反映し、左アナログのアイテム操作や対象選択UIは変更しません。
+- Original／通常終了で両 camera hook・移動3 hook・pad hook・派生入力4命令・FOVを原作へ返します。
   stock ステート読込み後は約1秒で再適用。未確認クラス・ロード・演出状態は host と guest の両方で拒否します。
 - 壁の内部／未描画の裏面が見える場合があります（Orbit に原作のカメラ衝突補正は適用しません）。
   城内・B1Fでの確認であり、全フロア・ボス・全イベント・入力録画再生の保証ではありません。
@@ -209,10 +211,12 @@ presets\*.json                                  同梱プリセット（orbit-de
   プレイヤーの最新座標を guest が加算するため、歩行追従をホストの連続座標書込みに依存しません。
 - メニューの player停止 flag と camera/actor 所有を host・guest の両方で確認。確認したステータスメニューでは抑止しましたが、
   全イベント・戦闘・全ロード経路の判定保証ではありません。特殊場面では Original に戻してください。
-- Original／通常終了で3フックを復元。stock ステート読込み後も再適用します。実機では別の比較ステートで再適用・復元を確認しました。
+- 移動計算が参照するカメラ forward も Orbit の実際の視線へ差し替えるため、左アナログ・方向キーの進行方向は
+  カメラ基準になります。原作の入力・速度・移動制限は保ち、メニュー停止時や所有不一致では原作へ戻します。
+- Original／通常終了で描画3フックと移動1フックを復元。stock ステート読込み後も再適用します。
   FOV は Orbit に付随し、Original の FOV-only は共通runtimeの対象外です。
-- 原作のカメラ衝突補正は Orbit に適用しません。壁・未描画の裏面、原作と異なる歩行方向感覚が出る場合があります。
-  短い左スティック歩行と追従を確認しましたが、全 yaw の歩行方向は未測定です。
+- 原作のカメラ衝突補正は Orbit に適用しません。壁・未描画の裏面が見える場合があります。
+  歩行にも原作の地形・衝突制限が残ります。限定場面の短い方向測定であり、全 yaw・全地形・長時間の保証ではありません。
 - [解析・安全条件](docs/games/radiatastories/CAMERA.md)・[実行した確認と制限](docs/games/radiatastories/TEST_RESULTS.md)
 
 ## 6. ローカルデータの場所（Git 管理外）
@@ -251,6 +255,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | シャイニング・フォース イクサ | `python tools/sfexa_live_check.py --out <lab>/test_evidence/exa/live.json`、`python tools/sfexa_gui_check.py --out <lab>/test_evidence/exa/gui`（GUI 検証は一時設定を使用、実キーボードpad入力あり。state再適用は解析文書参照） |
 | ドルアーガ | `python tools/druaga_live_check.py --out <lab>/test_evidence/druaga/run`（実入力あり。Dungeonは方向キーの通れる隣接タイルを `--dungeon-direction left` 等で指定。reload手順はゲーム別検証記録参照） |
 | ラジアータ | `python tools/radiata_live_check.py --out <lab>/test_evidence/radiata/run`（一時設定・GUI/Orbit/FOV/復元。`--move` は短い左スティック歩行、`--reload-handshake <empty-dir>` は外部state読込との同期。詳細はゲーム別検証記録） |
+| ラジアータ／ドルアーガの移動方向 | `python tools/orbit_movement_check.py --game radiata --yaw 180 --direction up --out <lab>/test_evidence/radiata/movement.json`（複製カードと安全な同版ステートを用意。`--game druaga` は城内／Dungeonを識別、Dungeonは方向キー。壁・狭い足場による無移動や横滑りは別途切り分ける） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
 結果は表示と `reports/`（JSON）に出ます。スクリーンショットなどの証跡は Git 管理外です。幻想水滸伝V の結果一覧は

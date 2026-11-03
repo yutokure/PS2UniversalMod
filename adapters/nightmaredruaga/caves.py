@@ -149,6 +149,146 @@ def pad_words():
     return a.assemble()
 
 
+def movement_words(dungeon=False):
+    """Local consumer override only; no pad, native goal, actor or camera writes.
+
+    Keep full R5900 temporary registers and FPU bits, including on fallback.
+    A global seqlock prevents a preempted reader using a bank reused by the host.
+    """
+    a = m.Assembler(); e = a.emit
+    frame = 0xA0
+    e(m.addiu(m.SP, m.SP, -frame))
+    for i, reg in enumerate(range(m.T0, m.T7+1)):
+        e(_sq(reg, m.SP, i*16))
+    for i in range(6): e(m.swc1(i, m.SP, 0x80+i*4))
+    _load(e, m.T0, mm.MOD_BLOCK)
+    e(m.lw(m.T6, m.T0, mm.MB_MAGIC)); _load(e, m.T7, mm.MAGIC)
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    e(m.lw(m.T4, m.T0, mm.MB_MOVE_SEQ)); e(m.andi(m.T6, m.T4, 1))
+    a.bnez(m.T6, 'native'); e(m.NOP)
+    e(m.lw(m.T5, m.T0, mm.MB_FLAGS)); e(m.andi(m.T6, m.T5, mm.FLAG_ORBIT))
+    a.beqz(m.T6, 'native'); e(m.NOP)
+    _load(e, m.T6, mm.ROOT_PTR)
+    e(m.lw(m.T1, m.T6, 0)); e(m.lw(m.T2, m.T6, 4))
+    # Reject invalid allocations before dereferencing root/camera.
+    e(_r(0, m.T1, m.T6, 20, 2)); a.beqz(m.T6, 'native'); e(m.NOP)
+    _load(e, m.T7, 0x02000000-0x2400)
+    e(_r(m.T1, m.T7, m.T6, 0, 0x2B)); a.beqz(m.T6, 'native'); e(m.NOP)
+    e(m.andi(m.T6, m.T1, 15)); a.bnez(m.T6, 'native'); e(m.NOP)
+    e(m.addiu(m.T6, m.T1, mm.DUNGEON_CAMERA_OFFSET if dungeon else mm.CAMERA_OFFSET))
+    a.words.append(('bne', m.T2, m.T6, 'native')); e(m.NOP)
+    if dungeon:
+        _load(e, m.T6, mm.DUNGEON_MANAGER)
+        a.words.append(('bne', m.A0, m.T6, 'native')); e(m.NOP)
+        a.words.append(('bne', m.S2, m.T6, 'native')); e(m.NOP)
+        # Decoder also serves target-selection UI; never rotate that caller.
+        e(m.lw(m.T6, m.SP, frame+0x40))
+        _load(e, m.T7, mm.DUNGEON_MOVE_CALLERS[0])
+        a.words.append(('beq', m.T6, m.T7, 'caller_ok')); e(m.NOP)
+        _load(e, m.T7, mm.DUNGEON_MOVE_CALLERS[1])
+        a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+        a.label('caller_ok')
+    else:
+        e(m.addiu(m.T6, m.T1, mm.TOWN_CONTROLLER_OFFSET))
+        a.words.append(('bne', m.S0, m.T6, 'native')); e(m.NOP)
+    e(m.lw(m.T6, m.T1, 0)); _load(e, m.T7, mm.DUNGEON_ROOT_VTABLE if dungeon else mm.ROOT_VTABLE)
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    e(0x94000000 | (m.T1 << 21) | (m.T6 << 16) | 4)
+    e(m.addiu(m.T7, m.ZERO, 3 if dungeon else 2))
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    e(m.lw(m.T6, m.T2, 0)); _load(e, m.T7, mm.DUNGEON_CAMERA_VTABLE if dungeon else mm.CAMERA_VTABLE)
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    e(m.lw(m.T6, m.T2, mm.CAM_MODE)); e(m.addiu(m.T7, m.ZERO, 1 if dungeon else 0))
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    if dungeon:
+        e(0x94000000 | (m.T2 << 21) | (m.T6 << 16) | 0x2DE)
+        a.bnez(m.T6, 'native'); e(m.NOP)
+    _load(e, m.T6, mm.GAME_STATE); e(m.lw(m.T6, m.T6, 0))
+    e(m.addiu(m.T7, m.ZERO, 1 if dungeon else 2))
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    _load(e, m.T6, mm.EVENT_ACTIVE); e(m.lw(m.T6, m.T6, 0))
+    a.bnez(m.T6, 'native'); e(m.NOP)
+    _load(e, m.T6, mm.GAME_FLAGS_WORD); e(m.lw(m.T6, m.T6, 0))
+    e(_r(0, m.T6, m.T6, 16, 2)); e(m.andi(m.T6, m.T6, 0x4000))
+    a.bnez(m.T6, 'native'); e(m.NOP)
+    e(m.lw(m.T6, m.T1, mm.RENDERER_OFFSET+mm.RENDER_CAMERA))
+    e(m.addiu(m.T7, m.T2, mm.CAM_VIEW))
+    a.words.append(('bne', m.T6, m.T7, 'native')); e(m.NOP)
+    e(m.lw(m.T3, m.T0, mm.MB_SLOT)); e(m.andi(m.T3, m.T3, 1))
+    e(_r(0, m.T3, m.T3, 6, 0)); e(m.addiu(m.T3, m.T3, mm.SLOTS[0]))
+    e(_r(m.T0, m.T3, m.T3, 0, 0x21))
+    for off, reg in ((mm.SLOT_ROOT, m.T1), (mm.SLOT_CAMERA, m.T2)):
+        e(m.lw(m.T6, m.T3, off)); a.words.append(('bne', m.T6, reg, 'native')); e(m.NOP)
+    e(m.lw(m.T5, m.T3, mm.SLOT_MOVE)); e(m.andi(m.T6, m.T5, mm.MOVE_VALID))
+    a.beqz(m.T6, 'native'); e(m.NOP)
+    e(m.andi(m.T6, m.T5, mm.MOVE_VALID | 7))
+    a.words.append(('bne', m.T6, m.T5, 'native')); e(m.NOP)
+    e(m.lw(m.T6, m.T3, mm.SLOT_ANCHOR))
+    e(0x2C000000 | (m.T6 << 21) | (m.T7 << 16) | mm.ENTITY_COUNT)
+    a.beqz(m.T7, 'native'); e(m.NOP)
+    e(_r(0, m.T6, m.T7, 9, 0)); e(_r(0, m.T6, m.T6, 6, 0))
+    e(_r(m.T7, m.T6, m.T6, 0, 0x23))
+    _load(e, m.T7, mm.ENTITY_TABLE); e(_r(m.T7, m.T6, m.T6, 0, 0x21))
+    if dungeon:
+        _load(e, m.T7, mm.DUNGEON_ACTOR_PTR); e(m.lw(m.T7, m.T7, 0))
+        e(_r(0, m.T7, m.T2, 20, 2)); a.beqz(m.T2, 'native'); e(m.NOP)
+        _load(e, m.T2, 0x02000000-mm.ACTOR_ENTITY_PTR-4)
+        e(_r(m.T7, m.T2, m.T2, 0, 0x2B)); a.beqz(m.T2, 'native'); e(m.NOP)
+        e(m.andi(m.T2, m.T7, 15)); a.bnez(m.T2, 'native'); e(m.NOP)
+        e(m.lw(m.T7, m.T7, mm.ACTOR_ENTITY_PTR)); e(m.addiu(m.T2, m.T6, mm.ENTITY_RENDERER))
+        a.words.append(('bne', m.T7, m.T2, 'native')); e(m.NOP)
+    else:
+        e(0x94000000 | (m.T6 << 21) | (m.T7 << 16) | mm.ENTITY_ID)
+        e(m.addiu(m.T2, m.ZERO, mm.PLAYER_ID))
+        a.words.append(('bne', m.T7, m.T2, 'native')); e(m.NOP)
+    e(m.lw(m.T7, m.T6, 0)); e(m.andi(m.T7, m.T7, 1))
+    a.beqz(m.T7, 'native'); e(m.NOP)
+    e(m.lw(m.T7, m.T6, mm.ENTITY_RENDERER)); e(m.addiu(m.T2, m.T1, mm.RENDERER_OFFSET))
+    a.words.append(('bne', m.T7, m.T2, 'native')); e(m.NOP)
+    if not dungeon:
+        # Town local +Z is Up; screen right=(Fz,-Fx), not its mirror.
+        e(m.lwc1(0, m.SP, frame+0x70)); e(m.lwc1(1, m.SP, frame+0x78))
+        e(m.lwc1(2, m.T3, mm.SLOT_FORWARD)); e(m.lwc1(3, m.T3, mm.SLOT_FORWARD+4))
+        def fp(fn, fd, fs, ft): return 0x46000000 | (ft << 16) | (fs << 11) | (fd << 6) | fn
+        e(fp(2, 4, 3, 0)); e(fp(2, 5, 2, 1)); e(m.add_s(4, 4, 5))
+        e(fp(2, 5, 3, 1)); e(fp(2, 0, 2, 0)); e(fp(1, 5, 5, 0))
+    # All bank reads precede the final sequence check; never publish mixed data.
+    e(m.lw(m.T6, m.T0, mm.MB_MOVE_SEQ))
+    a.words.append(('bne', m.T6, m.T4, 'native')); e(m.NOP)
+    if dungeon:
+        e(m.andi(m.V0, m.T5, 7))
+    else:
+        e(m.swc1(4, m.SP, frame+0x70)); e(m.swc1(5, m.SP, frame+0x78))
+    a.beqz(m.ZERO, 'done'); e(m.NOP)
+    a.label('native')
+    # A separate epilogue keeps native fallback and successful return explicit.
+    for i in range(6): e(m.lwc1(i, m.SP, 0x80+i*4))
+    for i, reg in enumerate(range(m.T0, m.T7+1)): e(_lq(reg, m.SP, i*16))
+    e(m.addiu(m.SP, m.SP, frame))
+    if dungeon:
+        e(m.j(mm.DUNGEON_SECTOR_FUN)); e(m.NOP)  # preserve caller ra
+    else:
+        e(mm.TOWN_MOVE_STOCK[0]); e(m.j(mm.TOWN_MOVE_NATIVE)); e(m.NOP)
+    a.label('done')
+    for i in range(6): e(m.lwc1(i, m.SP, 0x80+i*4))
+    for i, reg in enumerate(range(m.T0, m.T7+1)): e(_lq(reg, m.SP, i*16))
+    e(m.addiu(m.SP, m.SP, frame))
+    e(_r(31, 0, 0, 0, 8) if dungeon else m.j(mm.TOWN_MOVE_RETURN)); e(m.NOP)
+    return a.assemble()
+
+
+TOWN_MOVE_WORDS = movement_words()
+DUNGEON_MOVE_WORDS = movement_words(dungeon=True)
+TOWN_MOVE_HOOK = (m.j(mm.TOWN_MOVE_CAVE), mm.TOWN_MOVE_STOCK[1])
+DUNGEON_MOVE_HOOK = (m.jal(mm.DUNGEON_MOVE_CAVE), mm.DUNGEON_MOVE_STOCK[1])
+MOVEMENT_RESOURCES = ((mm.TOWN_MOVE_HOOK, mm.TOWN_MOVE_STOCK, TOWN_MOVE_HOOK,
+                       mm.TOWN_MOVE_CAVE, TOWN_MOVE_WORDS),) + tuple(
+    (site, mm.DUNGEON_MOVE_STOCK, DUNGEON_MOVE_HOOK, mm.DUNGEON_MOVE_CAVE, DUNGEON_MOVE_WORDS)
+    for site in mm.DUNGEON_MOVE_SITES)
+assert mm.TOWN_MOVE_CAVE+len(TOWN_MOVE_WORDS)*4 <= mm.TOWN_MOVE_CAVE_END
+assert mm.DUNGEON_MOVE_CAVE+len(DUNGEON_MOVE_WORDS)*4 <= mm.DUNGEON_MOVE_CAVE_END
+
+
 PAD_WORDS=pad_words()
 PAD_HOOK=(m.j(mm.PAD_CAVE),mm.PAD_AXIS_STOCK[1])
 assert mm.PAD_CAVE+len(PAD_WORDS)*4<=mm.PAD_CAVE_END
@@ -167,7 +307,16 @@ def read_words(b, addr, n):
     return tuple(b.read_u32(addr+4*i) for i in range(n))
 
 
+def movement_state(b):
+    states = []
+    for address, stock, hook, _, _ in MOVEMENT_RESOURCES:
+        words = read_words(b, address, 2)
+        states.append('stock' if words == stock else 'applied' if words == hook else 'unknown')
+    return 'unknown' if 'unknown' in states else 'stock' if all(x == 'stock' for x in states) else 'applied'
+
+
 def site_state(b):
+    if movement_state(b) == 'unknown': return 'unknown'
     states = []
     for address,stock,hook,_,_ in RESOURCES:
         words = read_words(b,address,2)
@@ -179,7 +328,7 @@ def site_state(b):
 def preflight(b):
     if site_state(b) == 'unknown':
         raise PatchConflict('unknown Druaga camera hook instructions')
-    for _,_,_,address,expected in RESOURCES:
+    for _,_,_,address,expected in RESOURCES+MOVEMENT_RESOURCES:
         code = read_words(b,address,len(expected))
         if code != tuple(expected) and any(code):
             raise PatchConflict('Druaga code cave is occupied')
@@ -193,7 +342,7 @@ def preflight(b):
 def prepare(b):
     """Validate ALL resources before the first write; leave the hook disconnected."""
     preflight(b)
-    for _,_,_,address,words in RESOURCES:
+    for _,_,_,address,words in RESOURCES+MOVEMENT_RESOURCES:
         if read_words(b,address,len(words)) != tuple(words):
             for i,w in enumerate(words): b.write_u32(address+4*i,w)
     if b.read_u32(mm.MOD_BLOCK) != mm.MAGIC:
@@ -208,10 +357,22 @@ def install(b):
             b.write_u32(address,hook[0])
 
 
+def set_movement(b, on):
+    """Connect only completed, preflighted code; FOV-only leaves all sites stock."""
+    if movement_state(b) == 'unknown':
+        raise PatchConflict('unknown Druaga movement hook instructions')
+    if on and any(b.read_u32(address) != hook[0] for address, _, hook, _, _ in MOVEMENT_RESOURCES):
+        preflight(b)
+    for address, stock, hook, _, _ in MOVEMENT_RESOURCES:
+        want = hook[0] if on else stock[0]
+        if b.read_u32(address) != want: b.write_u32(address, want)
+
+
 def uninstall(b):
     state = site_state(b)
     if state == 'unknown':
         raise PatchConflict('unknown Druaga hook during release')
+    set_movement(b, False)
     if state == 'applied':
         for address,stock,hook,_,_ in RESOURCES:
             if b.read_u32(address) == hook[0]: b.write_u32(address,stock[0])
