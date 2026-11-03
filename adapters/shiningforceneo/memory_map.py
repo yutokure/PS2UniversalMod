@@ -37,6 +37,13 @@ CAM_YAW = CAM_STRUCT + 0x188
 CAM_PITCH = CAM_STRUCT + 0x18A
 #: 32-bit word covering CAM_YAW (low half) and CAM_PITCH (high half)
 CAM_YAW_WORD = CAM_YAW
+#: Controller dispatch in FUN_001D6160: 0 = smoothed follow, 1 = direct follow;
+#: 2..5 select fixed-eye / transition / scripted-camera paths.
+CAM_MODE = CAM_STRUCT + 0x140
+FIELD_CAMERA_MODES = (0, 1)
+#: FUN_001D6ED0 focus source: 0 = party; 1..4 = another actor / scripted point.
+CAM_FOCUS_MODE = CAM_STRUCT + 0x144
+PARTY_FOCUS_MODE = 0
 
 # --- smoothing gate ----------------------------------------------------------
 #: state block of FUN_0027D540 (DAT_00478360).  Byte +0x16 enables the per-frame

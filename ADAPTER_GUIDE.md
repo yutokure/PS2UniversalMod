@@ -54,6 +54,17 @@ class MyGameAdapter:
 `SceneState` / `AdapterInfo` は `adapters/ffx2/adapter.py` の定義を
 そのまま import して構いません（共通化候補）。
 
+任意の座標系・制御値境界（既定では既存ゲームの挙動を維持）:
+
+- `PITCH_RANGE = (lo, hi)` は内部角度の可動域。指定時は GUI・右スティック双方が優先し、
+  古い保存値・プリセットの範囲では上書きしません。GUI は範囲外の読込角度を補正します。
+- `PITCH_DISPLAY_SIGN` は内部角度から表示値への係数（±1、既定 +1）。`PITCH_INPUT_SIGN` は
+  入力積分の係数（±1、既定 +1）。内部数学・保存値の意味を変えずに、表示と操作方向を合わせます。
+  `PITCH_POSITIVE_IS` の説明は表示値に合わせてください。`invert_y` はこの基準に対する追加反転です。
+- `accepts_look_height = True` の adapter は `write_orbit_params(..., look_height=...)` で
+  設定の相対高さを受け取ります。SF Neo はこれを使い、異なるフレームのキャラクター Y と中心座標を
+  引き算して移動量を高さ設定へ混入させないようにします。指定しない adapter の呼出しは従来どおりです。
+
 ---
 
 ## 3. 手順

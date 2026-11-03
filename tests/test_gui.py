@@ -155,6 +155,84 @@ def test_the_window_always_starts_in_original_whatever_was_saved(env):
     assert w.runtime.settings.distance == 300.0            # the values are kept, only the mode is not
 
 
+@pytest.mark.parametrize(("saved_pitch", "internal_pitch"), [
+    (-34.2, -34.2), (-120.0, -89.5), (60.0, 25.0),
+])
+def test_sfneo_saved_pitch_uses_display_sign_and_overrides_old_limits(env, saved_pitch, internal_pitch):
+    saved = {"games": {sf_mm.GAME_ID: {
+        "game_id": sf_mm.GAME_ID, "pitch_deg": saved_pitch,
+        "pitch_min_deg": -25.0, "pitch_max_deg": 85.0,
+    }}}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    w = env.make(SFNeoBackend)
+    assert w.runtime is not None
+    assert w.runtime.settings.pitch_deg == internal_pitch
+    assert w.app_settings.pitch_deg == internal_pitch
+    assert w.sl_pitch.value() == -internal_pitch
+    assert (w.sl_pitch.spin.minimum(), w.sl_pitch.spin.maximum()) == (-25.0, 89.5)
+    assert (w.runtime.settings.pitch_min_deg, w.runtime.settings.pitch_max_deg) == (-89.5, 25.0)
+    assert (w.app_settings.pitch_min_deg, w.app_settings.pitch_max_deg) == (-89.5, 25.0)
+    assert w.lbl_pitch_hint.text() == gui.tr("hint.pitch_above")
+    w._persist()
+    stored = json.loads((folder / "settings.json").read_text(encoding="utf-8"))["games"][sf_mm.GAME_ID]
+    assert stored["pitch_deg"] == internal_pitch            # never persist the display convention
+    assert (stored["pitch_min_deg"], stored["pitch_max_deg"]) == (-89.5, 25.0)
+
+
+def test_sfneo_pitch_edits_convert_display_to_internal(env):
+    w = env.make(SFNeoBackend)
+    assert w.runtime is not None
+    w.sl_pitch.spin.setValue(61.2)
+    assert w.runtime.settings.pitch_deg == -61.2
+    assert w.app_settings.pitch_deg == -61.2
+    for raw, internal in ((895, -89.5), (-250, 25.0), (0, 0.0)):
+        w.sl_pitch.slider.setValue(raw)
+        assert w.runtime.settings.pitch_deg == internal
+        assert w.app_settings.pitch_deg == internal
+    w.sl_pitch.spin.setValue(48.3)
+    w._persist()
+    path = w.presets.save("sfneo-elevation", w.app_settings)
+    assert json.loads(path.read_text(encoding="utf-8"))["settings"]["pitch_deg"] == -48.3
+
+
+@pytest.mark.parametrize("internal_pitch", [-72.4, 18.2])
+def test_sfneo_runtime_pitch_mirrors_in_display_convention(env, internal_pitch):
+    w = env.make(SFNeoBackend)
+    assert w.runtime is not None
+    w.pump.stop()
+    w.runtime.stop()
+    w.runtime.settings.mode = gui.MODE_ORBIT
+    w.runtime.settings.pitch_deg = internal_pitch
+    w._refresh()
+    assert w.sl_pitch.value() == -internal_pitch
+    assert w.runtime.settings.pitch_deg == internal_pitch    # mirroring must not feed back
+
+
+def test_suikoden_pitch_keeps_internal_display_and_saved_limits(env):
+    saved = {"games": {su_mm.GAME_ID: {
+        "game_id": su_mm.GAME_ID, "pitch_deg": -18.7,
+        "pitch_min_deg": -31.0, "pitch_max_deg": 74.0,
+    }}}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    w = env.make(SuikodenBackend)
+    assert w.runtime is not None
+    assert w.sl_pitch.value() == w.runtime.settings.pitch_deg == -18.7
+    assert (w.sl_pitch.spin.minimum(), w.sl_pitch.spin.maximum()) == (-31.0, 74.0)
+    assert (w.runtime.settings.pitch_min_deg, w.runtime.settings.pitch_max_deg) == (-31.0, 74.0)
+    w.sl_pitch.spin.setValue(28.4)
+    assert w.runtime.settings.pitch_deg == w.app_settings.pitch_deg == 28.4
+    w.pump.stop()
+    w.runtime.stop()
+    w.runtime.settings.mode = gui.MODE_ORBIT
+    w.runtime.settings.pitch_deg = -11.3
+    w._refresh()
+    assert w.sl_pitch.value() == w.runtime.settings.pitch_deg == -11.3
+
+
 def test_offsets_are_disabled_when_the_adapter_cannot_use_them(env):
     w = env.make(SFNeoBackend)
     env.spin(0.4)
@@ -203,6 +281,46 @@ def test_loading_a_preset_never_changes_the_mode(env):
     assert w.runtime.settings.mode == "original"
     assert w.rb_original.isChecked()
     assert gui.current_language() == "ja"                  # a preset does not switch the language either
+
+
+@pytest.mark.parametrize(("preset_pitch", "internal_pitch"), [
+    (-42.7, -42.7), (-120.0, -89.5), (70.0, 25.0),
+])
+def test_sfneo_preset_reapplies_adapter_limits_without_reinterpreting_pitch(env, preset_pitch, internal_pitch):
+    w = env.make(SFNeoBackend)
+    assert w.runtime is not None
+    preset = {"name": "old-sfneo", "game_id": sf_mm.GAME_ID,
+              "settings": {"game_id": sf_mm.GAME_ID, "mode": "orbit", "pitch_deg": preset_pitch,
+                           "pitch_min_deg": -25.0, "pitch_max_deg": 85.0}}
+    path = w.presets.dir / "old-sfneo.json"
+    original = json.dumps(preset)
+    path.write_text(original, encoding="utf-8")
+    w._refresh_presets()
+    w.cmb_preset.setCurrentText("old-sfneo")
+    w.btn_load.click()
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.runtime.settings.pitch_deg == w.app_settings.pitch_deg == internal_pitch
+    assert (w.runtime.settings.pitch_min_deg, w.runtime.settings.pitch_max_deg) == (-89.5, 25.0)
+    assert (w.app_settings.pitch_min_deg, w.app_settings.pitch_max_deg) == (-89.5, 25.0)
+    assert (w.sl_pitch.spin.minimum(), w.sl_pitch.spin.maximum()) == (-25.0, 89.5)
+    assert w.sl_pitch.value() == -internal_pitch
+    assert path.read_text(encoding="utf-8") == original      # loading leaves existing presets intact
+
+
+def test_suikoden_preset_keeps_saved_pitch_bounds_and_sign(env):
+    w = env.make(SuikodenBackend)
+    assert w.runtime is not None
+    preset = {"name": "su-pitch", "game_id": su_mm.GAME_ID,
+              "settings": {"game_id": su_mm.GAME_ID, "pitch_deg": -19.6,
+                           "pitch_min_deg": -32.0, "pitch_max_deg": 71.0}}
+    (w.presets.dir / "su-pitch.json").write_text(json.dumps(preset), encoding="utf-8")
+    w._refresh_presets()
+    w.cmb_preset.setCurrentText("su-pitch")
+    w.btn_load.click()
+    assert w.runtime.settings.pitch_deg == w.app_settings.pitch_deg == w.sl_pitch.value() == -19.6
+    assert (w.runtime.settings.pitch_min_deg, w.runtime.settings.pitch_max_deg) == (-32.0, 71.0)
+    assert (w.app_settings.pitch_min_deg, w.app_settings.pitch_max_deg) == (-32.0, 71.0)
+    assert (w.sl_pitch.spin.minimum(), w.sl_pitch.spin.maximum()) == (-32.0, 71.0)
 
 
 def test_overwriting_a_preset_asks_first(env, monkeypatch):
