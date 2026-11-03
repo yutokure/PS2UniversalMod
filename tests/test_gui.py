@@ -15,7 +15,9 @@ from PySide6.QtGui import QWheelEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from adapters.shiningforceneo import memory_map as sf_mm  # noqa: E402
+from adapters.shiningforceexa import memory_map as ex_mm  # noqa: E402
 from adapters.suikoden5 import memory_map as su_mm  # noqa: E402
+from core.memory_backend.guard import WriteBlocked  # noqa: E402
 from gui.camera_controller import app as gui  # noqa: E402
 from tests.test_suikoden5 import FakeBackend  # noqa: E402
 
@@ -93,10 +95,46 @@ class SuikodenBackend(GuiBackend):
         self.mem = suikoden_backend().mem
 
 
+def seed_shining_field(backend, memory_map) -> None:
+    """Synthetic field geometry and stock patch words; no emulator/game dump needed."""
+    backend.write_floats(memory_map.PARTY_POS, [123.0, 200.0, 321.0])
+    height = memory_map.STOCK_HEIGHT
+    backend.write_floats(memory_map.CAM_FOCUS, [123.0, 200.0 + height, 321.0, 1.0])
+    backend.write_floats(memory_map.CAM_EYE, [123.0, 700.0 + height, 1187.0254, 1.0])
+    backend.write_floats(memory_map.CAM_DISTANCE, [1000.0])
+    backend.write_floats(memory_map.CAM_HEIGHT, [height])
+    backend.write_u32(memory_map.CAM_MODE, 0)
+    backend.write_u32(memory_map.CAM_FOCUS_MODE, 0)
+    backend.write_floats(memory_map.CAM_VP,
+                         [3.6, 0, 0, 0, 0, 5.1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+    backend.write_u32(memory_map.VP_LOAD_CALL, memory_map.VP_LOAD_WORD)
+    backend.write_u32(memory_map.PAD_CALL_SITE, memory_map.PAD_CALL_WORD)
+    backend.write_u32(memory_map.SMOOTH_GATE_WORD,
+                      memory_map.SMOOTH_GATE_STOCK << memory_map.SMOOTH_GATE_SHIFT)
+    if memory_map is ex_mm:
+        backend.write_u32(ex_mm.CAM_ACTIVE_PTR, ex_mm.CAM_STRUCT)
+        backend.write_u32(ex_mm.PARTY_ACTOR_PTR, ex_mm.PARTY_POS - ex_mm.PARTY_POS_OFFSET)
+        backend.write_u32(ex_mm.CAM_FOV_WORD, 0x10000000)
+        backend.write_floats(ex_mm.CAM_ASPECT, [ex_mm.PROJ_ASPECT])
+        backend.write_u32(ex_mm.PAD_RX_LOAD, ex_mm.PAD_RX_WORD)
+        backend.write_u32(ex_mm.PAD_RY_LOAD, ex_mm.PAD_RY_WORD)
+
+
 class SFNeoBackend(GuiBackend):
     def __init__(self) -> None:
         super().__init__()
         self.gid, self.crcv, self.ttl = sf_mm.GAME_ID, sf_mm.DISC_CRC.lower(), "SF Neo"
+        seed_shining_field(self, sf_mm)
+
+
+EXA_GAME_ID, EXA_CRC = "SLPM-66646", "8B383FDF"
+
+
+class SFExaBackend(GuiBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.gid, self.crcv, self.ttl = EXA_GAME_ID, EXA_CRC.lower(), "SF Exa"
+        seed_shining_field(self, ex_mm)
 
 
 class UnsupportedBackend(GuiBackend):
@@ -128,6 +166,89 @@ def test_unsupported_game_is_refused_with_its_id(env):
 
 
 # --- a supported game ---------------------------------------------------------------------------
+def test_exa_registration_is_distinct_from_neo():
+    assert gui.ADAPTERS["SFEXA"] is gui.SFExaAdapter
+    assert gui.ADAPTERS["SFNEO"] is gui.SFNeoAdapter
+    assert gui.SFExaAdapter is not gui.SFNeoAdapter
+    assert gui.ADAPTER_BY_GAME_ID[EXA_GAME_ID] is gui.SFExaAdapter
+    assert gui.ADAPTER_BY_GAME_ID[sf_mm.GAME_ID] is gui.SFNeoAdapter
+    assert EXA_GAME_ID in gui.SUPPORTED_IDS
+    assert gui.SFExaAdapter(SFExaBackend()).identify().matched
+    assert not gui.SFNeoAdapter(SFExaBackend()).identify().matched
+    assert not gui.SFExaAdapter(SFNeoBackend()).identify().matched
+
+
+@pytest.mark.parametrize("crc", [sf_mm.DISC_CRC, "DEADBEEF"])
+def test_exa_serial_with_an_unverified_crc_is_read_only(env, crc):
+    backend = SFExaBackend()
+    backend.crcv = crc
+    w = env.make(lambda: backend)
+    assert w.runtime is None
+    assert not w.guard.writes_allowed
+    assert all(not getattr(w, g).isEnabled() for g in CAMERA_GROUPS)
+    assert w.guard.expected == (EXA_GAME_ID, crc)
+
+
+def test_exa_uses_its_own_limits_features_and_pitch_convention(env):
+    w = env.make(SFExaBackend)
+    assert type(w.adapter) is gui.SFExaAdapter
+    assert w.adapter.name == "SFEXA"
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.rb_original.isChecked()
+    assert w.guard.expected == (EXA_GAME_ID, EXA_CRC)
+    assert w.sl_dist.spin.minimum() == w.adapter.DISTANCE_RANGE[0]
+    assert w.sl_dist.spin.maximum() == w.adapter.DISTANCE_RANGE[1]
+    assert w.sl_look.spin.minimum() == w.adapter.LOOK_HEIGHT_RANGE[0]
+    assert w.sl_look.spin.maximum() == w.adapter.LOOK_HEIGHT_RANGE[1]
+    lo, hi = sorted(v * w.adapter.PITCH_DISPLAY_SIGN for v in w.adapter.PITCH_RANGE)
+    assert (w.sl_pitch.spin.minimum(), w.sl_pitch.spin.maximum()) == (lo, hi)
+    assert not w.rb_free.isEnabled() and w.rb_free.toolTip()
+    assert all(not sl.isEnabled() and sl.toolTip() for sl in w.off)
+    assert w.lbl_look_hint.text() and w.lbl_pitch_hint.text()
+    displayed_pitch = (lo + hi) / 2
+    w.sl_pitch.spin.setValue(displayed_pitch)
+    assert w.runtime.settings.pitch_deg == pytest.approx(
+        w.sl_pitch.value() / w.adapter.PITCH_DISPLAY_SIGN)
+    assert w.app_settings.game_id == EXA_GAME_ID
+
+
+def test_exa_and_neo_saved_settings_and_presets_stay_separate(env):
+    saved = {"games": {
+        sf_mm.GAME_ID: {"distance": 1700.0, "look_height": 21.0, "pitch_deg": -31.0},
+        EXA_GAME_ID: {"distance": 2300.0, "look_height": 47.0, "pitch_deg": -42.0,
+                      "mode": "orbit"},
+    }}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    backend = SFExaBackend()
+    w = env.make(lambda: backend)
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.runtime.settings.distance == 2300.0
+    assert w.runtime.settings.look_height == 47.0
+    assert w.runtime.settings.pitch_deg == -42.0
+    assert w.sl_pitch.value() == -42.0 * w.adapter.PITCH_DISPLAY_SIGN
+    w.presets.save("exa-only", w.app_settings)
+    w._persist()
+    backend.gid, backend.crcv, backend.ttl = sf_mm.GAME_ID, sf_mm.DISC_CRC, "SF Neo"
+    w._reconnect()
+    assert type(w.adapter) is gui.SFNeoAdapter
+    assert w.runtime.settings.distance == 1700.0
+    assert w.runtime.settings.look_height == 21.0
+    assert w.runtime.settings.pitch_deg == -31.0
+    assert "exa-only" not in w.presets.list(sf_mm.GAME_ID)
+    w.presets.save("neo-only", w.app_settings)
+    backend.gid, backend.crcv, backend.ttl = EXA_GAME_ID, EXA_CRC, "SF Exa"
+    w._reconnect()
+    assert type(w.adapter) is gui.SFExaAdapter
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.runtime.settings.distance == 2300.0
+    assert w.runtime.settings.look_height == 47.0
+    assert w.runtime.settings.pitch_deg == -42.0
+    assert "exa-only" in w.presets.list(EXA_GAME_ID)
+    assert "neo-only" not in w.presets.list(EXA_GAME_ID)
+
+
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):
     w = env.make(SuikodenBackend)
     env.spin(0.5)
@@ -519,6 +640,63 @@ def test_switching_between_supported_games_selects_the_new_adapter(env):
     shared.gid, shared.crcv, shared.ttl = su_mm.GAME_ID, su_mm.DISC_CRC.lower(), "Suikoden V"
     env.spin(1.6)
     assert type(w.adapter).__name__ == "Suikoden5Adapter" and w.runtime.settings.mode == "original"
+
+
+@pytest.mark.parametrize("source, target, target_cls", [
+    ((sf_mm.GAME_ID, sf_mm.DISC_CRC, "SF Neo"), (EXA_GAME_ID, EXA_CRC, "SF Exa"), gui.SFExaAdapter),
+    ((EXA_GAME_ID, EXA_CRC, "SF Exa"), (sf_mm.GAME_ID, sf_mm.DISC_CRC, "SF Neo"), gui.SFNeoAdapter),
+])
+def test_neo_exa_switch_discards_the_old_runtime_without_restore(env, monkeypatch,
+                                                                source, target, target_cls):
+    shared = SwitchBackend()
+    shared.gid, shared.crcv, shared.ttl = source
+    source_map = sf_mm if source[0] == sf_mm.GAME_ID else ex_mm
+    seed_shining_field(shared, source_map)
+    w = env.make(lambda: shared)
+    old_runtime, old_guard = w.runtime, w.guard
+    assert old_runtime is not None
+    w.btn_enable.click()
+    env.spin(0.3)
+    assert old_runtime.settings.mode == gui.MODE_ORBIT
+    assert w.adapter.patch_active(), old_runtime.stats.last_error
+    assert shared.log, "the source adapter never wrote"
+    other_map = ex_mm if source_map is sf_mm else sf_mm
+    other_control_words = {other_map.CAM_YAW_WORD, other_map.CAM_DISTANCE,
+                           other_map.CAM_HEIGHT, other_map.SMOOTH_GATE_WORD,
+                           other_map.VP_LOAD_CALL, other_map.PAD_CALL_SITE}
+    if other_map is ex_mm:
+        other_control_words.update((ex_mm.PAD_RX_LOAD, ex_mm.PAD_RY_LOAD))
+    assert not other_control_words.intersection(shared.log), "wrote the other Shining game's controls"
+    restored = []
+    monkeypatch.setattr(old_runtime, "restore", lambda: restored.append(True))
+    shared.gid, shared.crcv, shared.ttl = target
+    # Explicit verification closes the documented lease window before checking writes.
+    assert old_guard.verify() == gui.CHANGED
+    env.spin(1.0)
+    assert restored == []
+    assert not old_runtime.running and old_guard.revoked
+    assert w.runtime is not old_runtime and type(w.adapter) is target_cls
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.guard.expected == (target[0], target[1])
+    count = len(shared.log)
+    with pytest.raises(WriteBlocked):
+        old_runtime.adapter.backend.write_u32(0x100, 1)
+    assert len(shared.log) == count
+
+
+def test_switching_from_active_suikoden_to_exa_selects_its_own_adapter(env):
+    shared = SwitchBackend()
+    w = orbit_running(env, shared)
+    old_runtime = w.runtime
+    shared.gid, shared.crcv, shared.ttl = EXA_GAME_ID, EXA_CRC.lower(), "SF Exa"
+    t0 = time.monotonic()
+    env.spin(1.6)
+    assert type(w.adapter) is gui.SFExaAdapter
+    assert w.runtime is not old_runtime and not old_runtime.running
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.guard.expected == (EXA_GAME_ID, EXA_CRC)
+    late = writes_after(shared, t0)
+    assert not [a for a in late if a in SU_ADDRS or su_mm.MOD_BLOCK <= a < su_mm.CAVE_END]
 
 
 def test_unsupported_game_is_noticed_when_a_supported_one_starts(env):

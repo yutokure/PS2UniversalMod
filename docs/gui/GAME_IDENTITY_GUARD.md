@@ -26,6 +26,11 @@ PINE のソケットはゲームが替わっても維持されます。GUI が�
   その後、新しいゲームの Serial/CRC に合うアダプターを選び直します。未対応ゲームなら書き込み不可のまま「未対応」と表示し、あとで対応ゲームが起動すれば自動で切り替わります。
 * 画面を閉じる・「再接続」を押す直前にも `_teardown()` が自分でゲームを確認します。不一致なら `restore()` をしません。
 
+2026-11-03 イクサ追加: `SLPM-66646 / 8B383FDF` を独立登録。ネオとイクサを相互に識別しないこと、
+稼働中 Orbit からの相互切替で旧runtimeを復元せず破棄すること、設定／presetのゲーム別分離、
+誤ったCRCを拒否することをfake PINEで確認しました。ガード自体の時間窓・仕様は変更していません。
+中心化の任意native境界をcoreへ追加しましたが、イクサの書込も全て同じGuardedBackendを通ります。
+
 ### 残る時間窓
 
 ゲーム切替から検知までの間（最大でリース 0.25 秒）は、旧アダプターの書き込みを止められません。PINE にはゲーム切替の通知がないためです。
@@ -70,7 +75,7 @@ Python が見つからない環境ではフックは警告だけ出してコミ�
 | P1-01 | 同じゲームで動作継続、不要な再接続なし | `tests/test_gui.py::test_same_game_keeps_its_runtime_and_the_orbit` |
 | P1-02 | 同一接続でゲームだけ替わる → 書き込み停止 | `tests/test_game_guard.py`、`tests/test_gui.py::test_switching_to_an_unsupported_game_stops_all_writes` |
 | P1-03 | 旧アダプターの `restore()` が新ゲームへ書かない | `test_old_runtime_writes_nothing_after_the_game_changes_and_restore_is_inert`、`test_closing_after_a_silent_game_switch_...` |
-| P1-04 | 対応ゲーム間の切替で新アダプター | `test_switching_between_supported_games_selects_the_new_adapter` |
+| P1-04 | 対応ゲーム間の切替で新アダプター | `test_switching_between_supported_games_selects_the_new_adapter`、`test_neo_exa_switch_discards_the_old_runtime_without_restore`、`test_switching_from_active_suikoden_to_exa_selects_its_own_adapter` |
 | P1-05 | 未対応ゲームは書き込み禁止・表示あり | `test_switching_to_an_unsupported_game_...`、`test_unsupported_game_is_noticed_when_a_supported_one_starts` |
 | P1-06 | PCSX2 再起動 | `test_pcsx2_restart_with_*`、実機 `tools/game_switch_check.py`、`tools/gui_freeze_check.py --kill --relaunch` |
 | P1-07 | 性能 | `test_the_lease_costs_two_identity_reads_per_expiry_not_per_write`、`test_the_status_poller_checks_the_game_...` |

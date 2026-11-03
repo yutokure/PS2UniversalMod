@@ -2,7 +2,7 @@
 
     python tools/regression_check.py
 
-Picks the adapter from the game that PCSX2 is running (FFX-2, Shining Force Neo or Suikoden V),
+Picks the adapter from the game that PCSX2 is running (FFX-2, Shining Force Neo/Exa or Suikoden V),
 runs the real CameraRuntime in orbit mode and reads the result back through the adapter:
 
 * the camera direction turns when the right stick is pushed (orbit works through the engine);
@@ -10,7 +10,7 @@ runs the real CameraRuntime in orbit mode and reads the result back through the 
 * a FOV override reaches the game and the stock FOV comes back;
 * after ``stop()`` + ``restore()`` the game's own camera direction returns.
 
-Load the game's own savestate (FFX-2 ``base.p2s``, Shining Force Neo ``base.p2s``,
+Load the game's own savestate (FFX-2 ``base.p2s``, Shining Force Neo/Exa ``base.p2s``,
 Suikoden V ``base.p2s``) and let the VM run before starting.  Only one PINE client at a time.
 """
 from __future__ import annotations
@@ -24,11 +24,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from adapters.ffx2.adapter import FFX2Adapter  # noqa: E402
 from adapters.shiningforceneo.adapter import SFNeoAdapter  # noqa: E402
+from adapters.shiningforceexa.adapter import SFExaAdapter  # noqa: E402
 from adapters.suikoden5.adapter import Suikoden5Adapter  # noqa: E402
 from core.camera_runtime.engine import MODE_ORBIT, CameraRuntime, CameraSettings  # noqa: E402
 from core.memory_backend.pine_backend import PineBackend  # noqa: E402
 
-ADAPTERS = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter, "SLPM-66286": Suikoden5Adapter}
+ADAPTERS = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
+            "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter}
 RES: list[tuple[str, bool, str]] = []
 
 

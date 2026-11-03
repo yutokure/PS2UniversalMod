@@ -230,15 +230,22 @@ class CameraRuntime:
             target = Vec3(scene.player.x + s.target_offset[0],
                           scene.player.y + s.look_height + s.target_offset[1],
                           scene.player.z + s.target_offset[2])
-            eye = self.adapter.place_looking_at(target, max(0.5, s.distance))
-            base = self.adapter.read_eye_base()
-            self.adapter.write_eye_offset(Vec3(eye.x - base.x, eye.y - base.y, eye.z - base.z))
-            self.adapter.backend.write_float_block(self.adapter.CAM_EYE_ADDR,
-                                                   (eye.x, eye.y, eye.z))
-            # Aim control: the renderer derives its view axis as
-            # normalize(aim - eye), so publishing the anchor as the aim point is
-            # what actually puts the party in the middle of the screen.
-            self.adapter.write_aim(target)
+            native_center = getattr(self.adapter, "center_on_target", None)
+            if callable(native_center):
+                # Parameter-driven cameras can centre through their native control
+                # fields, without racing the eye output or inventing scratch RAM.
+                pose = native_center(max(0.5, s.distance), s.look_height)
+                eye, target = pose.eye, pose.target
+            else:
+                eye = self.adapter.place_looking_at(target, max(0.5, s.distance))
+                base = self.adapter.read_eye_base()
+                self.adapter.write_eye_offset(Vec3(eye.x - base.x, eye.y - base.y, eye.z - base.z))
+                self.adapter.backend.write_float_block(self.adapter.CAM_EYE_ADDR,
+                                                       (eye.x, eye.y, eye.z))
+                # Aim control: the renderer derives its view axis as
+                # normalize(aim - eye), so publishing the anchor as the aim point is
+                # what actually puts the party in the middle of the screen.
+                self.adapter.write_aim(target)
             # adopt the geometry we just produced so a later Orbit starts here
             off = eye - target
             horizontal = math.hypot(off.x, off.z)
