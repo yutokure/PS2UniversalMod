@@ -17,9 +17,11 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from adapters.shiningforceneo import memory_map as sf_mm  # noqa: E402
 from adapters.shiningforceexa import memory_map as ex_mm  # noqa: E402
 from adapters.suikoden5 import memory_map as su_mm  # noqa: E402
+from adapters.nightmaredruaga import memory_map as dr_mm  # noqa: E402
 from core.memory_backend.guard import WriteBlocked  # noqa: E402
 from gui.camera_controller import app as gui  # noqa: E402
 from tests.test_suikoden5 import FakeBackend  # noqa: E402
+from tests.test_druaga import FakeBackend as DruagaFakeBackend, seed_field as seed_druaga_field  # noqa: E402
 
 
 class GuiBackend(FakeBackend):
@@ -137,6 +139,23 @@ class SFExaBackend(GuiBackend):
         seed_shining_field(self, ex_mm)
 
 
+class DruagaBackend(DruagaFakeBackend):
+    """GUI transport contract over Druaga's synthetic byte-addressed field."""
+
+    available = True
+    connected = True
+
+    def __init__(self):
+        super().__init__(crc=dr_mm.DISC_CRC.lower())
+        seed_druaga_field(self)
+
+    def connect(self):
+        pass
+
+    def close(self):
+        pass
+
+
 class UnsupportedBackend(GuiBackend):
     def __init__(self) -> None:
         super().__init__()
@@ -247,6 +266,177 @@ def test_exa_and_neo_saved_settings_and_presets_stay_separate(env):
     assert w.runtime.settings.pitch_deg == -42.0
     assert "exa-only" in w.presets.list(EXA_GAME_ID)
     assert "neo-only" not in w.presets.list(EXA_GAME_ID)
+
+
+def test_druaga_registration_uses_its_verified_adapter_and_identity():
+    assert gui.ADAPTERS["DRUAGA"] is gui.DruagaAdapter
+    assert gui.ADAPTER_BY_GAME_ID[dr_mm.GAME_ID] is gui.DruagaAdapter
+    assert dr_mm.GAME_ID in gui.SUPPORTED_IDS
+    assert gui.DruagaAdapter(DruagaBackend()).identify().matched
+    assert not gui.DruagaAdapter(SFExaBackend()).identify().matched
+    assert not gui.SFExaAdapter(DruagaBackend()).identify().matched
+
+
+@pytest.mark.parametrize("crc", [ex_mm.DISC_CRC, "DEADBEEF", "", dr_mm.DISC_CRC[:-1] + "0"])
+def test_druaga_serial_with_any_unverified_crc_is_read_only(env, crc):
+    backend = DruagaBackend()
+    backend.disc_crc = crc
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.DruagaAdapter
+    assert window.runtime is None
+    assert not window.guard.writes_allowed
+    assert window.guard.expected == (dr_mm.GAME_ID, crc.upper())
+    assert all(not getattr(window, group).isEnabled() for group in CAMERA_GROUPS)
+    assert window.rb_original.isChecked()
+    assert not backend.writes
+
+
+def test_druaga_first_connection_uses_native_defaults_and_starts_in_original(env):
+    backend = DruagaBackend()
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.DruagaAdapter
+    assert window.app_settings.game_id == dr_mm.GAME_ID
+    assert window.guard.expected == (dr_mm.GAME_ID, dr_mm.DISC_CRC)
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
+    assert all(getattr(window, group).isEnabled() for group in CAMERA_GROUPS)
+    assert window.adapter.display_name in window.windowTitle()
+    for key, value in window.adapter.default_settings().items():
+        assert getattr(window.runtime.settings, key) == pytest.approx(value)
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("saved_mode", [gui.MODE_ORBIT, gui.MODE_FREE])
+def test_druaga_saved_mode_never_turns_the_mod_on_automatically(env, saved_mode):
+    saved = {"games": {dr_mm.GAME_ID: {
+        "game_id": dr_mm.GAME_ID, "mode": saved_mode, "distance": 35.0,
+        "pitch_deg": -50.0, "look_height": 4.0, "pos_offset": [1.0, 2.0, 3.0],
+        "target_offset": [4.0, 5.0, 6.0],
+    }}}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    backend = DruagaBackend()
+    window = env.make(lambda: backend)
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
+    assert window.runtime.settings.distance == 35.0
+    assert window.runtime.settings.pitch_deg == -50.0
+    assert window.runtime.settings.look_height == 4.0
+    assert window.runtime.settings.pos_offset == [1, 2, 3]
+    assert window.runtime.settings.target_offset == [4, 5, 6]
+    assert not backend.writes
+
+
+def test_druaga_gui_uses_its_limits_pitch_convention_and_six_supported_offsets(env):
+    window = env.make(DruagaBackend)
+    adapter = window.adapter
+    assert (window.sl_dist.spin.minimum(), window.sl_dist.spin.maximum()) == adapter.DISTANCE_RANGE
+    assert (window.sl_look.spin.minimum(), window.sl_look.spin.maximum()) == adapter.LOOK_HEIGHT_RANGE
+    displayed = tuple(sorted(value * adapter.PITCH_DISPLAY_SIGN for value in adapter.PITCH_RANGE))
+    assert (window.sl_pitch.spin.minimum(), window.sl_pitch.spin.maximum()) == displayed
+    assert (window.runtime.settings.pitch_min_deg, window.runtime.settings.pitch_max_deg) == adapter.PITCH_RANGE
+    assert window.lbl_pitch_hint.text() == gui.tr("hint.pitch_above")
+    assert window.lbl_look_hint.text() == gui.tr("hint.look_up")
+    assert not window.rb_free.isEnabled() and window.rb_free.toolTip()
+    assert window.rb_orbit.isEnabled()
+    assert not window.grp_zoom.isVisibleTo(window)
+    # The advanced group is deliberately collapsed. Expand it before asking Qt
+    # whether its descendants are enabled; a collapsed checkable parent disables them.
+    window.grp_offsets.setChecked(True)
+    assert len(window.off) == 6
+    for slider in window.off:
+        assert slider.isEnabled() and slider.spin.isEnabled()
+        assert (slider.spin.minimum(), slider.spin.maximum()) == adapter.OFFSET_RANGE
+        assert slider.toolTip() != gui.tr("tip.offsets_unsupported")
+    window.sl_pitch.spin.setValue(42.0)
+    assert window.runtime.settings.pitch_deg == window.app_settings.pitch_deg == -42.0
+    for i, slider in enumerate(window.off):
+        slider.spin.setValue(i + 0.25)
+    assert window.runtime.settings.pos_offset == [0.25, 1.25, 2.25]
+    assert window.runtime.settings.target_offset == [3.25, 4.25, 5.25]
+    assert window.app_settings.pos_offset == [0.25, 1.25, 2.25]
+    assert window.app_settings.target_offset == [3.25, 4.25, 5.25]
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+
+
+def test_druaga_gui_enable_and_restore_manage_processed_right_input_not_raw(env):
+    backend = DruagaBackend()
+    raw = bytes([0, 255, 42, 201])
+    backend.seed(dr_mm.PAD_RAW_AXES, raw)
+    window = env.make(lambda: backend)
+    assert tuple(backend.read_u32(dr_mm.PAD_AXIS_HOOK + i*4) for i in range(2)) == dr_mm.PAD_AXIS_STOCK
+    assert not window.runtime.stats.last_error
+    window.btn_enable.click()
+    env.spin(0.25)
+    assert window.runtime.settings.mode == gui.MODE_ORBIT
+    assert backend.read_u32(dr_mm.PAD_AXIS_HOOK) != dr_mm.PAD_AXIS_STOCK[0]
+    assert all(backend.read_u32(address) == neutral
+               for (address, _), neutral in zip(dr_mm.PAD_ACTION_LOADS, dr_mm.PAD_NEUTRAL_WORDS))
+    assert backend.bytes_at(dr_mm.PAD_RAW_AXES, len(raw)) == raw
+    window.btn_restore.click()
+    env.spin(0.15)
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert not window.runtime.stats.last_error
+    assert tuple(backend.read_u32(dr_mm.PAD_AXIS_HOOK + i*4) for i in range(2)) == dr_mm.PAD_AXIS_STOCK
+    assert all(backend.read_u32(address) == stock for address, stock in dr_mm.PAD_ACTION_LOADS)
+    assert backend.bytes_at(dr_mm.PAD_RAW_AXES, len(raw)) == raw
+
+
+def test_druaga_and_exa_saved_settings_and_presets_remain_isolated(env):
+    saved = {"games": {
+        dr_mm.GAME_ID: {"distance": 32.0, "look_height": 3.0, "pitch_deg": -50.0,
+                        "pos_offset": [1.0, 2.0, 3.0], "target_offset": [4.0, 5.0, 6.0],
+                        "mode": "orbit"},
+        EXA_GAME_ID: {"distance": 2300.0, "look_height": 47.0, "pitch_deg": -42.0},
+    }}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    # Keep both fake games behind a shared transport, just as PINE outlives a
+    # real disc switch. Every read/write is delegated to the selected byte image.
+    class SwitchingBackend:
+        def __init__(self):
+            self.inner = DruagaBackend()
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+    backend = SwitchingBackend()
+    window = env.make(lambda: backend)
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.runtime.settings.distance == 32.0
+    assert window.runtime.settings.look_height == 3.0
+    assert window.runtime.settings.pitch_deg == -50.0
+    assert window.runtime.settings.pos_offset == [1, 2, 3]
+    assert window.runtime.settings.target_offset == [4, 5, 6]
+    window.presets.save("druaga-only", window.app_settings)
+    window._persist()
+    backend.inner = SFExaBackend()
+    window._reconnect()
+    assert type(window.adapter) is gui.SFExaAdapter
+    assert window.runtime.settings.distance == 2300.0
+    assert window.runtime.settings.look_height == 47.0
+    assert window.runtime.settings.pitch_deg == -42.0
+    window.presets.save("exa-only", window.app_settings)
+    window._refresh_presets()
+    assert window.cmb_preset.findText("druaga-only") == -1
+    assert window.cmb_preset.findText("exa-only") >= 0
+    backend.inner = DruagaBackend()
+    window._reconnect()
+    assert type(window.adapter) is gui.DruagaAdapter
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.runtime.settings.distance == 32.0
+    assert window.runtime.settings.look_height == 3.0
+    assert window.runtime.settings.pitch_deg == -50.0
+    assert window.runtime.settings.pos_offset == [1, 2, 3]
+    assert window.runtime.settings.target_offset == [4, 5, 6]
+    assert window.cmb_preset.findText("druaga-only") >= 0
+    assert window.cmb_preset.findText("exa-only") == -1
+    window.sl_dist.spin.setValue(40.0)
+    window.cmb_preset.setCurrentText("druaga-only")
+    window.btn_load.click()
+    assert window.runtime.settings.distance == 32.0
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
 
 
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):

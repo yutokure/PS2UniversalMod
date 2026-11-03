@@ -724,7 +724,15 @@ class CameraRuntime:
                round(pitch_deg, 4), round(distance, 4), pos, round(look_height, 4))
         if key == self._last_orbit_key:
             return False
-        if getattr(self.adapter, "accepts_pos_offset", False):
+        if getattr(self.adapter, "accepts_orbit_offsets", False):
+            # Independent eye/target offsets, relative to the SAME sampled anchor.
+            # The guest adds its current actor translation at render-update time.
+            self.adapter.write_orbit_params(
+                Vec3(*centre), yaw_deg, pitch_deg, distance,
+                pos_offset=Vec3(*self.settings.pos_offset),
+                target_offset=Vec3(self.settings.target_offset[0], look_height,
+                                   self.settings.target_offset[2]))
+        elif getattr(self.adapter, "accepts_pos_offset", False):
             # an adapter that moves the whole camera rig takes the camera-position offsets too
             self.adapter.write_orbit_params(Vec3(*centre), yaw_deg, pitch_deg, distance,
                                             pos_offset=Vec3(*self.settings.pos_offset))

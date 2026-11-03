@@ -64,6 +64,10 @@ class MyGameAdapter:
 - `accepts_look_height = True` の adapter は `write_orbit_params(..., look_height=...)` で
   設定の相対高さを受け取ります。SF Neo / Exa はこれを使い、異なるフレームのキャラクター Y と中心座標を
   引き算して移動量を高さ設定へ混入させないようにします。指定しない adapter の呼出しは従来どおりです。
+- `accepts_orbit_offsets = True` は `write_orbit_params(..., pos_offset=Vec3, target_offset=Vec3)` で
+  独立したeyeオフセットと、`look_height + target_offset.y` を含む相対注視点を受け取ります。
+  ドルアーガはguest内で最新actor位置を加算し、別frameのactorを引き算して移動量を混入させません。
+  既存の `accepts_pos_offset` / `accepts_look_height` 経路の契約は変えません。
 - `center_on_target(distance, look_height) -> CameraPose` は任意の native 中心化境界です。
   SF Exa は出力 eye の直接上書きや scratch を使わず、原作の角度・距離・高さの入力で中心化します。
   runtime は返された pose から設定を同期し、この method が無い既存 adapter は従来の中心化を使います。
