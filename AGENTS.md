@@ -43,12 +43,13 @@
 ラボ資料は当時の構築・検証記録を含む。過去の Gate、テスト件数、PASS、再試行回数は
 現在の作業に対する実行ノルマや保証ではない。日付・source・対象ゲーム・場面を確認して使う。
 
-### 3 ゲームの実績を使い分ける
+### ゲームごとの実績を使い分ける
 
 | ゲーム / Serial / CRC | 現行方式・参照先 | 使う際の注意 |
 |---|---|---|
 | FFX-2（FF10-2） / `SLPS-25250` / `8A6D7F14` | 差分注入・注視点パッチ・ゲーム本来のカメラルーチンへのフック。[技術メモ](docs/games/ffx2/ADAPTER_NOTES.md)、[歩行調査](docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md) | Free Camera 対応。歩行追従の実測は歩き始め 0.3 秒、長時間は未確認。演出エリアの FOV 制限は README・最新追記で確認 |
 | シャイニング・フォース ネオ / `SLPM-65908` / `64F241D2` | 角度・距離・高さの制御値、平滑化ゲート、FOV / 右スティック用コードケーブ。[解析](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) | Free Camera・位置/注視点オフセット未対応。復帰後の yaw は原作が決め、元の角度との一致は既知の制限 |
+| シャイニング・フォース イクサ / `SLPM-66646` / `8B383FDF` | 原作の角度・距離・高さ・垂直 FOV 入力＋平滑化ゲート、右軸 load 2 命令の中立化。[解析](docs/games/shiningforceexa/CAMERA.md) | ネオに近いが actor offset・既定値・入力方式は別。Free Camera / offsets 非対応。FOV-only も gate を保持。全イベント・入力再生は未検証 |
 | 幻想水滸伝V / `SLPM-66286` / `7380A572` | カメラ更新の出力ストアをコードケーブで置換。[解析](docs/games/suikoden5/CAMERA.md)、[テスト結果](docs/games/suikoden5/TEST_RESULTS.md) | 原作右スティックは 3 段階ズーム。Orbit 中は競合を遮断し R1 は維持。Free Camera 未対応。イベント・戦闘・メニューは未検証 |
 
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。

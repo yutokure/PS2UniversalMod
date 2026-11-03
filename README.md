@@ -27,6 +27,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 |---|---|---|---|---|
 | FINAL FANTASY X-2 | `adapters/ffx2` | `SLPS-25250` / `8A6D7F14` | Orbit、距離、FOV、カメラ位置・注視点オフセット、Free Camera | [`docs/games/ffx2/`](docs/games/ffx2/) |
 | シャイニング・フォース ネオ | `adapters/shiningforceneo` | `SLPM-65908` / `64F241D2` | Orbit、距離、FOV、注視点の高さ、右スティック遮断 | [`docs/games/shiningforceneo/`](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) |
+| シャイニング・フォース イクサ | `adapters/shiningforceexa` | `SLPM-66646` / `8B383FDF` | Orbit、距離、FOV、注視点の高さ、右スティック遮断、原作マップ回転連動 | [解析・確認範囲](docs/games/shiningforceexa/CAMERA.md) |
 | 幻想水滸伝V | `adapters/suikoden5` | `SLPM-66286` / `7380A572` | Orbit、距離、FOV、カメラ位置・注視点オフセット、右スティックのズーム遮断、R1 ズーム連動 | [`docs/games/suikoden5/`](docs/games/suikoden5/CAMERA.md) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
@@ -95,8 +96,8 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
   PCSX2 が戻れば自動で操作できるようになります。
 * ゲームの実装が使えない項目は個別に無効になります（例: シャイニング・フォース ネオのオフセット、FFX-2 以外のフリーカメラ）。
 * 距離・注視点の高さ・オフセット・Pitch の範囲は**ゲームごと**です（アダプターが決めます）。
-  Pitch の表示は 3 ゲームとも**正でカメラが上**です。注視点の高さは FFX-2・幻想水滸伝V では正で下、
-  シャイニング・フォース ネオでは正で上となり、スライダーの下にも説明が出ます。
+  Pitch の表示は対応 4 ゲームとも**正でカメラが上**です。注視点の高さは FFX-2・幻想水滸伝V では正で下、
+  シャイニング・フォース ネオ／イクサでは正で上となり、スライダーの下にも説明が出ます。
 * 矢印キーは、PCSX2 かこの画面が前面にあるときだけカメラを回します（他のアプリで押しても動きません）。
 * 同時に起動できるのは 1 つだけです（PCSX2 の PINE は 1 クライアントのため、2 つ目は起動時に断ります）。
 * 設定にない操作の失敗（例: 途中で PCSX2 が終了）は例外にならず通知バーに出て、`%APPDATA%\PS2UniversalCamera\gui.log` に記録されます。
@@ -156,7 +157,23 @@ presets\*.json                                  同梱プリセット（orbit-de
 - 既知: オービットを戻した直後のカメラ向きは、ゲームが決めるため元の向きと一致しません（既存の挙動）。
 - 解析記録: [`docs/games/shiningforceneo/CAMERA_ANALYSIS.md`](docs/games/shiningforceneo/CAMERA_ANALYSIS.md)
 
-### 5.3 幻想水滸伝V
+### 5.3 シャイニング・フォース イクサ
+- 日本版 `SLPM-66646 / 8B383FDF` の通常パーティ追従カメラに対応。ネオと角度・距離・高さの配置は似ていますが、
+  キャラクター座標、既定値、入力・投影処理を個別に解析しています。単なるアドレス一括置換ではありません。
+- Orbit、距離 **300〜6000**、注視点高さ **−400〜400**、Pitch 表示 **−25〜+89.5°**、水平 FOV **20〜110°**。
+  Free Camera・位置／注視点 X/Z オフセットは非対応として無効表示します。
+- FOV は原作の垂直角パラメーターを水平画角へ換算して制御し、投影行列と実画面の変化を確認済みです。
+  ネオの FOV コードケーブは使いません。FOV 上書きも Orbit と同じ平滑化ゲートを保持するため、
+  **FOV だけの上書き中も場所依存の原作カメラ制御が止まります**。
+- Orbit 中は右スティックの専用 load **2 命令のみ**を中立値へ置換。原作クイックバーとの競合を抑え、
+  左スティック・ボタン・raw 入力は残します。Original／通常終了で 2 命令とカメラ・FOV を返します。
+- マップは原作処理でカメラ回転に連動（同じ場所で yaw 180→90°、方位と地形の90°回転を確認）。FOV ではマップを拡縮しません。
+- stock ステート読込み後は約 1 秒の再確認で再適用。別ゲーム／識別不能なら既存ガードに従い復元書込みせず破棄します。
+- 確認は提供ステートの拠点内と短い移動が中心です。全エリア・イベント・戦闘・メニュー・長時間、
+  入力録画／再生の別経路は未検証。右スティック遮断は Orbit 中のメニューにも残るため、必要時は Original へ戻してください。
+- [解析](docs/games/shiningforceexa/CAMERA.md)・[実行した確認と制限](docs/games/shiningforceexa/TEST_RESULTS.md)
+
+### 5.4 幻想水滸伝V
 - フィールドカメラ更新（`FUN_00243E10`）の出力処理にコードケーブを差し込み、注視点・距離・ピッチ・ヨー・FOV を上書きします。
   歩行方向はゲームが読むヨーに従うので、**左スティックの進行方向もカメラ基準**になります。
 - 原作のカメラは固定角で、右スティックはカメラ回転ではなく**3 段階ズーム**に使われています（R1 も同じズーム、距離 400 → 300 → 200）。
@@ -200,6 +217,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | GUI を PCSX2 の強制終了・再起動で試す | `python tools/gui_freeze_check.py --kill --relaunch` |
 | PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。ディスクとセーブステートは読むだけ） |
 | 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |
+| シャイニング・フォース イクサ | `python tools/sfexa_live_check.py --out <lab>/test_evidence/exa/live.json`、`python tools/sfexa_gui_check.py --out <lab>/test_evidence/exa/gui`（GUI 検証は一時設定を使用、実キーボードpad入力あり。state再適用は解析文書参照） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
 結果は表示と `reports/`（JSON）に出ます。スクリーンショットなどの証跡は Git 管理外です。幻想水滸伝V の結果一覧は
@@ -213,12 +231,12 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | 起動時に「すでに起動しています」 | 別のカメラコントローラーが開いています。閉じてから起動してください |
 | 未対応ゲームと表示される | Serial / CRC が違います。書き込みは行いません（安全） |
 | PCSX2 でゲームを切り替えた | GUI は約 0.25〜0.4 秒で気づき、前のゲームには何も書き込まず（元に戻す処理も行わず）、新しいゲーム用に選び直します。未対応ゲームなら書き込み不可の表示になります。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md) |
-| カメラが動かない | フィールドにいるか確認（戦闘・イベント・ロード中は自動で無効） |
+| カメラが動かない | 対応するフィールドか確認。scene guardで書込みを控える場合がありますが、全戦闘・イベントの判別は保証しません。特殊場面ではOriginalへ戻してください |
 | カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。それでも戻らなければゲームを再開 |
 | PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 のパッチはモードに応じて runtime が管理します。`EnableCheats` は不要で、「ゲームパッチ」欄と旧外部パッチの競合を確認 |
-| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo は約 1 秒）で自動再適用されます |
+| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo・SF Exa は約 1 秒）で自動再適用されます |
 | 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか、「入力ソース」が keyboard / scripted になっていないか確認。矢印キーでも回せます |
-| 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応 |
+| 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応、SF Exa は歩行保持を確認したものの全 yaw の方向測定は未実施 |
 | 狭い場所で画面が壁で埋まる | 距離を縮めるか Pitch を下げる（ゲームの衝突判定を通らないため） |
 
 詳しい不具合記録: [`docs/lab/TROUBLESHOOTING_KB.md`](docs/lab/TROUBLESHOOTING_KB.md)、未解決事項: [`docs/lab/BLOCKERS.md`](docs/lab/BLOCKERS.md)。
@@ -239,6 +257,7 @@ PS2UniversalMod/
 ├─ adapters/
 │  ├─ ffx2/                         memory_map.py（アドレス）、adapter.py、lookat_cave.py
 │  ├─ shiningforceneo/              + fov_cave.py、pad_cave.py
+│  ├─ shiningforceexa/              制御値＋局所 pad 命令（cave 不要）
 │  └─ suikoden5/                    + caves.py
 ├─ gui/camera_controller/           PySide6 GUI（app.py、i18n.py）
 ├─ analysis/                        差分解析・Ghidra スクリプト
@@ -256,7 +275,7 @@ PS2UniversalMod/
 ## 10. リポジトリ運用（Git）
 
 * **GitHub のプライベートリポジトリ** `yutokure/PS2UniversalMod` に置いています（非公開のまま運用します）。
-  `main` には 3 ゲームのアダプターと GUI 修正・ゲーム切替ガードが統合済みです（PR #1）。
+  基盤 3 ゲームと GUI 修正・ゲーム切替ガードは PR #1 で `main` に統合済みです。イクサの追加状況は現在の作業ブランチを確認してください。
   新しい作業は既存 PR と現在の Git 状態を確認して作業ブランチで進めます。
 * リポジトリのルートは `PS2UniversalMod/` だけです。ゲームデータの置き場（`pcsx2/`・`sstates/`・`work/` など）はこの外にあり、
   親フォルダを `git init` してはいけません。

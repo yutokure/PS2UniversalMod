@@ -58,6 +58,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - startup diagnostics
 
 from adapters.ffx2.adapter import FFX2Adapter  # noqa: E402
 from adapters.shiningforceneo.adapter import SFNeoAdapter  # noqa: E402
+from adapters.shiningforceexa.adapter import SFExaAdapter  # noqa: E402
 from adapters.suikoden5.adapter import Suikoden5Adapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
@@ -81,15 +82,16 @@ except ImportError:  # run as a script (python gui/camera_controller/app.py)
 
 log = logging.getLogger("ps2cam.gui")
 
-ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SUIKODEN5": Suikoden5Adapter}
+ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SFEXA": SFExaAdapter,
+            "SUIKODEN5": Suikoden5Adapter}
 #: adapter class per game serial, chosen when the GUI connects
 ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
-                      "SLPM-66286": Suikoden5Adapter}
+                      "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
-#: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Suikoden V ``7380A572``), which only the
-#: Japanese releases satisfy, so the US/EU serials are deliberately NOT listed here:
-#: advertising them would promise support the adapters would then refuse.
-SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66286"}
+#: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Shining Force Exa ``8B383FDF``,
+#: Suikoden V ``7380A572``), which only the Japanese releases satisfy, so the US/EU serials
+#: are deliberately NOT listed here: advertising them would promise support the adapters refuse.
+SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286"}
 
 #: severity styles of the notice bar (explicit foreground *and* background: readable on any theme)
 NOTICE_STYLE = {

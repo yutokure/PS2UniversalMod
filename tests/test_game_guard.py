@@ -81,6 +81,33 @@ def test_serial_or_crc_mismatch_revokes_for_good(gid, crc):
         g.write_u32(0x100, 1)
 
 
+@pytest.mark.parametrize("expected, other", [
+    ((sf_mm.GAME_ID, sf_mm.DISC_CRC), ("SLPM-66646", "8B383FDF")),
+    (("SLPM-66646", "8B383FDF"), (sf_mm.GAME_ID, sf_mm.DISC_CRC)),
+    (("SLPM-66646", "8B383FDF"), ("SLPM-66646", sf_mm.DISC_CRC)),
+    ((sf_mm.GAME_ID, sf_mm.DISC_CRC), (sf_mm.GAME_ID, "8B383FDF")),
+])
+def test_neo_and_exa_identity_leases_cannot_be_reused_for_each_other(expected, other):
+    inner = Inner()
+    inner.set_game(*expected)
+    _, guard = armed(inner)
+    assert guard.expected == expected and guard.verify() == SAME
+    guard.write_u32(0x100, 1)
+    before = list(inner.writes)
+    inner.set_game(*other)
+    assert guard.verify() == CHANGED and guard.revoked
+    with pytest.raises(WriteBlocked):
+        guard.write_u32(0x104, 2)
+    with pytest.raises(WriteBlocked):
+        guard.write_float_block(0x108, [1.0, 2.0, 3.0])
+    assert inner.writes == before
+    inner.set_game(*expected)
+    assert guard.verify() == CHANGED  # returning to the disc needs a fresh adapter/guard
+    with pytest.raises(WriteBlocked):
+        guard.write_u32(0x10C, 3)
+    assert inner.writes == before
+
+
 def test_empty_identity_suspends_writes_until_the_same_game_answers():
     inner, g = armed()
     inner.set_game("", "")

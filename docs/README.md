@@ -22,6 +22,7 @@ the top-level `README.md` §10); documents refer to them only by local path.
 |---|---|---|
 | Final Fantasy X-2 (SLPS-25250) | [`games/ffx2/CAMERA_MEMORY_MAP.md`](games/ffx2/CAMERA_MEMORY_MAP.md), [`FOV_ANALYSIS`](games/ffx2/FOV_ANALYSIS.md), [`ORBIT_BREAKTHROUGH`](games/ffx2/ORBIT_BREAKTHROUGH.md), [`WALK_DIRECTION_INVESTIGATION`](games/ffx2/WALK_DIRECTION_INVESTIGATION.md), [`SAVESTATE_INVENTORY`](games/ffx2/SAVESTATE_INVENTORY.md) | [`games/ffx2/FINAL_STATUS.md`](games/ffx2/FINAL_STATUS.md) |
 | Shining Force Neo (SLPM-65908) | [`games/shiningforceneo/CAMERA_ANALYSIS.md`](games/shiningforceneo/CAMERA_ANALYSIS.md) | in the same file (open items) |
+| Shining Force Exa (SLPM-66646) | [`games/shiningforceexa/CAMERA.md`](games/shiningforceexa/CAMERA.md) | [tests and limits](games/shiningforceexa/TEST_RESULTS.md) |
 | Suikoden V (SLPM-66286) | [`games/suikoden5/CAMERA.md`](games/suikoden5/CAMERA.md) | [`games/suikoden5/TEST_RESULTS.md`](games/suikoden5/TEST_RESULTS.md) |
 
 ## The lab (emulator, MCP, Ghidra, automation)
