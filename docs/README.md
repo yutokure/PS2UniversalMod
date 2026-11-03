@@ -25,6 +25,7 @@ the top-level `README.md` §10); documents refer to them only by local path.
 | Shining Force Exa (SLPM-66646) | [`games/shiningforceexa/CAMERA.md`](games/shiningforceexa/CAMERA.md) | [tests and limits](games/shiningforceexa/TEST_RESULTS.md) |
 | Suikoden V (SLPM-66286) | [`games/suikoden5/CAMERA.md`](games/suikoden5/CAMERA.md) | [`games/suikoden5/TEST_RESULTS.md`](games/suikoden5/TEST_RESULTS.md) |
 | The Nightmare of Druaga (SLPS-25377) | [`games/nightmaredruaga/CAMERA.md`](games/nightmaredruaga/CAMERA.md) | [`games/nightmaredruaga/TEST_RESULTS.md`](games/nightmaredruaga/TEST_RESULTS.md) |
+| Radiata Stories (SLPM-65800) | [`games/radiatastories/CAMERA.md`](games/radiatastories/CAMERA.md) | [`games/radiatastories/TEST_RESULTS.md`](games/radiatastories/TEST_RESULTS.md) |
 
 ## The lab (emulator, MCP, Ghidra, automation)
 
