@@ -27,6 +27,7 @@ the top-level `README.md` §10); documents refer to them only by local path.
 | The Nightmare of Druaga (SLPS-25377) | [`games/nightmaredruaga/CAMERA.md`](games/nightmaredruaga/CAMERA.md) | [`games/nightmaredruaga/TEST_RESULTS.md`](games/nightmaredruaga/TEST_RESULTS.md) |
 | Radiata Stories (SLPM-65800) | [`games/radiatastories/CAMERA.md`](games/radiatastories/CAMERA.md) | [`games/radiatastories/TEST_RESULTS.md`](games/radiatastories/TEST_RESULTS.md) |
 | Romancing SaGa -Minstrel Song- (SLPM-65920) | [`games/minstrelsong/CAMERA.md`](games/minstrelsong/CAMERA.md) | [`games/minstrelsong/TEST_RESULTS.md`](games/minstrelsong/TEST_RESULTS.md) |
+| Dragon Quest V (SLPM-65555) | [`games/dragonquest5/CAMERA.md`](games/dragonquest5/CAMERA.md) | [`games/dragonquest5/TEST_RESULTS.md`](games/dragonquest5/TEST_RESULTS.md) |
 
 ## The lab (emulator, MCP, Ghidra, automation)
 

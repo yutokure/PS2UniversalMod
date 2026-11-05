@@ -59,6 +59,11 @@
 Orbit・6軸offset・FOV・コンパス（方位盤とactor針）・カメラ基準移動対応、Free未対応。
 原作の右スティック回転は無く、遮断パッチなし。イスマス城内の限定確認、hostはメニュー識別を保証しない。
 
+ドラゴンクエストV / `SLPM-65555` / `B64E9939` は描画更新中だけWORLD/lensを差替え、終了時にnativeへ戻す方式。
+[解析](docs/games/dragonquest5/CAMERA.md)、[確認結果](docs/games/dragonquest5/TEST_RESULTS.md)。
+右スティックyaw/pitch Orbit・6軸offset・FOV対応、Free・Orbit基準移動は未対応（歩行は原作yaw基準）。
+原作RXはcamera専用consumer中だけ中立化・復元。同じ海辺の庭の4stateとGUIで確認、全特殊sceneは未検証。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。
