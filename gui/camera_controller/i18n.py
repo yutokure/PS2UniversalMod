@@ -126,6 +126,7 @@ TEXT: dict[str, dict[str, str]] = {
     # --- added by the 2026-11-02 GUI audit ---------------------------------
     "title.game": {"en": "{app} — {game}", "ja": "{app} — {game}"},
     "game.radiata": {"en": "Radiata Stories", "ja": "ラジアータ ストーリーズ"},
+    "game.minstrelsong": {"en": "Romancing SaGa -Minstrel Song-", "ja": "ロマンシング サガ -ミンストレルソング-"},
     "group.offsets": {"en": "Offsets (advanced)", "ja": "オフセット（詳細）"},
     "group.offsets_set": {"en": "Offsets (advanced) - in use", "ja": "オフセット（詳細）― 設定あり"},
     "btn.advanced": {"en": "Show advanced", "ja": "詳細を表示"},

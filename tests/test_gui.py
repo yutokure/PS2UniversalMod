@@ -19,11 +19,16 @@ from adapters.shiningforceexa import memory_map as ex_mm  # noqa: E402
 from adapters.suikoden5 import memory_map as su_mm  # noqa: E402
 from adapters.nightmaredruaga import memory_map as dr_mm  # noqa: E402
 from adapters.radiatastories import caves as ra_caves, memory_map as ra_mm  # noqa: E402
+from adapters.minstrelsong import caves as ms_caves, memory_map as ms_mm  # noqa: E402
 from core.camera_math.orbit import Vec3, orbit_pose  # noqa: E402
 from core.memory_backend.guard import WriteBlocked  # noqa: E402
 from gui.camera_controller import app as gui  # noqa: E402
 from tests.test_suikoden5 import FakeBackend  # noqa: E402
 from tests.test_druaga import FakeBackend as DruagaFakeBackend, seed_field as seed_druaga_field  # noqa: E402
+from tests.test_minstrelsong import (  # noqa: E402
+    FakeBackend as MinstrelSongFakeBackend, active_bank as minstrelsong_bank,
+    seed_field as seed_minstrelsong_field,
+)
 
 
 class GuiBackend(FakeBackend):
@@ -212,6 +217,32 @@ class RadiataBackend(DruagaFakeBackend):
 @pytest.fixture()
 def radiata_gui(monkeypatch):
     """Keep GUI/runtime stepping deterministic, but use real adapter methods on fake memory."""
+    monkeypatch.setattr(gui.CameraRuntime, "start", lambda self: None)
+
+
+MINSTRELSONG_GAME_ID, MINSTRELSONG_CRC = "SLPM-65920", "2B9AF3C5"
+
+
+class MinstrelSongBackend(MinstrelSongFakeBackend):
+    """Real adapter on shared synthetic field memory, never a live PINE socket."""
+
+    available = True
+    connected = True
+
+    def __init__(self):
+        super().__init__(crc=MINSTRELSONG_CRC.lower())
+        seed_minstrelsong_field(self)
+
+    def connect(self):
+        pass
+
+    def close(self):
+        pass
+
+
+@pytest.fixture()
+def minstrelsong_gui(monkeypatch):
+    """Step the real runtime explicitly instead of racing its background writer."""
     monkeypatch.setattr(gui.CameraRuntime, "start", lambda self: None)
 
 
@@ -655,6 +686,199 @@ def test_radiata_and_druaga_settings_and_presets_stay_separate(env, radiata_gui)
     window.btn_load.click()
     assert window.runtime.settings.distance == 2500
     assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+
+
+def test_minstrelsong_registration_uses_only_its_verified_adapter_and_identity():
+    assert gui.ADAPTERS["MINSTRELSONG"] is gui.MinstrelSongAdapter
+    assert gui.ADAPTER_BY_GAME_ID[MINSTRELSONG_GAME_ID] is gui.MinstrelSongAdapter
+    assert MINSTRELSONG_GAME_ID in gui.SUPPORTED_IDS
+    assert (ms_mm.GAME_ID, ms_mm.DISC_CRC) == (MINSTRELSONG_GAME_ID, MINSTRELSONG_CRC)
+    backend = MinstrelSongBackend()
+    assert gui.MinstrelSongAdapter(backend).identify().matched
+    assert not gui.MinstrelSongAdapter(RadiataBackend()).identify().matched
+    assert not gui.MinstrelSongAdapter(DruagaBackend()).identify().matched
+    assert not gui.RadiataStoriesAdapter(backend).identify().matched
+    assert not gui.DruagaAdapter(backend).identify().matched
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("crc", [ra_mm.DISC_CRC, dr_mm.DISC_CRC, "DEADBEEF", "", "2B9AF3C0"])
+def test_minstrelsong_unverified_crc_stays_read_only(env, minstrelsong_gui, crc):
+    backend = MinstrelSongBackend()
+    backend.disc_crc = crc
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.MinstrelSongAdapter
+    assert window.runtime is None
+    assert window.guard.expected == (MINSTRELSONG_GAME_ID, crc.upper())
+    assert not window.guard.writes_allowed
+    assert all(not getattr(window, group).isEnabled() for group in CAMERA_GROUPS)
+    assert window.rb_original.isChecked()
+    assert window._conn_problem[0] == "notice.unsupported"
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("saved_mode", [None, gui.MODE_ORBIT, gui.MODE_FREE])
+def test_minstrelsong_defaults_and_saved_values_always_start_original(env, minstrelsong_gui, saved_mode):
+    if saved_mode is not None:
+        saved = {"games": {MINSTRELSONG_GAME_ID: {
+            "mode": saved_mode, "distance": 12.0, "look_height": -2.0, "pitch_deg": 35.0,
+            "pos_offset": [1, 2, 3], "target_offset": [4, 5, 6],
+        }}}
+        folder = env.tmp / "PS2UniversalCamera"
+        folder.mkdir(parents=True)
+        (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+    backend = MinstrelSongBackend()
+    window = env.make(lambda: backend)
+    assert type(window.adapter) is gui.MinstrelSongAdapter
+    assert window.adapter.backend is window.guard
+    assert window.guard.expected == (MINSTRELSONG_GAME_ID, MINSTRELSONG_CRC)
+    assert window.app_settings.game_id == MINSTRELSONG_GAME_ID
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.rb_original.isChecked()
+    if saved_mode is None:
+        for key, value in window.adapter.default_settings().items():
+            assert getattr(window.runtime.settings, key) == pytest.approx(value)
+    else:
+        assert window.runtime.settings.distance == 12
+        assert window.runtime.settings.look_height == -2
+        assert window.runtime.settings.pitch_deg == 35
+        assert window.runtime.settings.pos_offset == [1, 2, 3]
+        assert window.runtime.settings.target_offset == [4, 5, 6]
+    data = window.poller.poll_once()
+    assert data["link"] and data["patch"] == "stock"
+    assert data["fov"] == pytest.approx(window.adapter.capture_original_fov())
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("language", ["ja", "en"])
+def test_minstrelsong_limits_hints_translations_and_unsupported_free(env, minstrelsong_gui, language):
+    window = env.make(MinstrelSongBackend)
+    window.cmb_lang.setCurrentIndex(window.cmb_lang.findData(language))
+    assert (window.sl_dist.spin.minimum(), window.sl_dist.spin.maximum()) == (1, 80)
+    assert (window.sl_look.spin.minimum(), window.sl_look.spin.maximum()) == (-10, 10)
+    assert (window.sl_pitch.spin.minimum(), window.sl_pitch.spin.maximum()) == (-25, 89.5)
+    assert (window.runtime.settings.pitch_min_deg, window.runtime.settings.pitch_max_deg) == (-25, 89.5)
+    assert window.lbl_pitch_hint.text() == gui.tr("hint.pitch_above")
+    assert window.lbl_look_hint.text() == gui.tr("hint.look_down")
+    expected_title = ("ロマンシング サガ -ミンストレルソング-" if language == "ja"
+                      else "Romancing SaGa -Minstrel Song-")
+    assert gui.tr("game.minstrelsong") == expected_title
+    assert expected_title in window.windowTitle()
+    assert window.rb_orbit.isEnabled()
+    assert not window.rb_free.isEnabled()
+    assert window.rb_free.toolTip() == gui.tr("mode.free_unsupported")
+    assert window.sl_fov.isEnabled() and window.chk_fov.isEnabled()
+    window._refresh_native_zoom(window.poller.poll_once())
+    assert not window.grp_zoom.isVisibleTo(window)
+    window.grp_offsets.setChecked(True)
+    for i, slider in enumerate(window.off):
+        assert slider.isEnabled()
+        assert (slider.spin.minimum(), slider.spin.maximum()) == (-30, 30)
+        key = "tip.cam_eye_offset" if i < 3 else "tip.tgt_offset"
+        assert slider.toolTip() == window._offset_labels[i].toolTip() == gui.tr(key)
+        slider.spin.setValue(i + .25)
+    assert window.runtime.settings.pos_offset == [.25, 1.25, 2.25]
+    assert window.runtime.settings.target_offset == [3.25, 4.25, 5.25]
+    window.sl_pitch.spin.setValue(42)
+    assert window.runtime.settings.pitch_deg == window.app_settings.pitch_deg == 42
+    window.cmb_lang.setCurrentIndex(window.cmb_lang.findData("ja"))
+
+
+def test_minstrelsong_gui_enable_fov_and_restore_use_real_adapter_without_touching_raw_input(env, minstrelsong_gui):
+    backend = MinstrelSongBackend()
+    window = env.make(lambda: backend)
+    native = {address: backend.bytes_at(address, 16) for address in
+              (ms_mm.CAM_EYE, ms_mm.CAM_TARGET, ms_mm.CAM_UP, ms_mm.CAM_TRANSLATE)}
+    native_lens = backend.read_f32(ms_mm.CAM_NATIVE_FOCAL)
+    raw_address = 0x01100000
+    raw = b"raw-left-right-buttons-untouched"
+    backend.seed(raw_address, raw)
+    window.btn_enable.click()
+    window.runtime._tick(.01, None)
+    assert not window.runtime.stats.last_error
+    assert window.runtime.settings.mode == gui.MODE_ORBIT
+    assert window.adapter.patch_state() == "applied"
+    assert backend.read_u32(ms_mm.MOD_BLOCK + ms_mm.MB_FLAGS) == ms_mm.FLAG_ORBIT
+    window.sl_look.spin.setValue(-2)
+    window.grp_offsets.setChecked(True)
+    for slider, value in zip(window.off, [1, 2, 3, 4, 5, 6]):
+        slider.spin.setValue(value)
+    window.chk_fov.setChecked(True)
+    window.sl_fov.spin.setValue(60)
+    window.runtime._fov_checked = window.runtime._scene_time = 0
+    window.runtime._tick(.01, None)
+    assert not window.runtime.stats.last_error
+    assert backend.read_u32(ms_mm.MOD_BLOCK + ms_mm.MB_FLAGS) == ms_mm.FLAG_ORBIT | ms_mm.FLAG_FOV
+    bank = minstrelsong_bank(backend)
+    assert backend.read_floats(bank + ms_mm.SLOT_TARGET, 3) == [4, 3, 6]
+    assert backend.read_f32(bank + ms_mm.SLOT_FOCAL) == pytest.approx(window.adapter._focal(60))
+    # This is a publish contract test: no guest/render loop runs on fake memory.
+    assert backend.read_f32(ms_mm.CAM_NATIVE_FOCAL) == native_lens
+    assert all(backend.bytes_at(address, 16) == data for address, data in native.items())
+    window.btn_restore.click()
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert not window.runtime.settings.use_fov
+    assert window.rb_original.isChecked()
+    assert window.adapter.patch_state() == "stock"
+    assert backend.read_u32(ms_mm.MOD_BLOCK + ms_mm.MB_FLAGS) == 0
+    assert all(ms_caves.read_words(backend, address, 2) == stock
+               for address, stock, _, _, _ in ms_caves.RESOURCES)
+    assert all(backend.bytes_at(address, 16) == data for address, data in native.items())
+    assert backend.bytes_at(raw_address, len(raw)) == raw
+    assert not any(raw_address <= address < raw_address + len(raw) for address, _ in backend.writes)
+
+
+def test_minstrelsong_and_radiata_settings_presets_and_active_switch_stay_isolated(env, minstrelsong_gui):
+    saved = {"games": {
+        MINSTRELSONG_GAME_ID: {"distance": 12.0, "look_height": -2.0, "pitch_deg": 35.0,
+                              "pos_offset": [1, 2, 3], "target_offset": [4, 5, 6], "mode": "free"},
+        RADIATA_GAME_ID: {"distance": 2500.0, "look_height": -120.0, "pitch_deg": 30.0},
+    }}
+    folder = env.tmp / "PS2UniversalCamera"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text(json.dumps(saved), encoding="utf-8")
+
+    class SwitchingBackend:
+        def __init__(self): self.inner = MinstrelSongBackend()
+        def __getattr__(self, name): return getattr(self.inner, name)
+
+    backend = SwitchingBackend()
+    window = env.make(lambda: backend)
+    assert window.runtime.settings.distance == 12
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    window.presets.save("minstrelsong-only", window.app_settings)
+    window._persist()
+    window.btn_enable.click()
+    window.runtime._tick(.01, None)
+    old_runtime, old_memory = window.runtime, backend.inner
+    assert window.adapter.patch_active()
+    old_memory.writes.clear()
+    backend.inner = RadiataBackend()
+    window._reconnect()
+    assert not old_runtime.running and not old_runtime.stats.connected
+    assert not old_memory.writes and not backend.inner.writes
+    assert type(window.adapter) is gui.RadiataStoriesAdapter
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.runtime.settings.distance == 2500
+    assert window.cmb_preset.findText("minstrelsong-only") == -1
+    window.presets.save("radiata-separate", window.app_settings)
+    window._persist()
+    backend.inner = MinstrelSongBackend()
+    window._reconnect()
+    assert type(window.adapter) is gui.MinstrelSongAdapter
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert window.runtime.settings.distance == 12
+    assert window.runtime.settings.look_height == -2
+    assert window.runtime.settings.pos_offset == [1, 2, 3]
+    assert window.runtime.settings.target_offset == [4, 5, 6]
+    assert window.cmb_preset.findText("radiata-separate") == -1
+    window.sl_dist.spin.setValue(20)
+    window.cmb_preset.setCurrentText("minstrelsong-only")
+    window.btn_load.click()
+    assert window.runtime.settings.distance == 12
+    assert window.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert not window.rb_free.isEnabled()
+    assert not backend.inner.writes
 
 
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):

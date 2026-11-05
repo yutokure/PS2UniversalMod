@@ -54,6 +54,11 @@
 | ナイトメア オブ ドルアーガ / `SLPS-25377` / `B476ED7A` | 城内・Dungeon別の最終行列出力cave、native状態を保持。右processed軸と派生bitのみ中立化。[解析](docs/games/nightmaredruaga/CAMERA.md)、[テスト結果](docs/games/nightmaredruaga/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。Dungeon playerは専用actor所有pointer（城内ID1000とは別）。城内は連続方位、Dungeon方向キーは最寄り8方向、左analogはitem UI。全floor/イベントは未網羅 |
 | ラジアータ ストーリーズ / `SLPM-65800` / `AC73005E` | 描画view/frustum生成中だけworld行列を差替えてnativeへ復元、FOVはtan引数。player alias→actor所有nodeに追従。[解析](docs/games/radiatastories/CAMERA.md)、[テスト結果](docs/games/radiatastories/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。移動getterのみOrbit forwardへ差替え、原作右スティックは遮断なし。短い方向測定・state再適用を確認。橋の横ずれ等は未分離、全scene/方向/長時間は未網羅 |
 
+ミンストレルソング / `SLPM-65920` / `2B9AF3C5` はfield専用look-at引数＋camera yaw consumer＋投影scale方式。
+[解析](docs/games/minstrelsong/CAMERA.md)、[確認結果](docs/games/minstrelsong/TEST_RESULTS.md)。
+Orbit・6軸offset・FOV・コンパス（方位盤とactor針）・カメラ基準移動対応、Free未対応。
+原作の右スティック回転は無く、遮断パッチなし。イスマス城内の限定確認、hostはメニュー識別を保証しない。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。
