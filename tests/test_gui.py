@@ -881,6 +881,38 @@ def test_minstrelsong_and_radiata_settings_presets_and_active_switch_stay_isolat
     assert not backend.inner.writes
 
 
+def test_dragonquest5_registration_uses_only_its_verified_adapter_and_identity():
+    assert gui.ADAPTERS["DRAGONQUEST5"] is gui.DragonQuest5Adapter
+    assert gui.ADAPTER_BY_GAME_ID["SLPM-65555"] is gui.DragonQuest5Adapter
+    assert "SLPM-65555" in gui.SUPPORTED_IDS
+    backend = DruagaFakeBackend(serial="SLPM-65555", crc="b64e9939")
+    adapter = gui.DragonQuest5Adapter(backend)
+    assert adapter.name == "DRAGONQUEST5"
+    assert adapter.display_name_key == "game.dragonquest5"
+    assert adapter.identify().matched
+    assert not gui.MinstrelSongAdapter(backend).identify().matched
+    assert not gui.RadiataStoriesAdapter(backend).identify().matched
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("serial,crc", [
+    ("SLPM-65555", "DEADBEEF"), ("SLPM-65555", ""),
+    ("SLPM-65920", "B64E9939"), ("SLPM-65800", "B64E9939"),
+])
+def test_dragonquest5_unverified_identity_is_not_a_match_or_a_write(serial, crc):
+    backend = DruagaFakeBackend(serial=serial, crc=crc)
+    assert not gui.DragonQuest5Adapter(backend).identify().matched
+    assert not backend.writes
+
+
+@pytest.mark.parametrize("language,expected", [
+    ("ja", "ドラゴンクエストV 天空の花嫁"), ("en", "Dragon Quest V"),
+])
+def test_dragonquest5_title_translation_is_registered(language, expected):
+    from gui.camera_controller.i18n import TEXT
+    assert TEXT["game.dragonquest5"][language] == expected
+
+
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):
     w = env.make(SuikodenBackend)
     env.spin(0.5)

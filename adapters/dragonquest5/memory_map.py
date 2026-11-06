@@ -1,0 +1,90 @@
+"""DQ V Japanese SLPM-65555/B64E9939; EE physical addresses.
+
+Four protected states, live write watchpoints and targeted Ghidra analysis,
+2026-11-05. Game data remains outside the repository.
+"""
+GAME_ID = 'SLPM-65555'
+DISC_CRC = 'B64E9939'
+RENDERER = 0x72B880
+RENDERER_CAMERA = RENDERER + 0x320
+CAMERA = 0x81B480
+CAM_WORLD_PTR = CAMERA + 0x168
+WORLD = 0x81B910
+CAM_EYE = 0x81B430
+CAM_TARGET = 0x81B440
+CAM_YAW = 0x81B460
+CAM_FOV = 0x81B5DC
+CAM_PROJECTION = 0x81B4C0
+PROJECTION_X_FACTOR = 0.7  # post-projection X scale: 0x81B500
+PLAYER_PTR = 0x7B50A0
+PLAYER_NODE = 0x128
+NODE_POSITION = 0x60
+# Conservative ordinary party-follow subset, not a universal event classifier.
+EXACT_GUARDS = ((RENDERER_CAMERA, CAMERA), (CAM_WORLD_PTR, WORLD),
+                (0x81B428, CAM_EYE), (0x81B630, 0x01000101),
+                (0x81B648, 0), (0x81B678, 0), (0x7B7810, 0),
+                (0x7ABDA4, 0), (0x91F43C, 0), (0x81B890, 0))
+ZERO_HALF_GUARDS = (0x7451F8, 0x7452C0)
+PLAYER_MANAGER = 0x7AE310
+MANAGER_ACTOR = 0x6D90
+ACTOR_SCRIPTED = 0x28
+ACTOR_INPUT_FLAGS = 0x134
+NORMAL_INPUT_FLAGS = 0x00FFFFFF
+MOVE_HOOK = 0x546CCC
+MOVE_STOCK = (0x14400006, 0xE7A00104)
+FACING_HOOK = 0x5470A8
+FACING_STOCK = (0x14400005, 0xE7A00114)
+FUN_ROTATE_Y = 0x693D00
+RENDER_HOOK = 0x4B2B6C
+RENDER_STOCK = (0x0C12C920, 0xAF9185A4)
+FUN_RENDER = 0x4B2480
+PAD_HOOK = 0x57F370
+PAD_STOCK = (0x0C15F894, 0x0200202D)
+FUN_PAD_CAMERA = 0x57E250
+PAD_PROCESSED_PTR = 0x7058E8  # gp 0x70C070 - 0x6788
+PAD_RIGHT_X = 0x190
+# Below all game mappings (ELF starts 0x480000). Separate from the v1
+# render-only caves so a stopped v1 controller's retained code is not overwritten.
+# Zero/exact-code preflight is required; this is not a permanent allocation claim.
+RENDER_CAVE = 0xF2000
+PAD_CAVE = 0xF3000
+MOVE_CAVE = 0xF3400
+FACING_CAVE = 0xF3800
+MOD_BLOCK = 0xF4000
+BLOCK_SIZE = 0x400
+MAGIC = 0x44515632  # DQV2
+FLAG_ORBIT = 1
+FLAG_FOV = 2
+MB_FLAGS = 4
+MB_SLOT = 8
+MB_HEARTBEAT = 12
+MB_APPLIED = 16
+MB_PENDING = 20
+MB_NATIVE_FOV = 24
+MB_RENDER_EYE = 0x20
+MB_RENDER_TARGET = 0x30
+MB_SAVED_WORLD = 0x40
+MB_RENDER_WORLD = 0x80
+MB_SNAPSHOT = 0xC0
+# Guest-only movement latch: vector and facing consume one stable publication.
+MB_MOVE_SP = 0x140
+MB_MOVE_NODE = 0x144
+MB_MOVE_YAW = 0x148
+# Lifecycle command runs native instruction restoration on the EE thread.
+MB_COMMAND = 0x14C
+CMD_UNINSTALL = 1
+CMD_DONE = 2
+CMD_CONFLICT = 3
+CMD_INSTALL = 4
+CMD_INSTALLED = 5
+SLOTS = (0x200, 0x280)
+SLOT_SIZE = 0x80
+SLOT_SEQUENCE = 0
+SLOT_FLAGS = 4
+SLOT_NODE = 8
+SLOT_FOV = 12
+SLOT_WORLD = 0x10
+SLOT_TARGET = 0x50
+SLOT_YAW = 0x60  # native forward-facing radians, including independent eye offsets
+STOCK_DISTANCE = 157.223
+STOCK_FOV_RAD = 0.5235987305641174
