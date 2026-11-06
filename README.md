@@ -32,7 +32,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | ザ・ナイトメア・オブ・ドルアーガ | `adapters/nightmaredruaga` | `SLPS-25377` / `B476ED7A` | 城内／ダンジョンの Orbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット、右入力競合遮断 | [解析・確認範囲](docs/games/nightmaredruaga/CAMERA.md) |
 | ラジアータ ストーリーズ | `adapters/radiatastories` | `SLPM-65800` / `AC73005E` | Orbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット（原作右スティックの遮断不要） | [解析・確認範囲](docs/games/radiatastories/CAMERA.md) |
 | ロマンシング サガ -ミンストレルソング- | `adapters/minstrelsong` | `SLPM-65920` / `2B9AF3C5` | Orbit、コンパス方位盤・キャラの針の連動、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット（右入力遮断なし） | [解析・確認範囲](docs/games/minstrelsong/CAMERA.md) |
-| ドラゴンクエストV 天空の花嫁 | `adapters/dragonquest5` | `SLPM-65555` / `B64E9939` | 右スティックyaw＋pitchのOrbit、距離、FOV、独立した位置・注視点6軸オフセット、原作右回転との競合抑止（移動は原作yaw基準） | [解析・確認範囲](docs/games/dragonquest5/CAMERA.md) |
+| ドラゴンクエストV 天空の花嫁 | `adapters/dragonquest5` | `SLPM-65555` / `B64E9939` | 右スティックyaw＋pitchのOrbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット、原作右回転との競合抑止（特殊cameraの回転解除は未対応） | [解析・確認範囲](docs/games/dragonquest5/CAMERA.md) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -72,7 +72,7 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 1. **カメラモード → オービット**（または「カメラ MOD を有効化」）
 2. **右スティック**: 左右で水平回転、上下で仰角。離すとその角度を保持します（矢印キーでも同じ操作。
    XInput とキーボードは併用でき、先に入力のあった方が使われます）
-3. 左スティックで歩く（ドルアーガのダンジョンは方向キー）。ラジアータ・ドルアーガ・ミンストレルソングも Orbit のカメラ基準で移動します（ダンジョンは最寄り8方向）。ゲーム別の確認範囲は §5 を参照
+3. 左スティックで歩く（ドルアーガのダンジョンは方向キー）。ラジアータ・ドルアーガ・ミンストレルソング・DQⅤも Orbit のカメラ基準で移動します（ダンジョンは最寄り8方向）。ゲーム別の確認範囲は §5 を参照
 4. 「MOD を無効化して元のカメラに戻す」または「オリジナル」で、ゲーム本来のカメラ・入力に戻ります
 
 ### 3.3 GUI 項目
@@ -243,10 +243,15 @@ presets\*.json                                  同梱プリセット（orbit-de
   eye/target XYZは独立offset。Free Cameraは非対応です。
 - nativeリグは更新させ続け、描画用行列と画角を一時差替えして処理後に返します。guestが最新player位置を加算するため、
   hostの連続座標書込みなしでも追従します。原作右RXはcamera専用関数の実行中だけ中立化し、raw入力・左軸・ボタンは保持します。
-- **歩行方向は原作yaw基準のまま**で、Orbit視点基準の移動変換は未対応です。
-- Original／通常終了で2hookを復元し、原作右スティックの左右回転へ戻ります。stock state読込み後は約1秒で再適用。
+- **歩行とキャラの向きはOrbitの実際の視線基準**です。原作Y回転・速度・衝突・向き計算を流用し、移動と向きのyaw入力だけを同じ角度へ合わせます。
+  eye offsetで変わった視線も反映し、原作のglobal camera yawは保持します。スクリプト歩行・別locomotionは変換しません。
+- 通常field用の原作yaw上限・下限・入力vetoは描画Orbitへ適用しません。ただし固定視点・イベント・別camera classは安全guardを残し、
+  **特殊cameraの360°回転解除は未対応**です。ユーザーの追加指示により、その個別対応は別件・今回対象外です。
+- Original／通常終了で描画・右入力・移動・向きの4hookを復元し、原作右スティックの左右回転へ戻ります。stock state読込み後は約1秒で再適用。
+  追加3hookの適用と全4hookの解除はguest EE threadが実行します。pause中は完了できないため、再開してから再試行してください。
+  描画hookの初回bootstrapはPINE書込みが残り、PCSX2の全code-page競合を解消する保証ではありません。
   FOVはOrbitに付随し、OriginalのFOV-onlyは共通runtimeの対象外です。
-- 提供4stateは同じ海辺の庭の通常場面。GUI・短い歩行追従・state再適用を確認しましたが、全エリア・イベント・戦闘・メニュー・
+- 提供4stateは同じ海辺の庭の通常場面。GUI・4yawの前後歩行と向き・屋内への移動・state再適用／解除を確認しましたが、全エリア・イベント・戦闘・メニュー・
   長時間は未検証です。特殊場面ではOriginalへ戻してください。壁・屋根・未描画の裏面が見える場合があります。
 - [解析・安全条件](docs/games/dragonquest5/CAMERA.md)・[実行した確認と制限](docs/games/dragonquest5/TEST_RESULTS.md)
 
@@ -287,7 +292,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | ドルアーガ | `python tools/druaga_live_check.py --out <lab>/test_evidence/druaga/run`（実入力あり。Dungeonは方向キーの通れる隣接タイルを `--dungeon-direction left` 等で指定。reload手順はゲーム別検証記録参照） |
 | ラジアータ | `python tools/radiata_live_check.py --out <lab>/test_evidence/radiata/run`（一時設定・GUI/Orbit/FOV/復元。`--move` は短い左スティック歩行、`--reload-handshake <empty-dir>` は外部state読込との同期。詳細はゲーム別検証記録） |
 | ミンストレルソング | `python tools/minstrelsong_live_check.py --out <lab>/test_evidence/minstrelsong/run --move`（GUI/Orbit/コンパス/FOV/復元、`--move` は短い左スティック歩行。`--reload-handshake <empty-dir>` は外部stock state読込みと同期。複製カード・保護したステートを使用） |
-| DQⅤ | `python tools/dragonquest5_live_check.py --out <lab>/test_evidence/dragonquest5/run --move`（GUI/Orbit/FOV/右入力競合・復元。`--move`は短い左軸歩行追従のみ、Orbit基準移動の試験ではありません。外部state読込みは`--reload-handshake <empty-dir>`。複製カード・保護したステートを使用） |
+| DQⅤ | `python tools/dragonquest5_live_check.py --out <lab>/test_evidence/dragonquest5/run --move`（GUI/Orbit/FOV/右入力競合・復元。`--move`は4yawで短い前後移動・native速度/向き・guest追従を測定。障害物のない場所で実施。外部state読込みは`--reload-handshake <empty-dir>`。複製カード・保護したステートを使用） |
 | ラジアータ／ドルアーガの移動方向 | `python tools/orbit_movement_check.py --game radiata --yaw 180 --direction up --out <lab>/test_evidence/radiata/movement.json`（複製カードと安全な同版ステートを用意。`--game druaga` は城内／Dungeonを識別、Dungeonは方向キー。壁・狭い足場による無移動や横滑りは別途切り分ける） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
@@ -307,7 +312,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 のパッチはモードに応じて runtime が管理します。`EnableCheats` は不要で、「ゲームパッチ」欄と旧外部パッチの競合を確認 |
 | セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo・SF Exa・ドルアーガ・ラジアータ・ミンストレルソング・DQⅤは約 1 秒）で自動再適用されます |
 | 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか、「入力ソース」が keyboard / scripted になっていないか確認。矢印キーでも回せます |
-| 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応、SF Exa は歩行保持を確認したものの全 yaw の方向測定は未実施。DQⅤは原作yaw基準のままでOrbit基準移動は未対応 |
+| 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応、SF Exa は歩行保持を確認したものの全 yaw の方向測定は未実施。DQⅤの通常field歩行はOrbit視線基準へ対応（スクリプト歩行・別locomotionは対象外）。特殊cameraで回らない場合は場所名／stateでの個別調査が必要 |
 | 狭い場所で画面が壁で埋まる | 距離を縮めるか Pitch を下げる（ゲームの衝突判定を通らないため） |
 
 詳しい不具合記録: [`docs/lab/TROUBLESHOOTING_KB.md`](docs/lab/TROUBLESHOOTING_KB.md)、未解決事項: [`docs/lab/BLOCKERS.md`](docs/lab/BLOCKERS.md)。

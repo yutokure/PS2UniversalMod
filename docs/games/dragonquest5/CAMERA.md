@@ -7,7 +7,8 @@
   いずれも同じ海辺の建物・庭の通常パーティ追従場面。4つの別エリアを検証したという意味ではない。
 - 原作右スティックは左右回転のみ。MODは右Xをyaw、右Yをpitchに使う。
 - Orbit、距離、Y-up注視点高さ、独立したeye/target XYZオフセット、水平FOVに対応。Free Cameraは非対応。
-- **移動は原作yaw基準のまま**。Orbit視点基準の歩行は未実装。カメラの回転に合わせて左スティックの歩行方向は変換しない。
+- 通常fieldの歩行・キャラの向きは**実際のOrbit視線基準**。原作のY回転・移動速度・衝突・向き計算を流用し、その2つのyaw consumerだけへOrbitの角度を渡す。Free Camera、別の移動モード、演出用cameraは非対応。
+- 原作の通常field用yaw上限・下限・回転入力禁止は描画Orbitに適用しない。ただし**固定視点／イベント／別camera classを一律に解除する機能ではない**。報告された「一部の場所」の個別解除は、ユーザーの追加指示で別件・今回対象外とした。
 
 ## 解析の根拠
 
@@ -32,8 +33,9 @@
 
 watchpointはMCP/GDBのZ2を使用し、調査後に個別解除した。GhidraのEE Reloadedを既存構成のまま利用し、
 見落された関数は対象アドレスだけdisassemble/createFunctionした。ELF load segmentは`0x480000..0x9CE180`。
-低位`0xF0000..0xF2000`はELF外、4stateとliveでzeroを確認したが、全ゲーム状態の永久空き保証ではない。
-適用前にexact code/zero以外の占有を拒否する。
+現行v2は低位`0xF2000..0xF4400`を使用する。ELF外で、4stateとliveの使用領域でzeroを確認したが、全ゲーム状態の永久空き保証ではない。
+適用前にexact code/zero以外の占有を拒否する。v1の停止後に残るcave/control blockを上書きしないよう領域とmagicを変更した。
+旧controllerが動作中、または旧hookが残るstateでは、先に旧版でOriginalへ戻すかstock stateから起動する。未知hookを自動移行して上書きしない。
 
 ## 実装方式
 
@@ -51,8 +53,21 @@ watchpointはMCP/GDBのZ2を使用し、調査後に個別解除した。Ghidra�
    再入時は既存pending backupを上書きしない。復元対象はこの呼出が開始したtransactionだけ。
 
 hookの切替は1word。全hook+delay・全cave命令・block占有を最初の書込み前に検査する。
-unknown命令、破損cave、別用途のblockは強制上書きしない。通常解除はflags=0→pending完了待ち→hook復元。
-VMがtransaction途中でpauseされているときは0.25秒で拒否しcleanup hookを残す。再開後に解除する。
+unknown命令、破損cave、別用途のblockは強制上書きしない。
+通常解除はflags=0→guest cleanup command→外側render transaction完了→EE threadで4hook復元→ACK読戻し。
+PINEから稼働中のnative code pageへ解除書込みをせず、guestが全hook/delayを再検査してから描画hookを最後に外す。
+途中で未知命令を検出した場合は一部だけ復元せず拒否する。元から全hookがstockならdataだけ解除する。
+VM pause／描画停止では0.5秒で拒否しcleanup requestとhookを残す。再開後にguestが完了するまで再有効化は拒否する。
+描画hookだけ欠けて他hookが残る状態ではPINEから強制復元せず、stock state読込みで復旧する。
+
+適用も描画hookの1wordだけをPINEでbootstrapし、残る右入力・移動・向き3hookはguest lifecycleがEE threadで適用する。
+hostはbank発行後にflags=0でACKと全4hookを確認してからOrbit/FOVを有効化する。
+停止VMでは待機をタイムアウトし、flags=0のnative動作とpending requestを残す。再開・再試行で完了する。
+active hookから到達可能なcaveがzero/不一致の状態では、稼働中codeの再構築をせず拒否する。
+
+この変更は、stock state再読込み後の解除・再適用で実測したPCSX2の`Impossible block clearing failure`対策。
+公式の[PINEとCPUのprotected-page競合 issue #14589](https://github.com/PCSX2/pcsx2/issues/14589)と診断が一致するが、
+当該Windows crashの完全stackは未取得。**描画hookのbootstrapはPINE code書込みが残る**ため、エミュレータの全競合を修正したとはしない。
 
 ### 右スティック競合
 
@@ -61,6 +76,38 @@ Orbitかつ通常field guard一致時だけprocessed RXを退避して0にし、
 raw packet、RY、左軸、ボタンは変更しない。他のconsumerの右入力を一律に潰さない。
 原作L/R系の回転入力やスクリプトyaw更新自体を停止するパッチではない。
 Originalではhook自体を返し、原作右スティック左右回転が再び動く。
+
+### 原作yawを流用する歩行・キャラの向き
+
+原作yawは`atan2(target.x-eye.x, target.z-eye.z)`（radian）。GUIのeye-around-target yawと180°違う。
+位置offsetを含めた**実際の視線**からnative yawを計算し、sequence付きbankの`+0x60`へ渡す。
+原作のglobal yaw `0x81B460`や前回yaw `0x704AA0`は上書きしない。
+
+- 真の移動関数は`0x546B50`。旧解析の`0x546D00`は途中のcall命令であり関数入口ではない。
+- 移動ゲート`0x546CCC`と向きゲート`0x5470A8`を各1wordの`j`でcaveへ向ける。元delay storeは保持する。
+  原作のmap別camera-relative flag `0x7B782C=0`でも、通常のユーザー歩行をOrbit基準へ合わせる。
+- 移動は`0x693D00`の原作Y回転へyawを渡し、向きは原作の入力角+yaw加算へ同じyawを渡す。
+  native速度・地形衝突・animationはその後の原作処理のまま。
+- vector consumerがstable bankから選んだyawをguest専用latchへ保存し、同じstack frame/nodeの向きconsumerが一度だけ消費する。
+  途中でhostがbankを2回再発行しても、同じ歩行内のvector/facingが別yawにならない。
+- mid-functionで使うscratch GPRは128bitの`SQ/LQ`で保存・復元する。RA、その他GPR、無関係なFPU値を変えない。
+- field guardに加え、movement manager、現在actor/node所有、normal input flags `0x00FFFFFF`、scripted byte `actor+0x28=0`を確認。
+  不一致／FOV-onlyでは元の分岐へ戻す。スクリプト歩行・別locomotionを無理に変換しない。
+- 描画2hookと合わせ、Original／通常終了では**4hook**を復元する。
+
+### 場所依存の回転制限と未対応camera
+
+原作の`0x57D630`はmap設定のraw limit（rig `+0x48C/+0x490`）を解釈する。
+`0,0`は無制限、`1,1`は`+0x204`の回転入力veto、その他は度から`+0x21C/+0x220`のradian上限・下限へ変換する。
+描画transactionのOrbitはこのveto/boundsに依存しない。これらの値を永久にzeroへ変更するパッチは不要。
+ただし今回調べたISO内291個の有効FLSC headerはraw limitが全て`0,0`だったため、
+この仕組みが報告場所の原因だとは断定しない。条件注入試験と実在する制限場所の試験を区別する。
+
+固定eyeのfield mode1、script所有のmode2、actor-forwardのmode3、別familyのcameraは別経路。
+固定cameraとイベントが同じscript setterを使用し、normal actor input flagsだけでは区別できない。
+またnative入力permission `+0x200=0`はscript suspensionにも使われるため、これを無条件に許可しない。
+既存follow/mode/transition/ownership guardを維持し、追加のsuspend `0x81B890!=0`も拒否する。
+**特殊cameraの360°回転解除は未対応**。ユーザーの追加指示で別件・今回対象外。将来対応時に場所名／該当stateから個別調査する。
 
 ### 座標系・画角
 

@@ -28,6 +28,33 @@ NATIVE = orbit_pose(PLAYER + Vec3(0, 10, 0), math.radians(-147.73), math.radians
 class FakeBackend(ByteBackend):
     def __init__(self, serial=mm.GAME_ID, crc=mm.DISC_CRC):
         super().__init__(serial, crc)
+        # No scheduler exists in sparse memory. One command poll may run the
+        # emitted guest lifecycle, never a Python model that writes hook words.
+        self.auto_guest_cleanup = True
+        self._in_guest_cleanup = False
+        self.before_guest_cleanup = None
+        self.guest_cleanup_count = 0
+        self.guest_install_count = 0
+
+    def read_u32(self, address):
+        value = super().read_u32(address)
+        if (address == mm.MOD_BLOCK + mm.MB_COMMAND and value in (mm.CMD_UNINSTALL, mm.CMD_INSTALL)
+                and self.auto_guest_cleanup and not self._in_guest_cleanup
+                and super().read_u32(mm.RENDER_HOOK) == m.jal(mm.RENDER_CAVE)
+                and super().read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 0):
+            self._in_guest_cleanup = True
+            try:
+                if value == mm.CMD_UNINSTALL:
+                    self.guest_cleanup_count += 1
+                else:
+                    self.guest_install_count += 1
+                if self.before_guest_cleanup is not None:
+                    self.before_guest_cleanup(self)
+                CaveMachine(self).render()
+            finally:
+                self._in_guest_cleanup = False
+            value = super().read_u32(address)
+        return value
 
     def title(self):
         return 'DRAGON QUEST V'
@@ -157,7 +184,8 @@ def test_native_reads_metadata_and_defaults_never_write(be):
     assert not be.writes
 
 
-BAD_GUARDS = [(a, v ^ 1) for a, v in mm.EXACT_GUARDS] + [(a, 1) for a in mm.ZERO_HALF_GUARDS]
+BAD_GUARDS = ([(a, v ^ 1) for a, v in mm.EXACT_GUARDS]
+              + [(a, 1) for a in mm.ZERO_HALF_GUARDS])
 
 
 @pytest.mark.parametrize('address,value', BAD_GUARDS)
@@ -414,18 +442,18 @@ def test_active_resource_corruption_blocks_publish_and_release_without_writes(be
 
 
 @pytest.mark.parametrize('site', range(len(caves.RESOURCES)))
-def test_zeroed_owned_cave_is_rebuilt_before_parameter_publication(be, site):
+def test_zeroed_cave_with_owned_hook_is_refused_without_live_code_rebuilding(be, site):
     ad = DragonQuest5Adapter(be)
     ad.set_patch(True)
     _, _, _, address, words = caves.RESOURCES[site]
     be.seed(address, bytes(4 * len(words)))
     be.writes.clear()
-    ad.write_orbit_params(PLAYER, 90, -30, 160)
-    first_parameter = next(i for i, (a, _) in enumerate(be.writes)
-                           if any(mm.MOD_BLOCK + slot <= a < mm.MOD_BLOCK + slot + mm.SLOT_SIZE for slot in mm.SLOTS))
-    rebuilt = [i for i, (a, _) in enumerate(be.writes) if address <= a < address + 4 * len(words)]
-    assert len(rebuilt) == len(words) and max(rebuilt) < first_parameter
-    assert caves.read_words(be, address, len(words)) == tuple(words)
+    with pytest.raises(caves.PatchConflict):
+        ad.write_orbit_params(PLAYER, 90, -30, 160)
+    with pytest.raises(caves.PatchConflict):
+        ad.set_patch(False)
+    assert not be.writes
+    assert caves.read_words(be, address, len(words)) == (0,) * len(words)
     assert caves.site_state(be) == 'applied'
 
 

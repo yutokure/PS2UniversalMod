@@ -2,7 +2,7 @@
 
 One guarded PINE client owned by MainWindow; no GDB, game boot, savestate or
 memory-card edits. Use isolated cards and protect the starting state first.
-Evidence must be outside the repository. --move injects one short left input.
+Evidence must be outside the repository. --move checks four short camera-relative direction pairs (use an open area).
 --reload-handshake waits for an external stock-state load and resume.
 """
 from __future__ import annotations
@@ -96,7 +96,7 @@ def main():
             native_yaw=backend.read_u32(mm.CAM_YAW);native_lens=backend.read_u32(mm.CAM_FOV)
             native_eye=backend.read_floats(mm.CAM_EYE,3);native_target=backend.read_floats(mm.CAM_TARGET,3)
             shot('stock');window.btn_enable.click();spin(.9)
-            check('GUI enable installs both scoped hooks',adapter.patch_active() and hooks(True) and not runtime.stats.last_error,error=runtime.stats.last_error)
+            check('GUI enable installs render input and movement hooks',adapter.patch_active() and hooks(True) and not runtime.stats.last_error,error=runtime.stats.last_error)
             for yaw,pitch,distance in [(-147.73,25,150),(-57.73,55,180),(40,89.5,150),(40,-25,130)]:
                 pose(yaw,pitch,distance);p,y,pi=sample()
                 check(f'Orbit {yaw}/{pitch}/{distance}',angle_error(y,yaw)<.1 and abs(pi-pitch)<.1 and abs(p.distance()-distance)<.02 and not runtime.stats.last_error,yaw=y,pitch=pi,distance=p.distance(),error=runtime.stats.last_error)
@@ -134,17 +134,35 @@ def main():
             check('real game right RX is received but native yaw is suppressed',received!=0 and yaw1==yaw0 and hooks(True),processed_rx=received,native_yaw_before=yaw0,native_yaw_after=yaw1)
             check('native rig eye target yaw and lens remain unchanged',backend.read_floats(mm.CAM_EYE,3)==native_eye and backend.read_floats(mm.CAM_TARGET,3)==native_target and backend.read_u32(mm.CAM_YAW)==native_yaw and backend.read_u32(mm.CAM_FOV)==native_lens)
             if args.move:
-                runtime.freeze(True);spin(.1)
-                try:
-                    before=adapter.read_player();p0=adapter.read_game_pose();h0=adapter.heartbeat_word()
-                    stamp0=[backend.read_u32(mm.MOD_BLOCK+x) for x in (mm.MB_SLOT,mm.SLOTS[0],mm.SLOTS[1])]
-                    try:stick(0,1,'left');spin(.25)
-                    finally:reset()
-                    spin(.3);after=adapter.read_player();p1=adapter.read_game_pose()
-                    stamp1=[backend.read_u32(mm.MOD_BLOCK+x) for x in (mm.MB_SLOT,mm.SLOTS[0],mm.SLOTS[1])]
-                    move=(after-before).length();error=((p1.target-after)-(p0.target-before)).length()
-                    check('guest follows moving player with host publication frozen',move>.05 and error<.05 and stamp0==stamp1 and adapter.heartbeat_word()>h0,movement=move,relative_target_error=error,scope='follow only; movement stays native-yaw based, not Orbit-relative')
-                finally:runtime.freeze(False)
+                # Opposite pairs limit drift; terrain collision can still invalidate
+                # a direction measurement. Do not equate blocked displacement to
+                # the velocity/facing consumer test or claim all scenes are covered.
+                for yaw in (0,90,180,-90):
+                    pose(yaw,45,157)
+                    for label,x,y in (('forward',0,1),('back',0,-1)):
+                        runtime.freeze(True);spin(.1)
+                        try:
+                            before=adapter.read_player();p0=adapter.read_game_pose();h0=adapter.heartbeat_word()
+                            stamp0=[backend.read_u32(mm.MOD_BLOCK+off) for off in (mm.MB_SLOT,mm.SLOTS[0],mm.SLOTS[1])]
+                            forward=p0.target-p0.eye;norm=math.hypot(forward.x,forward.z)
+                            fx,fz=forward.x/norm,forward.z/norm
+                            expected=(x*fz+y*fx,-x*fx+y*fz)
+                            try:
+                                stick(x,y,'left');spin(.2)
+                                actor=backend.read_u32(mm.PLAYER_PTR)
+                                velocity=backend.read_floats(actor+0x110,3)
+                                heading=backend.read_f32(mm.PLAYER_MANAGER+0x6EAC)
+                            finally:reset()
+                            spin(.3);after=adapter.read_player();p1=adapter.read_game_pose()
+                            delta=after-before;move=math.hypot(delta.x,delta.z)
+                            error=((p1.target-after)-(p0.target-before)).length()
+                            dot=(delta.x*expected[0]+delta.z*expected[1])/move if move>.05 else -1
+                            speed=math.hypot(velocity[0],velocity[2])
+                            vdot=(velocity[0]*expected[0]+velocity[2]*expected[1])/speed if speed>.05 else -1
+                            hdot=-math.sin(heading)*expected[0]-math.cos(heading)*expected[1]
+                            stamp1=[backend.read_u32(mm.MOD_BLOCK+off) for off in (mm.MB_SLOT,mm.SLOTS[0],mm.SLOTS[1])]
+                            check(f'Orbit-relative {yaw} {label}, native velocity/facing and guest follow',dot>.98 and vdot>.999 and hdot>.999 and error<.05 and stamp0==stamp1 and adapter.heartbeat_word()>h0,movement=move,direction_dot=dot,velocity_dot=vdot,heading_dot=hdot,relative_target_error=error)
+                        finally:runtime.freeze(False)
             if handshake:
                 pose(40,65,170);window.chk_fov.setChecked(True);window.sl_fov.spin.setValue(55);spin(.7)
                 handshake.mkdir(parents=True,exist_ok=True)
@@ -158,7 +176,7 @@ def main():
                 check('stock state reload automatically reapplies cached Orbit and FOV',hooks(True) and angle_error(y,40)<.1 and abs(pi-65)<.1 and abs(p.distance()-170)<.02 and abs(adapter.read_fov_deg()-55)<.05 and not runtime.stats.last_error,yaw=y,pitch=pi,fov=adapter.read_fov_deg(),error=runtime.stats.last_error)
                 shot('reload_reapplied')
             window.btn_restore.click();spin(.8)
-            check('Original restores both hooks input and native camera projection',runtime.settings.mode==MODE_ORIGINAL and hooks(False) and backend.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)==0 and abs(adapter.read_fov_deg()-adapter.capture_original_fov())<.05,error=runtime.stats.last_error)
+            check('Original restores all hooks input and native camera projection',runtime.settings.mode==MODE_ORIGINAL and hooks(False) and backend.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)==0 and abs(adapter.read_fov_deg()-adapter.capture_original_fov())<.05,error=runtime.stats.last_error)
             yaw0=backend.read_u32(mm.CAM_YAW)
             try:stick(1,0,'right');spin(.3)
             finally:reset()

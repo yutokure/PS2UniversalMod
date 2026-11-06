@@ -148,11 +148,16 @@ class DragonQuest5Adapter:
         b.write_u32(address+mm.SLOT_SEQUENCE,sequence|1)
         b.write_float_block(address+mm.SLOT_WORLD,world)
         b.write_float_block(address+mm.SLOT_TARGET,(*relative.target.as_tuple(),1))
+        # Reuse the game's native Y-rotation and actor-facing calculations.
+        # Native yaw describes forward, while the GUI yaw describes eye position.
+        forward = relative.target-relative.eye
+        b.write_float_block(address+mm.SLOT_YAW,[math.atan2(forward.x,forward.z)])
         b.write_float_block(address+mm.SLOT_FOV,[self._native_fov(self._fov) if self._fov is not None else 0])
         b.write_u32(address+mm.SLOT_NODE,node); b.write_u32(address+mm.SLOT_FLAGS,flags)
         b.write_u32(address+mm.SLOT_SEQUENCE,sequence)
-        b.write_u32(mm.MOD_BLOCK+mm.MB_SLOT,slot); b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS,flags)
+        b.write_u32(mm.MOD_BLOCK+mm.MB_SLOT,slot)
         caves.install(b)
+        b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS,flags)
 
     def write_orbit_params(self, centre, yaw_deg, pitch_deg, distance, *, pos_offset=None, target_offset=None):
         pos = pos_offset or Vec3(0,0,0)
@@ -186,7 +191,8 @@ class DragonQuest5Adapter:
     def patch_state(self):
         state = caves.site_state(self.backend)
         if state == 'applied' and self.backend.read_u32(mm.MOD_BLOCK)==mm.MAGIC:
-            return 'applied' if self.backend.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_ORBIT else 'stock'
+            return ('applied' if caves.all_applied(self.backend)
+                    and self.backend.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_ORBIT else 'stock')
         return state
     def patch_active(self): return self.patch_state()=='applied'
     hook_active = patch_active
@@ -199,7 +205,7 @@ class DragonQuest5Adapter:
         with self._lock: self._fov = None; self._release()
     def fov_in_sync(self,deg):
         return (self._fov is not None and abs(self._fov-deg)<.01
-                and caves.site_state(self.backend)=='applied'
+                and caves.all_applied(self.backend)
                 and self.backend.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_FOV
                 and abs(self.read_fov_deg()-deg)<.05)
     def center_on_target(self,distance,look_height):
