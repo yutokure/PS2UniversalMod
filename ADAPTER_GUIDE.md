@@ -285,6 +285,20 @@ FFX-2（差分注入）、シャイニング・フォース ネオ（角度フ�
 FOV 非対応は `features['fov'] = False` で GUI のスライダー・上書き・リセットを無効化します。
 未校正なら現在値を捏造せず、`read_fov_deg()` は0を返して未取得表示にします。
 
+## 独立したゲーム固有スイッチ
+
+マグナカルタ追加で `features['wide_view_running']` / `features['no_encounters']` と
+`set_wide_view_running(bool)` / `set_no_encounters(bool)`、readback getters
+`wide_view_running()` / `no_encounters()` を追加しました。
+アドレス・原作復元・パッチ所有検証は adapter の責務で、共通runtimeにゲーム固有アドレスを追加しません。
+
+- `CameraSettings` の同名boolは session-only。`SESSION_ONLY_SETTINGS` に集約し、AppSettings・preset・adapter defaultsから保存/復元しません。
+- 2レーンは Original/Orbit・camera scene guard と独立して最大4Hz、失敗時1秒後retry。片方の失敗で他方を停止しません。
+- Original は `restore(release_game_time=False, release_game_toggles=False)`、無効化・正常終了は既定の `restore()` で全解除。
+- adapter の camera cleanup は独立toggleを暗黙解除しないこと。game switchの `abandon()` は書込み禁止です。
+- setterが部分適用で失敗した場合もruntimeは解除責任を保持します。readback/errorはGUIで独立表示。
+- 未対応gameはfeatureを宣言せず理由付き無効。マグナカルタのno-encountersは丸枠も非表示、wideだけでは隠しません。
+
 ## Git での追加手順（新しいゲーム）
 
 ```bash

@@ -58,6 +58,9 @@ class CameraSettings:
     use_fov: bool = False
     #: Session-only opt-in: pause the game's clock, never the emulator or animation.
     pause_game_time: bool = False
+    #: Game-specific session opt-ins; independent of camera mode, never persisted.
+    wide_view_running: bool = False
+    no_encounters: bool = False
     #: how far the orbit centre sits from the player anchor, in world units
     #: along +Y.  FFX-2 stores +Y downwards, and the stock camera aims 5 units
     #: below the party anchor, so 5.0 reproduces the vanilla framing.
@@ -94,6 +97,16 @@ class RuntimeStats:
     connected: bool = False
     #: Kept separately so scene/camera errors cannot hide a failed clock restore.
     game_time_error: str = ""
+    wide_view_running_error: str = ""
+    no_encounters_error: str = ""
+
+
+@dataclass
+class _ToggleLane:
+    checked_at: float = float("-inf")
+    retry_at: float = 0.0
+    owned: bool = False  # includes a partially failed apply
+    release_pending: bool = False
 
 
 class CameraRuntime:
@@ -160,6 +173,8 @@ class CameraRuntime:
         self._time_retry_at = 0.0
         self._time_owned = False  # includes a partially failed apply needing restoration
         self._time_release_pending = False
+        self._toggle_lock = threading.Lock()
+        self._toggle_lanes = {name: _ToggleLane() for name in ("wide_view_running", "no_encounters")}
         self._abandoned = False
 
     # --- lifecycle -----------------------------------------------------
@@ -189,6 +204,8 @@ class CameraRuntime:
         """
         self._abandoned = True
         self.settings.pause_game_time = False
+        for name in self._toggle_lanes:
+            setattr(self.settings, name, False)
         self._stop.set()
         thread, self._thread = self._thread, None
         if thread is not None and thread is not threading.current_thread():
@@ -511,8 +528,54 @@ class CameraRuntime:
                 self.stats.game_time_error = f"game clock: {exc}"
                 self.stats.last_error = self.stats.game_time_error
 
-    def restore(self, *, release_game_time: bool = True) -> None:
-        """Hand controls back; an Original radio may leave the independent clock on."""
+    def _service_game_toggles(self, *, force: bool = False) -> None:
+        """Worker-owned independent lanes, like the clock lane, before scene guards.
+
+        Adapters own all game addresses, validation and readback. One failure must
+        not prevent the other toggle from being serviced or restored. A stopped
+        runtime may force a final release; abandon never writes.
+        """
+        with self._toggle_lock:
+            if self._abandoned:
+                return
+            for name, lane in self._toggle_lanes.items():
+                want = bool(getattr(self.settings, name))
+                error_attr = f"{name}_error"
+                if not getattr(self.adapter, "features", {}).get(name, False):
+                    if want:
+                        error = f"{name}: not supported by this adapter"
+                        setattr(self.stats, error_attr, error)
+                        self.stats.last_error = error
+                    continue
+                if not (want or lane.owned or lane.release_pending or force):
+                    continue
+                now = time.perf_counter()
+                if not force and (now - lane.checked_at < 0.25 or now < lane.retry_at):
+                    continue
+                lane.checked_at = now
+                try:
+                    setter = getattr(self.adapter, f"set_{name}", None)
+                    if not callable(setter):
+                        raise RuntimeError(f"adapter is missing set_{name}")
+                    if want:
+                        lane.owned = True
+                    setter(want)
+                    lane.owned = want
+                    lane.release_pending = False
+                    lane.retry_at = 0.0
+                    previous = getattr(self.stats, error_attr)
+                    setattr(self.stats, error_attr, "")
+                    if previous and self.stats.last_error == previous:
+                        self.stats.last_error = ""
+                except Exception as exc:  # noqa: BLE001
+                    lane.retry_at = now + PATCH_RETRY_S
+                    error = f"{name}: {exc}"
+                    setattr(self.stats, error_attr, error)
+                    self.stats.last_error = error
+
+    def restore(self, *, release_game_time: bool = True,
+                release_game_toggles: bool = True) -> None:
+        """Hand controls back; Original may preserve independent session toggles."""
         if self._abandoned:
             return
         with self._lock:
@@ -521,10 +584,17 @@ class CameraRuntime:
             if release_game_time:
                 self.settings.pause_game_time = False
                 self._time_release_pending = True
-        # Running workers own clock writes. Teardown stops first and explicitly
+            if release_game_toggles:
+                for name, lane in self._toggle_lanes.items():
+                    setattr(self.settings, name, False)
+                    lane.release_pending = True
+        # Running workers own independent toggle writes. Teardown stops first and explicitly
         # restores even when the camera cleanup below cannot complete.
-        if release_game_time and not self.running:
-            self._service_game_time(force=True)
+        if not self.running:
+            if release_game_time:
+                self._service_game_time(force=True)
+            if release_game_toggles:
+                self._service_game_toggles(force=True)
         self._patch_override = None
         self._sync_stick_block(False)
         try:
@@ -634,6 +704,7 @@ class CameraRuntime:
         if self._abandoned:
             return
         self._service_game_time()
+        self._service_game_toggles()
         self._integrate(dt)
         s = self.settings
         mode = s.mode
