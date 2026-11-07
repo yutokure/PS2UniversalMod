@@ -65,6 +65,13 @@ Orbit・6軸offset・FOV・コンパス（方位盤とactor針）・カメラ基
 歩行と向きのnative yaw consumerへ実視線の角度を渡し、原作global yawは保持。原作RXはcamera専用consumer中だけ中立化・復元。
 通常fieldのmap yaw制限はOrbitへ適用しないが、特殊固定／イベントcameraの360°解除は未対応。場所名／stateでの追加解析が必要。
 
+新牧場物語 ピュア イノセントライフ / `SLPS-25763` / `9AC21F92` は描画入力cameraコピー＋native入力角consumer方式。
+[解析](docs/games/innocentlife/CAMERA.md)、[確認結果](docs/games/innocentlife/TEST_RESULTS.md)。
+右スティックOrbit・6軸offset・水平FOV・カメラ基準移動／向き・独立した通常ゲーム内時計停止対応。Free非対応。
+FOVは描画コピーの焦点距離から投影／clipを一括生成、native値は保持。OriginalのFOV-onlyは対象外。
+原作右カメラなし、遮断パッチなし。時計はelapsed加算秒だけをゼロにし、sleep等の明示時刻変更は止めない。
+Originalラジオは時計選択を保持、無効化・正常終了は時計も解除。全menu/event/map・長時間は未網羅。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。
