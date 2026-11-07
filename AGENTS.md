@@ -72,6 +72,19 @@ FOVは描画コピーの焦点距離から投影／clipを一括生成、native�
 原作右カメラなし、遮断パッチなし。時計はelapsed加算秒だけをゼロにし、sleep等の明示時刻変更は止めない。
 Originalラジオは時計選択を保持、無効化・正常終了は時計も解除。全menu/event/map・長時間は未網羅。
 
+グランディアII / `SLPM-65081` / `B6AB7BC2` はfield render-call wrapper＋NJ cameraコピー＋最終focal／frustum方式。
+[解析](<docs/games/grandia2/CAMERA.md>)、[確認結果・制限](<docs/games/grandia2/TEST_RESULTS.md>)。
+Orbit・6軸offset・水平FOV20〜60°・カメラ基準移動／向き対応、Free・時計停止・Original FOV-only非対応。
+native cameraは保持し、描画tailで数値・current projection pointerを復元するが、queued projection records/countは巻き戻さない。
+移動cameraコピーのyawだけを実視線へ合わせ、原作速度・heading・衝突を流用。原作右cameraなし、入力遮断なし、R1更新の保持を確認。
+屋外mode8／屋内固定mode0を許可。3hookの適用／復元はguest lifecycle（hostは初回render1word bootstrap）、pause中は再開が必要。
+各bank公開は3exact hook pair・magic・flags・ACKを確認。同じadapter/backend/epoch内だけ準備済み状態を使い、full cave検査は初回・接続変更・state消失・周期約1秒＋遅延・解除時。
+cave本体だけの破損は即時検知ではなく次のfull auditで検知する。性能最適化後の関連320テスト・MainWindow実機11項目を確認（独立レビューではない）。
+屋外／屋内の4yaw前進・offset付きW/S/D/A・FOV20/40/60°とreset・GUI入力／6offset・stock state再適用／解除を確認。屋内の衝突例外を保持し、実方向キーは未検証。
+100°の原作packet buffer fatalを受け60°へ制限し、buffer拡張・安全検査の迂回はしない。60°629フレームは限定場面の実績で全scene安全保証ではない。
+コンパスの透過／clip表示は比較した原作baselineと一致。開始ユーザーstate・3hook stock・native focalを復元し、入力／解析接続を解除、原作cameraでrunningへ戻した。
+6stateのcave空き／snapshot参照なしは永久空き保証ではない。全エリア・イベント・戦闘・メニュー・長時間は未網羅。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。

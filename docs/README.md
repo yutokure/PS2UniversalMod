@@ -29,6 +29,7 @@ the top-level `README.md` §10); documents refer to them only by local path.
 | Romancing SaGa -Minstrel Song- (SLPM-65920) | [`games/minstrelsong/CAMERA.md`](games/minstrelsong/CAMERA.md) | [`games/minstrelsong/TEST_RESULTS.md`](games/minstrelsong/TEST_RESULTS.md) |
 | Dragon Quest V (SLPM-65555) | [`games/dragonquest5/CAMERA.md`](games/dragonquest5/CAMERA.md) | [`games/dragonquest5/TEST_RESULTS.md`](games/dragonquest5/TEST_RESULTS.md) |
 | Innocent Life (SLPS-25763) | [`games/innocentlife/CAMERA.md`](games/innocentlife/CAMERA.md) | [`games/innocentlife/TEST_RESULTS.md`](games/innocentlife/TEST_RESULTS.md) |
+| Grandia II (SLPM-65081 / B6AB7BC2) | [camera, FOV, movement and safety](<games/grandia2/CAMERA.md>) | [verified results and limitations](<games/grandia2/TEST_RESULTS.md>) |
 
 ## The lab (emulator, MCP, Ghidra, automation)
 
