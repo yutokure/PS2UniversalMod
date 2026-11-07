@@ -64,6 +64,7 @@ from adapters.nightmaredruaga.adapter import DruagaAdapter  # noqa: E402
 from adapters.radiatastories.adapter import RadiataStoriesAdapter  # noqa: E402
 from adapters.minstrelsong.adapter import MinstrelSongAdapter  # noqa: E402
 from adapters.dragonquest5.adapter import DragonQuest5Adapter  # noqa: E402
+from adapters.innocentlife.adapter import InnocentLifeAdapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
     MODE_FREE, MODE_ORBIT, MODE_ORIGINAL, CameraRuntime, CameraSettings,
@@ -89,19 +90,20 @@ log = logging.getLogger("ps2cam.gui")
 ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SFEXA": SFExaAdapter,
             "SUIKODEN5": Suikoden5Adapter, "DRUAGA": DruagaAdapter,
             "RADIATA": RadiataStoriesAdapter, "MINSTRELSONG": MinstrelSongAdapter,
-            "DRAGONQUEST5": DragonQuest5Adapter}
+            "DRAGONQUEST5": DragonQuest5Adapter, "INNOCENTLIFE": InnocentLifeAdapter}
 #: adapter class per game serial, chosen when the GUI connects
 ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
                       "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter,
                       "SLPS-25377": DruagaAdapter, "SLPM-65800": RadiataStoriesAdapter,
-                      "SLPM-65920": MinstrelSongAdapter, "SLPM-65555": DragonQuest5Adapter}
+                      "SLPM-65920": MinstrelSongAdapter, "SLPM-65555": DragonQuest5Adapter,
+                      "SLPS-25763": InnocentLifeAdapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
 #: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Shining Force Exa ``8B383FDF``,
 #: Suikoden V ``7380A572``, Nightmare of Druaga ``B476ED7A``, Radiata Stories ``AC73005E``,
-#: Minstrel Song ``2B9AF3C5``, Dragon Quest V ``B64E9939``),
+#: Minstrel Song ``2B9AF3C5``, Dragon Quest V ``B64E9939``, Innocent Life ``9AC21F92``),
 #: which only the Japanese releases satisfy; unverified versions are deliberately not listed here.
 SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286", "SLPS-25377",
-                 "SLPM-65800", "SLPM-65920", "SLPM-65555"}
+                 "SLPM-65800", "SLPM-65920", "SLPM-65555", "SLPS-25763"}
 
 #: severity styles of the notice bar (explicit foreground *and* background: readable on any theme)
 NOTICE_STYLE = {
@@ -260,6 +262,16 @@ class StatusPoller(threading.Thread):
             # another game: say nothing about its memory, the window reconnects (see _refresh)
             d["link"] = True
             return d
+        if getattr(ad, "features", {}).get("game_time_pause", False):
+            try:
+                reader = getattr(ad, "read_game_time", None)
+                if callable(reader):
+                    d["game_time"] = reader()
+                reader = getattr(ad, "time_paused", None)
+                if callable(reader):
+                    d["time_paused"] = reader()
+            except Exception as exc:  # noqa: BLE001
+                d["game_time_error"] = f"game clock: {exc}"
         try:
             d["patch"] = ad.patch_state()
             d["fov"] = ad.read_fov_deg()
@@ -430,8 +442,10 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.grp_lens, 4, 0)
         grid.addWidget(self.grp_zoom, 4, 1)
         self.grp_zoom.setVisible(False)       # shown for adapters with a native zoom
-        grid.addWidget(self._build_debug(), 5, 0, 1, 2)
-        grid.setRowStretch(6, 1)
+        self.grp_game_time = self._build_game_time()
+        grid.addWidget(self.grp_game_time, 5, 0, 1, 2)
+        grid.addWidget(self._build_debug(), 6, 0, 1, 2)
+        grid.setRowStretch(7, 1)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -674,6 +688,22 @@ class MainWindow(QMainWindow):
         form.addRow(self.lbl_zoom_note)
         return box
 
+    def _build_game_time(self) -> QGroupBox:
+        box = self._group("group.game_time")
+        lay = QVBoxLayout(box)
+        self.chk_game_time = self._chk("time.pause", "time.explanation")
+        self.chk_game_time.toggled.connect(self._on_game_time)
+        lay.addWidget(self.chk_game_time)
+        note = self._label("time.explanation")
+        note.setWordWrap(True)
+        lay.addWidget(note)
+        self.lbl_game_time_reason = QLabel("")
+        self.lbl_game_time_reason.setWordWrap(True)
+        lay.addWidget(self.lbl_game_time_reason)
+        self.lbl_game_time = QLabel("-")
+        lay.addWidget(self.lbl_game_time)
+        return box
+
     def _build_debug(self) -> QGroupBox:
         box = self._group("group.debug")
         box.setCheckable(True)
@@ -706,8 +736,7 @@ class MainWindow(QMainWindow):
             g.setEnabled(usable)
         self.btn_patch_load.setEnabled(usable)
         self.btn_patch_remove.setEnabled(usable)
-        if usable:
-            self._apply_feature_gates()
+        self._apply_feature_gates()
 
     def _features(self) -> dict:
         return dict(getattr(self.adapter, "features", {}) or {})
@@ -715,6 +744,15 @@ class MainWindow(QMainWindow):
     def _apply_feature_gates(self) -> None:
         """Disable the controls this game's adapter cannot use (and say why)."""
         f = self._features()
+        time_ok = bool(f.get("game_time_pause", False))
+        self.chk_game_time.setEnabled(self._usable and time_ok)
+        reason = self._t("time.supported" if time_ok else "time.unsupported")
+        self.lbl_game_time_reason.setText(reason)
+        self.chk_game_time.setToolTip(self._t("time.explanation") if time_ok else reason)
+        fov_ok = bool(f.get("fov", True))
+        for control in (self.sl_fov, self.chk_fov, self.btn_fov_reset):
+            control.setEnabled(fov_ok)
+            control.setToolTip(self._t("tip.fov") if fov_ok else self._t("lens.unsupported"))
         free_ok = bool(f.get("free_camera", True))
         self.rb_free.setEnabled(free_ok)
         self.rb_free.setToolTip("" if free_ok else self._t("mode.free_unsupported"))
@@ -730,6 +768,10 @@ class MainWindow(QMainWindow):
 
     def _apply_adapter_limits(self, adapter, settings: CameraSettings) -> None:
         """Slider ranges and hints for this game (the adapter knows them; the GUI does not)."""
+        if not getattr(adapter, "features", {}).get("fov", True):
+            # Saved values/presets must not bypass an unsupported UI control.
+            settings.use_fov = False
+            self.app_settings.use_fov = False
         lo, hi = getattr(adapter, "DISTANCE_RANGE", (1.0, 200.0))
         self.sl_dist.set_range(lo, hi)
         lo, hi = getattr(adapter, "LOOK_HEIGHT_RANGE", (-40.0, 40.0))
@@ -807,7 +849,8 @@ class MainWindow(QMainWindow):
         if self.runtime is None:
             return
         st = self.runtime.snapshot()
-        self.app_settings.__dict__.update(st.__dict__)
+        self.app_settings.__dict__.update({k: v for k, v in st.__dict__.items()
+                                           if k != "pause_game_time"})
         self.app_settings.zoom_follow = self.chk_zoom_follow.isChecked()
         self.store.put(self.app_settings)
 
@@ -857,11 +900,13 @@ class MainWindow(QMainWindow):
         defaults = getattr(adapter, "default_settings", None)
         if callable(defaults) and gid not in self.store.data:
             for key, value in defaults().items():
-                setattr(self.app_settings, key, value)
+                if key != "pause_game_time":
+                    setattr(self.app_settings, key, value)
         # the mod never switches itself on: whatever mode was saved, the window starts in Original
         self.app_settings.mode = MODE_ORIGINAL
         settings = CameraSettings(**{k: v for k, v in self.app_settings.__dict__.items()
                                      if k in CameraSettings().__dict__})
+        settings.pause_game_time = False  # never inherit a saved/default clock opt-in
         self._apply_adapter_limits(adapter, settings)
         self.runtime = CameraRuntime(adapter, settings)
         self.runtime.capture_original_fov()
@@ -894,6 +939,10 @@ class MainWindow(QMainWindow):
         the runtime is abandoned without a single write.  Fail closed: anything but a positive
         ``SAME`` (changed, unknown, unreachable, no guard, already revoked) means no restore.
         """
+        self.chk_game_time.blockSignals(True)
+        self.chk_game_time.setChecked(False)
+        self.chk_game_time.blockSignals(False)
+        self.lbl_game_time.setText("-")
         guard, be = self.guard, self.backend
         restore = bool(restore and guard is not None and be is not None and be.available
                        and not guard.revoked and guard.verify() == SAME)
@@ -908,6 +957,9 @@ class MainWindow(QMainWindow):
                 # after restore() has handed the projection to the area
                 self.runtime.stop()
                 self.runtime.restore()
+                if self.runtime.stats.game_time_error:
+                    log.warning("clock cleanup failed: %s", self.runtime.stats.game_time_error)
+                    self._flash(self.runtime.stats.game_time_error, "warn")
             else:
                 self.runtime.abandon()
             self.runtime = None
@@ -962,7 +1014,7 @@ class MainWindow(QMainWindow):
         finally:
             self._updating = False
         if mode == MODE_ORIGINAL:
-            self.runtime.restore()
+            self.runtime.restore(release_game_time=False)
             return
         if mode == MODE_ORBIT:
             # "move onto the character first, then rotate": re-centre whenever the mod is
@@ -1002,8 +1054,26 @@ class MainWindow(QMainWindow):
     def _restore(self) -> None:
         if self.runtime is None:
             return
-        self._on_mode(MODE_ORIGINAL)
-        self._status(self._t("status.restored"))
+        self.chk_game_time.blockSignals(True)
+        self.chk_game_time.setChecked(False)
+        self.chk_game_time.blockSignals(False)
+        self.runtime.restore()
+        self._sync_mode_radios(MODE_ORIGINAL)
+        if self.runtime.stats.game_time_error:
+            self._flash(self.runtime.stats.game_time_error, "warn")
+        else:
+            self._status(self._t("status.restored"))
+
+    def _on_game_time(self, on: bool) -> None:
+        """Only request a change; the runtime worker owns clock patch writes."""
+        if self.runtime is None or self._updating:
+            return
+        if not self._features().get("game_time_pause", False):
+            self.chk_game_time.blockSignals(True)
+            self.chk_game_time.setChecked(False)
+            self.chk_game_time.blockSignals(False)
+            return
+        self.runtime.settings.pause_game_time = bool(on)
 
     @safe_slot
     def _on_patch(self, load: bool) -> None:
@@ -1118,7 +1188,7 @@ class MainWindow(QMainWindow):
         if st is None:
             self._status(self._t("status.preset_missing", name=name))
             return
-        keep = {"mode", "game_id", "version", "language", "input_source"}
+        keep = {"mode", "game_id", "version", "language", "input_source", "pause_game_time"}
         values = {k: v for k, v in st.__dict__.items() if k in CameraSettings().__dict__ and k not in keep}
         for k, v in values.items():
             setattr(self.runtime.settings, k, list(v) if isinstance(v, list) else v)
@@ -1148,6 +1218,7 @@ class MainWindow(QMainWindow):
             self.chk_invx.setChecked(st.invert_x)
             self.chk_invy.setChecked(st.invert_y)
             self.chk_fov.setChecked(st.use_fov)
+            self.chk_game_time.setChecked(bool(getattr(st, "pause_game_time", False)))
             for i in range(3):
                 self.off[i].set_value(st.pos_offset[i])
                 self.off[i + 3].set_value(st.target_offset[i])
@@ -1175,6 +1246,9 @@ class MainWindow(QMainWindow):
             return self._t("notice.no_game"), "warn"
         if not data["link"]:
             return self._t("notice.lost"), "error"
+        clock_error = self.runtime.stats.game_time_error or data.get("game_time_error", "")
+        if clock_error:
+            return clock_error, "warn"
         if data["patch"] == "unknown":
             return self._t("notice.patch_unknown"), "warn"
         err = self.runtime.stats.last_error
@@ -1210,6 +1284,11 @@ class MainWindow(QMainWindow):
             return
         st = self.runtime.stats
         mode = self.runtime.settings.mode
+        if self._features().get("game_time_pause", False):
+            observed = data.get("time_paused")
+            key = "time.paused" if observed is True else (
+                "time.running" if observed is False else "time.unknown")
+            self._put(self.lbl_game_time, self._t(key) + " — " + str(data.get("game_time") or "-"))
         self._put(self.lbl_runtime,
                   f"{self._t('state.running')} ({self._mode_name(mode)})"
                   if mode != MODE_ORIGINAL else self._t("state.stopped_original"))

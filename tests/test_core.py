@@ -62,6 +62,40 @@ def test_clamp():
 
 
 # --- FOV ------------------------------------------------------------------
+def test_fov_retry_clears_only_its_own_exact_stale_notice():
+    from core.camera_runtime.engine import CameraRuntime, CameraSettings
+
+    class Adapter:
+        fail = True
+        synced = False
+
+        def capture_original_fov(self):
+            return 71.635
+
+        def fov_in_sync(self, deg):
+            return self.synced
+
+        def write_fov_deg(self, deg):
+            if self.fail:
+                raise RuntimeError("guest paused")
+            self.synced = True
+
+    ad = Adapter()
+    runtime = CameraRuntime(ad, CameraSettings(use_fov=True, fov_deg=60))
+    runtime._service_fov(runtime.settings, 1)
+    assert runtime.stats.last_error == "fov: guest paused"
+    ad.fail = False
+    runtime._service_fov(runtime.settings, 2)
+    assert runtime.stats.last_error == ""
+    assert runtime._fov_error == ""
+    # A newer scene/clock/patch failure is not owned by this FOV service.
+    runtime._fov_error = "fov: guest paused"
+    runtime.stats.last_error = "game clock: unrelated failure"
+    runtime._service_fov(runtime.settings, 3)
+    assert runtime.stats.last_error == "game clock: unrelated failure"
+    assert runtime._fov_error == ""
+
+
 def test_fov_scale_round_trip():
     for deg in (20.0, 40.0, 54.68, 80.0, 110.0):
         scale = fov_deg_to_scale(deg)
@@ -652,9 +686,16 @@ def test_failed_patch_write_waits_before_retrying():
     rt._tick(0.001, None)
     assert len(attempts) == 1  # no retry on every tick
     rt._retry_at = 0.0  # the backoff has passed
-    rt._tick(0.001, None)
+    # Prior _tick calls may replace the notice with this synthetic scene guard.
+    # Isolate patch-lane recovery from unrelated scene polling.
+    rt.stats.last_error = "patch: pine busy"
+    rt._sync_patch(MODE_ORBIT, force=True)
     assert len(attempts) == 2
     assert ad.patch_state() == "applied"
+    assert rt.stats.last_error == ""  # successful retry removes its own stale notice
+    rt.stats.last_error = "game clock: unrelated failure"
+    rt._sync_patch(MODE_ORBIT, force=True)
+    assert rt.stats.last_error == "game clock: unrelated failure"
 
 
 # --- FFX-2 scripted-camera anchor height ------------------------------------

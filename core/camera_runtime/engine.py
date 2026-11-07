@@ -9,7 +9,9 @@ The engine owns one background thread.  Each iteration it:
 
 That phase-lock is what keeps the override deterministic: we never race the
 game's own camera update, we always write immediately *after* it.  When the
-game stops writing (paused, menu, movie) the engine simply stops writing too.
+game stops writing (paused, menu, movie) the camera lane stops writing too.
+The optional clock-only pause lane is independent of camera validity and is
+serviced at most four times per second; it never pauses the emulator.
 """
 from __future__ import annotations
 
@@ -54,6 +56,8 @@ class CameraSettings:
     free_target: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     fov_deg: float = 54.68
     use_fov: bool = False
+    #: Session-only opt-in: pause the game's clock, never the emulator or animation.
+    pause_game_time: bool = False
     #: how far the orbit centre sits from the player anchor, in world units
     #: along +Y.  FFX-2 stores +Y downwards, and the stock camera aims 5 units
     #: below the party anchor, so 5.0 reproduces the vanilla framing.
@@ -88,6 +92,8 @@ class RuntimeStats:
     #: times the projection centre was pulled back to the field value
     projection_fixes: int = 0
     connected: bool = False
+    #: Kept separately so scene/camera errors cannot hide a failed clock restore.
+    game_time_error: str = ""
 
 
 class CameraRuntime:
@@ -113,6 +119,7 @@ class CameraRuntime:
         self._last_hb = None
         self._fov_written: float | None = None
         self._fov_released = False
+        self._fov_error = ""  # only this lane's exact stale notice may be cleared
         self._scene = None
         self._cached_player = None
         self._cached_target = None
@@ -148,10 +155,16 @@ class CameraRuntime:
         self._stick_block = False
         self._stick_retry_at = 0.0
         self._stick_checked_at = 0.0
+        self._time_lock = threading.Lock()
+        self._time_checked_at = float("-inf")
+        self._time_retry_at = 0.0
+        self._time_owned = False  # includes a partially failed apply needing restoration
+        self._time_release_pending = False
+        self._abandoned = False
 
     # --- lifecycle -----------------------------------------------------
     def start(self) -> None:
-        if self._thread and self._thread.is_alive():
+        if self._abandoned or (self._thread and self._thread.is_alive()):
             return
         self._stop.clear()
         self._thread = threading.Thread(target=self._loop, name="camera-runtime", daemon=True)
@@ -163,7 +176,8 @@ class CameraRuntime:
             self._thread.join(timeout=2.0)
         self._thread = None
         self.stats.running = False
-        self._sync_stick_block(False)
+        if not self._abandoned:
+            self._sync_stick_block(False)
 
     def abandon(self) -> None:
         """Stop for good without touching the game.
@@ -173,6 +187,8 @@ class CameraRuntime:
         one (see ``GuardedBackend``), this is the way out: the thread is ended, nothing is written,
         and the runtime must not be used again.
         """
+        self._abandoned = True
+        self.settings.pause_game_time = False
         self._stop.set()
         thread, self._thread = self._thread, None
         if thread is not None and thread is not threading.current_thread():
@@ -380,6 +396,11 @@ class CameraRuntime:
                     self._last_published = None
                 set_patch(want)
                 self._patch_on = want
+                # A same-game state load can briefly expose a mixed code snapshot.
+                # Clear only this lane's old failure after a verified retry succeeds;
+                # unrelated clock/scene errors must remain visible.
+                if self.stats.last_error.startswith("patch: "):
+                    self.stats.last_error = ""
             except Exception as exc:  # noqa: BLE001
                 self._patch_on = None
                 self._retry_at = now + PATCH_RETRY_S
@@ -447,11 +468,63 @@ class CameraRuntime:
         self.adapter.backend.write_float_block(self.adapter.CAM_EYE_OFFSET_ADDR, (0.0, 0.0, 0.0))
         self._offset_dirty = False
 
-    def restore(self) -> None:
-        """Full restore: stop overriding and hand the camera back to the game."""
+    def _service_game_time(self, *, force: bool = False) -> None:
+        """Independent clock-only lane; adapters validate known words and read back.
+
+        Called before camera/scene guards. Recheck at most 4 Hz (including setting
+        changes); retry failures after PATCH_RETRY_S. A stopped runtime may force
+        one final release during normal cleanup, never during abandon.
+        """
+        with self._time_lock:
+            if self._abandoned:
+                return
+            want = bool(self.settings.pause_game_time)
+            if not getattr(self.adapter, "features", {}).get("game_time_pause", False):
+                if want:
+                    self.stats.game_time_error = "game clock: pause is not supported by this adapter"
+                    self.stats.last_error = self.stats.game_time_error
+                return
+            if not (want or self._time_owned or self._time_release_pending or force):
+                return
+            now = time.perf_counter()
+            if not force and (now - self._time_checked_at < 0.25 or now < self._time_retry_at):
+                return
+            self._time_checked_at = now
+            try:
+                setter = getattr(self.adapter, "set_time_paused", None)
+                if not callable(setter):
+                    raise RuntimeError("adapter is missing set_time_paused")
+                # An apply may write some words before readback fails: still own
+                # the attempted patch, so disabling must retry its restoration.
+                if want:
+                    self._time_owned = True
+                setter(want)
+                self._time_owned = want
+                self._time_release_pending = False
+                self._time_retry_at = 0.0
+                previous = self.stats.game_time_error
+                self.stats.game_time_error = ""
+                if previous and self.stats.last_error == previous:
+                    self.stats.last_error = ""
+            except Exception as exc:  # noqa: BLE001
+                self._time_retry_at = now + PATCH_RETRY_S
+                self.stats.game_time_error = f"game clock: {exc}"
+                self.stats.last_error = self.stats.game_time_error
+
+    def restore(self, *, release_game_time: bool = True) -> None:
+        """Hand controls back; an Original radio may leave the independent clock on."""
+        if self._abandoned:
+            return
         with self._lock:
             self.settings.mode = MODE_ORIGINAL
             self.settings.use_fov = False
+            if release_game_time:
+                self.settings.pause_game_time = False
+                self._time_release_pending = True
+        # Running workers own clock writes. Teardown stops first and explicitly
+        # restores even when the camera cleanup below cannot complete.
+        if release_game_time and not self.running:
+            self._service_game_time(force=True)
         self._patch_override = None
         self._sync_stick_block(False)
         try:
@@ -499,6 +572,7 @@ class CameraRuntime:
         last_pose: CameraPose | None = None
         n_pose = 0
         n_hb = 0
+        loop_error: str | None = None
         while not self._stop.is_set():
             now = time.perf_counter()
             dt = min(0.1, now - last)
@@ -507,11 +581,15 @@ class CameraRuntime:
                 self._tick(dt, last_pose)
                 last_pose = self.stats_applied_pose()
                 self.stats.connected = True
-                if "write blocked" in self.stats.last_error:
-                    # a refusal by the game guard is temporary unless the GUI abandons us
+                # Only recover the exact exception notice owned by this loop.
+                # Handled patch/clock lanes may publish a new error without
+                # raising; a successful tick must not erase their notices.
+                if loop_error is not None and self.stats.last_error == loop_error:
                     self.stats.last_error = ""
+                loop_error = None
             except Exception as exc:  # noqa: BLE001
-                self.stats.last_error = f"{type(exc).__name__}: {exc}"
+                loop_error = f"{type(exc).__name__}: {exc}"
+                self.stats.last_error = loop_error
                 self.stats.connected = False
                 time.sleep(0.05)
             if now - last_stat >= 0.5:
@@ -553,6 +631,9 @@ class CameraRuntime:
             self.settings.yaw_deg = (self.settings.yaw_deg + 180.0) % 360.0 - 180.0
 
     def _tick(self, dt: float, _unused) -> None:
+        if self._abandoned:
+            return
+        self._service_game_time()
         self._integrate(dt)
         s = self.settings
         mode = s.mode
@@ -701,8 +782,12 @@ class CameraRuntime:
             if self._fov_released:
                 self.adapter.restore_fov()
                 self._fov_released = False
+            if self._fov_error and self.stats.last_error == self._fov_error:
+                self.stats.last_error = ""
+            self._fov_error = ""
         except Exception as exc:  # noqa: BLE001
-            self.stats.last_error = f"fov: {exc}"
+            self._fov_error = f"fov: {exc}"
+            self.stats.last_error = self._fov_error
 
     def _recheck_s(self) -> float:
         """How often the patch and the stick block are checked while on (adapters may ask for less)."""
