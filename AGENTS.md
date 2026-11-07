@@ -72,18 +72,26 @@ FOVは描画コピーの焦点距離から投影／clipを一括生成、native�
 原作右カメラなし、遮断パッチなし。時計はelapsed加算秒だけをゼロにし、sleep等の明示時刻変更は止めない。
 Originalラジオは時計選択を保持、無効化・正常終了は時計も解除。全menu/event/map・長時間は未網羅。
 
-グランディアII / `SLPM-65081` / `B6AB7BC2` はfield render-call wrapper＋NJ cameraコピー＋最終focal／frustum方式。
-[解析](<docs/games/grandia2/CAMERA.md>)、[確認結果・制限](<docs/games/grandia2/TEST_RESULTS.md>)。
-Orbit・6軸offset・水平FOV20〜60°・カメラ基準移動／向き対応、Free・時計停止・Original FOV-only非対応。
+グランディアII / `SLPM-65081` / `B6AB7BC2` はfield render-call wrapper＋NJ cameraコピー＋最終focal／frustum＋native packet streaming方式。
+[解析](<docs/games/grandia2/CAMERA.md>)、[今回結果・制限](<docs/games/grandia2/TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)。
+Orbit・6軸offset・水平FOV20〜110°・カメラ基準移動／向き対応、Free・時計停止・Original FOV-only非対応。
 native cameraは保持し、描画tailで数値・current projection pointerを復元するが、queued projection records/countは巻き戻さない。
-移動cameraコピーのyawだけを実視線へ合わせ、原作速度・heading・衝突を流用。原作右cameraなし、入力遮断なし、R1更新の保持を確認。
-屋外mode8／屋内固定mode0を許可。3hookの適用／復元はguest lifecycle（hostは初回render1word bootstrap）、pause中は再開が必要。
-各bank公開は3exact hook pair・magic・flags・ACKを確認。同じadapter/backend/epoch内だけ準備済み状態を使い、full cave検査は初回・接続変更・state消失・周期約1秒＋遅延・解除時。
-cave本体だけの破損は即時検知ではなく次のfull auditで検知する。性能最適化後の関連320テスト・MainWindow実機11項目を確認（独立レビューではない）。
-屋外／屋内の4yaw前進・offset付きW/S/D/A・FOV20/40/60°とreset・GUI入力／6offset・stock state再適用／解除を確認。屋内の衝突例外を保持し、実方向キーは未検証。
-100°の原作packet buffer fatalを受け60°へ制限し、buffer拡張・安全検査の迂回はしない。60°629フレームは限定場面の実績で全scene安全保証ではない。
-コンパスの透過／clip表示は比較した原作baselineと一致。開始ユーザーstate・3hook stock・native focalを復元し、入力／解析接続を解除、原作cameraでrunningへ戻した。
-6stateのcave空き／snapshot参照なしは永久空き保証ではない。全エリア・イベント・戦闘・メニュー・長時間は未網羅。
+移動cameraコピーのyawだけを実視線へ合わせ、原作速度・heading・衝突を流用。原作右cameraなし、入力遮断なし。
+原作はEND生成後に2MiB上限検査し、bank0/1隣接・直後に管理globalがある。capacity/fatal bypass不可。
+closed DIRECT／UNPACK／CONTROL入口で事前reserveし、END→finalize→FlushCache→send→reset→newCNTで分割送信する。
+raw put−固定bank baseを使用し、CPU VU index・queue・projection・順序を保持。DIRECT前CNT境界で別のQWC制約も保護する。
+full128bit GPR／HI・LO・HI1・LO1・SA／全FPU・FCSRを保存する。valid native field writerのprotocol／source boundsが前提で、破損巨大DIRECT救済ではない。
+現行はrender／tail／move＋finish `0x25DEC0`＋packet CONTROL `0x260A60`／DIRECT `0x260B38`／UNPACK `0x260BF8`の7site、5 code resources、G2C2。
+解除はqueue tailではなく最終frame submit帰還後に全7siteを復元。hostは初回render1word bootstrap、GUIは既存GuardedBackend経由、pause中はACK不能。
+各bank公開は全7exact hook pair・magic・flags・ACKを確認。同じadapter/backend/epoch内だけ準備済み状態を使い、full cave検査は初回・接続変更・state消失・周期約1秒＋遅延・解除時。
+cave本体だけの破損は次のfull auditで検知。旧G2C1混在はfail-closed。旧adapterを正常解除して終了し、必ずstock state読込みかゲーム再起動で旧cave/controlを消してから新版を使う。
+正常解除だけではG2C1が残る。MOD入りstateはstockではなく、clean stockがなければ再起動する。
+屋外mode8／屋内固定mode0で最終最適化後FOV110°の4yaw×内部pitch4種・各約0.5秒のフレーム進行と、水平yaw45°の各約20秒を確認。
+屋外239frame／718flush・屋内600frame／0flush、MainWindow別run14項目成功。boundary highwaterはreserve入口観測で全write最高水位の証明ではない。
+FOV20/40/60/100/110°・native reset・全7site解除・stock state再適用を確認。独立レビューではない。大可視量の負荷増は残る。
+旧3hook／20〜60°の歩行・320テスト・GUI・cleanupは過去条件の記録として保持し、現行7siteの成功や最終cleanupへ読み替えない。
+実方向キー・全エリア・イベント・戦闘・メニュー・長時間は未網羅。Orbitのcamera collisionはなく、屋内距離2000水平の小さな室内geometry＋黒空間を全scene描画成功と誇張しない。
+6stateのcave空き／snapshot参照なしは永久空き保証ではない。今回の最終テスト・cleanupは結果文書の追記欄で区別する。
 
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。

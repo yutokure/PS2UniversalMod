@@ -75,7 +75,8 @@ def test_steady_lifecycle_sync_uses_only_exact_sites_magic_flags_and_ack():
     with patch.object(caves, 'preflight', wraps=caves.preflight) as audit:
         caves.synchronize(backend, mm.FLAG_ORBIT)
     assert audit.call_count == 0
-    assert 0 < len(backend.reads) < 20
+    # Two exact words per site, then magic, desired flags and acknowledgement.
+    assert len(backend.reads) == 2 * len(caves.SITES) + 3
     assert not cave_body_reads(backend)
     assert not backend.writes
 

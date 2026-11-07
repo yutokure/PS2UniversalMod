@@ -62,12 +62,12 @@ def make_window(tmp_path, monkeypatch):
     gui.set_language(previous_language)
 
 
-def test_grandia2_registration_and_fov_budget_are_exact():
+def test_grandia2_registration_and_fov_range_are_exact():
     assert gui.ADAPTERS["GRANDIA2"] is Grandia2Adapter
     assert gui.ADAPTER_BY_GAME_ID["SLPM-65081"] is Grandia2Adapter
     assert "SLPM-65081" in gui.SUPPORTED_IDS
     assert (mm.GAME_ID, mm.DISC_CRC) == ("SLPM-65081", "B6AB7BC2")
-    assert Grandia2Adapter.FOV_RANGE == (20, 60)
+    assert Grandia2Adapter.FOV_RANGE == (20, 110)
 
 
 @pytest.mark.parametrize("serial,crc", [
@@ -122,7 +122,7 @@ def test_bilingual_features_ranges_and_unsupported_reasons(make_window, language
     for control in (window.sl_fov, window.chk_fov, window.btn_fov_reset):
         assert control.isEnabled()
         assert control.toolTip() != window._t("lens.unsupported")
-    assert (window.sl_fov.spin.minimum(), window.sl_fov.spin.maximum()) == (20, 60)
+    assert (window.sl_fov.spin.minimum(), window.sl_fov.spin.maximum()) == (20, 110)
     assert window.sl_fov.value() == mm.STOCK_FOV_DEG
     assert (window.sl_dist.spin.minimum(), window.sl_dist.spin.maximum()) == (100, 10000)
     assert (window.sl_look.spin.minimum(), window.sl_look.spin.maximum()) == (-1000, 1000)
@@ -135,7 +135,7 @@ def test_bilingual_features_ranges_and_unsupported_reasons(make_window, language
     assert backend.writes == []
 
 
-@pytest.mark.parametrize("saved,expected", [(110, 60), (10, 20), (45, 45)])
+@pytest.mark.parametrize("saved,expected", [(150, 110), (110, 110), (100, 100), (10, 20), (45, 45)])
 def test_saved_lens_is_clamped_in_runtime_settings_and_widgets_without_enabling(make_window, saved, expected):
     window, backend = make_window(saved_fov=saved)
     assert window.runtime.settings.fov_deg == window.app_settings.fov_deg == expected
@@ -149,41 +149,51 @@ def test_saved_lens_is_clamped_in_runtime_settings_and_widgets_without_enabling(
 
 
 @pytest.mark.parametrize("language", ["ja", "en"])
-def test_wide_preset_clamps_to_60_preserves_original_and_game_scoped_settings(make_window, language):
+@pytest.mark.parametrize("requested,expected", [(100, 100), (110, 110), (150, 110)])
+def test_wide_preset_obeys_110_limit_preserves_original_and_game_scoped_settings(
+        make_window, language, requested, expected):
     window, backend = make_window()
     gui.set_language(language)
     window._retranslate()
     window.store.put(AppSettings(game_id="SLPM-65555", fov_deg=110, use_fov=True))
-    preset = AppSettings(game_id=mm.GAME_ID, mode=MODE_ORBIT, fov_deg=110, use_fov=True,
+    preset = AppSettings(game_id=mm.GAME_ID, mode=MODE_ORBIT, fov_deg=requested, use_fov=True,
                          language="en" if language == "ja" else "ja")
-    window.presets.save("old-wide-lens", preset)
+    window.presets.save("wide-lens", preset)
     window._refresh_presets()
-    window.cmb_preset.setCurrentText("old-wide-lens")
+    window.cmb_preset.setCurrentText("wide-lens")
     window._load_preset()
-    assert window.runtime.settings.fov_deg == window.app_settings.fov_deg == 60
-    assert window.sl_fov.value() == 60 and window.chk_fov.isChecked()
+    assert window.runtime.settings.fov_deg == window.app_settings.fov_deg == expected
+    assert window.sl_fov.value() == expected and window.chk_fov.isChecked()
     assert window.runtime.settings.mode == MODE_ORIGINAL and window.rb_original.isChecked()
     assert gui.current_language() == language
     assert not window.adapter.patch_active()
     window._persist()
-    assert window.store.get(mm.GAME_ID).fov_deg == 60
+    assert window.store.get(mm.GAME_ID).fov_deg == expected
     assert window.store.get("SLPM-65555").fov_deg == 110
     assert backend.writes == []
     restarted, restarted_backend = make_window()
-    assert restarted.runtime.settings.fov_deg == restarted.app_settings.fov_deg == 60
-    assert restarted.sl_fov.value() == 60
+    assert restarted.runtime.settings.fov_deg == restarted.app_settings.fov_deg == expected
+    assert restarted.sl_fov.value() == expected
     assert restarted.runtime.settings.mode == MODE_ORIGINAL
     assert restarted_backend.writes == []
 
 
 def test_optional_range_resets_to_existing_default_for_other_adapters(make_window):
     window, backend = make_window()
-    assert window.sl_fov.spin.maximum() == 60
-    # Exercise the generic GUI boundary with an existing real adapter that has
-    # no custom FOV_RANGE; no game memory is read or written by limit application.
+    assert window.sl_fov.spin.maximum() == 110
+    # Grandia II now shares the generic upper limit. A synthetic narrow limit
+    # makes a stale widget range observable when switching to a legacy adapter.
+    class NarrowLimits:
+        FOV_RANGE = (30, 90)
+    settings = CameraSettings(fov_deg=110, use_fov=True)
+    window._apply_adapter_limits(NarrowLimits(), settings)
+    window._sync_widgets_from(settings)
+    assert (window.sl_fov.spin.minimum(), window.sl_fov.spin.maximum()) == (30, 90)
+    assert settings.fov_deg == window.sl_fov.value() == 90
+    # Existing real adapter without custom FOV_RANGE; applying limits is memory-free.
     legacy = dq5.DragonQuest5Adapter(window.guard)
     assert not hasattr(legacy, "FOV_RANGE")
-    settings = CameraSettings(fov_deg=110, use_fov=True)
+    settings.fov_deg = 110
     window._apply_adapter_limits(legacy, settings)
     window._sync_widgets_from(settings)
     assert settings.fov_deg == window.app_settings.fov_deg == 110
@@ -191,8 +201,8 @@ def test_optional_range_resets_to_existing_default_for_other_adapters(make_windo
     assert window.sl_fov.value() == 110
     window._apply_adapter_limits(window.adapter, settings)
     window._sync_widgets_from(settings)
-    assert settings.fov_deg == window.app_settings.fov_deg == 60
-    assert window.sl_fov.value() == 60
+    assert settings.fov_deg == window.app_settings.fov_deg == 110
+    assert window.sl_fov.value() == 110
     assert backend.writes == []
 
 
@@ -200,20 +210,23 @@ def test_adapter_caps_direct_wide_request_and_gui_reset_keeps_orbit_view(make_wi
     window, backend = make_window()
     native = backend.bytes_at(mm.CAMERA, mm.CAMERA_SIZE)
     window._on_mode(MODE_ORBIT)
-    window.adapter.write_fov_deg(110)  # external callers cannot bypass the GUI cap
+    window.adapter.write_fov_deg(150)  # external callers cannot bypass the 110-degree cap
     machine = CaveMachine(backend)
     machine.render()
     machine.finish()
+    machine.submit()
+    assert window.adapter.fov_in_sync(150)
     assert window.adapter.fov_in_sync(110)
-    assert window.adapter.read_fov_deg() == pytest.approx(60, abs=1e-4)
+    assert window.adapter.read_fov_deg() == pytest.approx(110, abs=1e-4)
     pose = window.adapter.read_game_pose()
     data = window.poller.poll_once()
-    assert data["fov"] == pytest.approx(60, abs=1e-4)
+    assert data["fov"] == pytest.approx(110, abs=1e-4)
     assert not data.get("time_paused", False)
     window.btn_fov_reset.click()
     machine = CaveMachine(backend)
     machine.render()
     machine.finish()
+    machine.submit()
     assert window.adapter.patch_active()
     assert window.adapter.read_game_pose() == pose
     assert window.adapter.read_fov_deg() == pytest.approx(mm.STOCK_FOV_DEG, abs=1e-4)

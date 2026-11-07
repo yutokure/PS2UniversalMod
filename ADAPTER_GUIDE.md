@@ -61,8 +61,9 @@ class MyGameAdapter:
 - `FOV_RANGE = (lo, hi)` は任意の水平 FOV 境界（度）。GUI はスライダーだけでなく、接続時の保存値と
   プリセット読込値を runtime・保存設定の両方で補正します。未指定は従来の `20..110` 度です。
   adapter の `write_fov_deg()` / `fov_in_sync()` も同じ境界を使い、GUI 外からの要求を制限してください。
-  グランディアII は原作 renderer の packet buffer 予算により `20..60` 度に制限します。
-  100 度で fatal 停止を確認しており、安全検査や buffer 予算は迂回しません。上限 60 度は全場面の安全保証ではありません。
+  グランディアIIの現行範囲も `20..110` 度です。旧3hook版では100度のnative packet buffer fatalを受け `20..60` 度に制限していました。
+  現行7site版はclosed payload入口で事前reserveし原作bank内で分割送信します。容量拡張・上限検査の迂回ではなく、全scene安全保証でもありません
+  （[Grandia IIのpacket方式・前提](<docs/games/grandia2/CAMERA.md#packet-streaming--2mibを拡張せず事前reserveする>)、[今回結果](<docs/games/grandia2/TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)）。
 - `PITCH_DISPLAY_SIGN` は内部角度から表示値への係数（±1、既定 +1）。`PITCH_INPUT_SIGN` は
   入力積分の係数（±1、既定 +1）。内部数学・保存値の意味を変えずに、表示と操作方向を合わせます。
   `PITCH_POSITIVE_IS` の説明は表示値に合わせてください。`invert_y` はこの基準に対する追加反転です。
@@ -135,6 +136,28 @@ cave に使えません（イクサで実例あり）。同じ数式や永続値
 水平FOVは `2*atan(256/(focal*X倍率))`。半幅256は512×448初期化と正規化投影の分母で確認し、
 表示アスペクト補正後のスクリーンショット幅は使いません。native cameraを保持するため、解除はコピーの上書きflagを落とし、
 その時点の原作値から再生成します。旧値の直接書戻しは不要です（[解析](docs/games/innocentlife/CAMERA.md#fov--校正と投影経路)）。
+
+### 描画packet予算と解除境界 — Grandia IIの実例
+
+広角で増える可視geometryを扱う場合、FOV数値の読戻しだけではpacket安全性を確認できません。
+Grandia IIではnative END生成後の2MiB検査が遅く、bank0/1が隣接し直後に管理globalがあるため、
+容量定数・fatal分岐を変更するbypassや無根拠なbuffer拡張は使いません。
+
+- 現行版はclosed DIRECT／UNPACK／CONTROL入口をhookし、各payloadを開く前にprotocol上限＋終端等の余裕をreserveします。
+  使用量はraw putから固定bank baseを引きます。open payload内でのflush、queue／projection cacheの消去、描画順序変更はしません。
+- 原作のEND→finalize→FlushCache→send→reset→newCNTを使い、CPU側VU indexも戻します。
+  DIRECTには別CNT境界を追加し、bank容量とは別のDMA tag 16-bit QWC制約も守ります。
+  valid native field writerのprotocolとsource boundsが前提で、破損・任意巨大DIRECTを有効化する仕組みではありません。
+- leaf入口をhookしてnative helperを追加callする場合、C ABIの下位64bitだけでは不十分です。
+  R5900のfull128bit user GPR、HI／LO／HI1／LO1／SA、全FPU registerとFCSRを保持し、kernel k0/k1は触りません。
+  no-flush CONTROL／UNPACKのhot pathは使用するscratchだけを保存し、full-save callが必要な経路と分離します。
+- queue構築tailは最終geometry送信前です。解除はframe submit帰還後まで待ち、現行の全7siteをguestで復元します。
+  first one-word bootstrap、GuardedBackend、hot全7exact確認と周期full auditは維持します。
+  magicはG2C2へ更新し旧G2C1混在をfail-closedにします。旧adapterを正常解除して終了し、さらにstock state読込みかゲーム再起動で旧cave/controlを消してから新版へ切り替えます。
+  正常解除だけでは旧G2C1が残り新版は拒否します。MOD入りstateはstockではなく、clean stockがなければ再起動します。pause中のACKは不能です。
+
+具体的なsite／5 resources・conditional empty/exact所有は[Grandia IIの安全条件](<docs/games/grandia2/CAMERA.md#所有適用解除と安全>)、
+実測と未網羅範囲は[検証記録](<docs/games/grandia2/TEST_RESULTS.md>)を参照してください。他ゲームに同じnative protocolを仮定しません。
 
 ### 3.4 アダプターを登録する
 

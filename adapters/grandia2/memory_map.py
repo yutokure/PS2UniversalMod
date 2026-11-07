@@ -48,6 +48,12 @@ FUN_INVERT = 0x2599D8
 FUN_CULL = 0x20EE10
 FUN_NATIVE_TAIL = 0x18B6E8
 FUN_MOVE = 0x1CB030
+# Queued field geometry is emitted AFTER the field tail. Detach only after
+# this call has submitted the final Orbit frame, not at the queue-building tail.
+FINISH_HOOK = 0x25DEC0
+FINISH_STOCK = (0x0C098084, 0x00000000)
+FUN_FRAME_SUBMIT = 0x260210
+FINISH_CAVE = 0xBD000
 
 # Final allocation is verified before installation in all protected states.
 RENDER_CAVE = 0xB9000
@@ -55,7 +61,7 @@ TAIL_CAVE = 0xF5000
 MOVE_CAVE = 0xF5800
 MOD_BLOCK = 0xFD000
 BLOCK_SIZE = 0x800
-MAGIC = 0x47324331  # G2C1
+MAGIC = 0x47324332  # G2C2: seven-site streaming lifecycle, not compatible with G2C1
 FLAG_ORBIT = 1
 FLAG_FOV = 2
 MB_FLAGS = 0x04
