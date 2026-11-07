@@ -31,6 +31,7 @@ the top-level `README.md` §10); documents refer to them only by local path.
 | Innocent Life (SLPS-25763) | [`games/innocentlife/CAMERA.md`](games/innocentlife/CAMERA.md) | [`games/innocentlife/TEST_RESULTS.md`](games/innocentlife/TEST_RESULTS.md) |
 | Grandia II (SLPM-65081 / B6AB7BC2) | [camera, FOV, movement and safety](<games/grandia2/CAMERA.md>) | [verified results and limitations](<games/grandia2/TEST_RESULTS.md>) |
 | Tales of Symphonia (SLPS-25400 / 830B6FB1) | [town/world camera, FOV, movement, compass and data bootstrap](<games/talesofsymphonia/CAMERA.md>) | [verified results and limitations](<games/talesofsymphonia/TEST_RESULTS.md>) |
+| Magna Carta (SLPS-25401 / EB925207) | [Orbit, FOV, movement, minimap and gameplay switches](<games/magnacarta/CAMERA.md>) | [verified results and limitations](<games/magnacarta/TEST_RESULTS.md>) |
 
 ## The lab (emulator, MCP, Ghidra, automation)
 

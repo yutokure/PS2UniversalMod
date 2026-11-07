@@ -40,6 +40,15 @@ FOV追加も同じbackendを通し、描画コピーの焦点距離だけを変�
 FOV serviceは復旧成功時に自身の完全一致する古いエラーだけを解除し、新しい時計・scene・patchエラーは消しません。
 lease仕様と残る時間窓は変更していません。
 
+2026-11-07 マグナカルタ追加: `SLPS-25401 / EB925207` を独立登録。
+走行時広域表示／エンカウント無効（オレンジ丸枠も非表示）も既存GuardedBackend経由、
+2つの独立session-only runtime laneで扱います。Originalは保持、無効化・通常終了は解除、
+別game／不明時はabandonし解除書込みもしません。起動・再接続・presetは有効化しません。
+誤CRC、preflight no-write、片方の失敗・retry・partial ownership、preset保存除外を合成memoryで確認。
+real GUIではOriginalで2toggleを保持し、無効化で全5site stockへ戻ることを確認しました。
+field rendererのdata callbackからEE threadでcode hookを適用復元しますが、
+lease時間窓・ゲーム切替検知までの制約を変更したものではありません。
+
 ### 残る時間窓
 
 ゲーム切替から検知までの間（最大でリース 0.25 秒）は、旧アダプターの書き込みを止められません。PINE にはゲーム切替の通知がないためです。

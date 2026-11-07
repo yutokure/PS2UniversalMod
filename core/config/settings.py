@@ -9,6 +9,9 @@ from pathlib import Path
 APP_NAME = "PS2 Universal Camera Controller"
 APP_VERSION = "2.0.0"
 
+#: Explicit session opt-ins: never inherit adapter defaults, saved settings or presets.
+SESSION_ONLY_SETTINGS = frozenset({"pause_game_time", "wide_view_running", "no_encounters"})
+
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT / "config"
 PRESET_DIR = ROOT / "presets"

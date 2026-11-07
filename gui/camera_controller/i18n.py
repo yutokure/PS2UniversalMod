@@ -42,8 +42,8 @@ TEXT: dict[str, dict[str, str]] = {
     "btn.patch_remove": {"en": "Remove patch", "ja": "パッチを外す"},
     # --- mode -----------------------------------------------------------
     "group.mode": {"en": "Camera Mode", "ja": "カメラモード"},
-    "mode.original": {"en": "Original — game camera (clock setting independent)",
-                      "ja": "オリジナル — ゲーム本来のカメラ（時計設定は独立）"},
+    "mode.original": {"en": "Original — game camera (game options independent)",
+                      "ja": "オリジナル — ゲーム本来のカメラ（ゲーム固有設定は独立）"},
     "mode.orbit": {"en": "Orbit — rotate around the character", "ja": "オービット — キャラクターを中心に回転"},
     "mode.free": {"en": "Free Camera — detached viewpoint",
                   "ja": "フリーカメラ — キャラクターから切り離した視点"},
@@ -68,9 +68,9 @@ TEXT: dict[str, dict[str, str]] = {
     "ctl.preset_tip": {"en": "Pick a preset here, then press “Load”. A preset changes values only, never the camera mode.",
                        "ja": "ここでプリセットを選び、「読込」を押します。プリセットは値だけを変え、カメラモードは変えません。"},
     "ctl.patch_tip": {"en": "Camera patches follow Orbit / Free Camera; Original restores them. "
-                            "The independent in-game clock option may keep its own patch active.",
+                            "Independent clock and game-specific options may keep their own patches active.",
                       "ja": "カメラ用パッチはオービット／フリーカメラで適用し、オリジナルで戻します。"
-                            "独立したゲーム内時計の停止パッチは、その選択に従います。"},
+                            "独立した時計停止・ゲーム固有パッチは、それぞれの選択に従います。"},
     # --- independent game clock (not emulator pause) --------------------
     "group.game_time": {"en": "In-game clock", "ja": "ゲーム内時間"},
     "time.pause": {"en": "Pause in-game clock", "ja": "ゲーム内時間を停止"},
@@ -83,6 +83,28 @@ TEXT: dict[str, dict[str, str]] = {
     "time.paused": {"en": "Clock paused (observed)", "ja": "時計停止中（読戻し）"},
     "time.running": {"en": "Clock running (observed)", "ja": "時計進行中（読戻し）"},
     "time.unknown": {"en": "Clock state unconfirmed", "ja": "時計の状態は未確認"},
+    # --- independent, session-only game options -------------------------
+    "group.game_toggles": {"en": "Game-specific options", "ja": "ゲーム固有設定"},
+    "toggle.wide_view_running": {"en": "Keep the wide view while running", "ja": "走行中も広い視界を維持"},
+    "toggle.wide_view_running.explanation": {
+        "en": "Keeps the wide walking view while running (the game's walking/running modes, not camera modes). Independent of Original / Orbit.",
+        "ja": "ゲーム固有の歩行／走行モード差に対し、走行中も歩行時の広い視界を維持します。Original／Orbit とは独立です。"},
+    "toggle.no_encounters": {"en": "Disable contact encounters and orange ring", "ja": "接触エンカウントとオレンジの丸枠を無効化"},
+    "toggle.no_encounters.explanation": {
+        "en": "Disables contact encounters and the orange ring around the character, as when walking in town. Independent of the wide-view and camera settings.",
+        "ja": "町での歩行時のように、接触エンカウントとキャラ周囲のオレンジの丸枠を無効化します。広い視界・カメラ設定とは独立です。"},
+    "toggle.supported": {
+        "en": "Independent of camera mode. Off on startup/reconnect; never saved in presets. Disable-all and normal exit release it.",
+        "ja": "カメラモードとは独立。起動・再接続時はオフで、プリセットには保存しません。無効化ボタン・正常終了で解除します。"},
+    "toggle.wide_view_running.unsupported": {
+        "en": "Unavailable: this adapter has no verified wide-view-while-running patch.",
+        "ja": "未対応：このアダプターには検証済みの走行中の広い視界パッチがありません。"},
+    "toggle.no_encounters.unsupported": {
+        "en": "Unavailable: this adapter has no verified contact-encounter / orange-ring disable patch.",
+        "ja": "未対応：このアダプターには検証済みの接触エンカウント・丸枠無効化パッチがありません。"},
+    "toggle.on": {"en": "Enabled (observed)", "ja": "有効（読戻し）"},
+    "toggle.off": {"en": "Disabled (observed)", "ja": "無効（読戻し）"},
+    "toggle.unknown": {"en": "State unconfirmed", "ja": "状態は未確認"},
     # --- rotation -------------------------------------------------------
     "group.rotation": {"en": "Camera Rotation", "ja": "カメラ回転"},
     "rot.yaw": {"en": "Yaw (°)", "ja": "水平角 Yaw（°）"},
@@ -145,6 +167,7 @@ TEXT: dict[str, dict[str, str]] = {
     "game.innocentlife": {"en": "Innocent Life: A Futuristic Harvest Moon", "ja": "新牧場物語 ピュア イノセントライフ"},
     "game.grandia2": {"en": "Grandia II", "ja": "グランディアII"},
     "game.talesofsymphonia": {"en": "Tales of Symphonia", "ja": "テイルズ オブ シンフォニア"},
+    "game.magnacarta": {"en": "Magna Carta", "ja": "マグナカルタ"},
     "group.offsets": {"en": "Offsets (advanced)", "ja": "オフセット（詳細）"},
     "group.offsets_set": {"en": "Offsets (advanced) - in use", "ja": "オフセット（詳細）― 設定あり"},
     "btn.advanced": {"en": "Show advanced", "ja": "詳細を表示"},
@@ -158,8 +181,8 @@ TEXT: dict[str, dict[str, str]] = {
                          "ja": "Pitch: 正の値でカメラが下に来ます（このゲーム本来の符号。負が上）。"},
     "tip.enable": {"en": "Turn the camera mod on: the camera orbits the character and the right stick rotates it.",
                    "ja": "カメラ MOD を有効にします。カメラがキャラクターの周りを回り、右スティックで回転できます。"},
-    "tip.restore": {"en": "Turn all mods off and hand the camera, right stick, zoom and in-game clock back to the game.",
-                    "ja": "すべての MOD を止め、カメラ・右スティック・ズーム・ゲーム内時計をゲームに返します。"},
+    "tip.restore": {"en": "Turn all mods off: restore the camera, right stick, zoom, in-game clock and game-specific options.",
+                    "ja": "すべての MOD を止め、カメラ・右スティック・ズーム・ゲーム内時計・ゲーム固有設定を元に戻します。"},
     "tip.center": {"en": "Put the character in the middle of the screen, then rotate.",
                    "ja": "キャラクターを画面の中央に置いてから回転します。"},
     "tip.reset": {"en": "Take yaw, pitch and distance from the game's current view and clear the offsets.",
