@@ -143,6 +143,7 @@ TEXT: dict[str, dict[str, str]] = {
     "game.minstrelsong": {"en": "Romancing SaGa -Minstrel Song-", "ja": "ロマンシング サガ -ミンストレルソング-"},
     "game.dragonquest5": {"en": "Dragon Quest V", "ja": "ドラゴンクエストV 天空の花嫁"},
     "game.innocentlife": {"en": "Innocent Life: A Futuristic Harvest Moon", "ja": "新牧場物語 ピュア イノセントライフ"},
+    "game.grandia2": {"en": "Grandia II", "ja": "グランディアII"},
     "group.offsets": {"en": "Offsets (advanced)", "ja": "オフセット（詳細）"},
     "group.offsets_set": {"en": "Offsets (advanced) - in use", "ja": "オフセット（詳細）― 設定あり"},
     "btn.advanced": {"en": "Show advanced", "ja": "詳細を表示"},

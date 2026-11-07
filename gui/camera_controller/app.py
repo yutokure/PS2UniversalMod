@@ -65,6 +65,7 @@ from adapters.radiatastories.adapter import RadiataStoriesAdapter  # noqa: E402
 from adapters.minstrelsong.adapter import MinstrelSongAdapter  # noqa: E402
 from adapters.dragonquest5.adapter import DragonQuest5Adapter  # noqa: E402
 from adapters.innocentlife.adapter import InnocentLifeAdapter  # noqa: E402
+from adapters.grandia2.adapter import Grandia2Adapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
     MODE_FREE, MODE_ORBIT, MODE_ORIGINAL, CameraRuntime, CameraSettings,
@@ -90,20 +91,22 @@ log = logging.getLogger("ps2cam.gui")
 ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SFEXA": SFExaAdapter,
             "SUIKODEN5": Suikoden5Adapter, "DRUAGA": DruagaAdapter,
             "RADIATA": RadiataStoriesAdapter, "MINSTRELSONG": MinstrelSongAdapter,
-            "DRAGONQUEST5": DragonQuest5Adapter, "INNOCENTLIFE": InnocentLifeAdapter}
+            "DRAGONQUEST5": DragonQuest5Adapter, "INNOCENTLIFE": InnocentLifeAdapter,
+            "GRANDIA2": Grandia2Adapter}
 #: adapter class per game serial, chosen when the GUI connects
 ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
                       "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter,
                       "SLPS-25377": DruagaAdapter, "SLPM-65800": RadiataStoriesAdapter,
                       "SLPM-65920": MinstrelSongAdapter, "SLPM-65555": DragonQuest5Adapter,
-                      "SLPS-25763": InnocentLifeAdapter}
+                      "SLPS-25763": InnocentLifeAdapter, "SLPM-65081": Grandia2Adapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
 #: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Shining Force Exa ``8B383FDF``,
 #: Suikoden V ``7380A572``, Nightmare of Druaga ``B476ED7A``, Radiata Stories ``AC73005E``,
-#: Minstrel Song ``2B9AF3C5``, Dragon Quest V ``B64E9939``, Innocent Life ``9AC21F92``),
+#: Minstrel Song ``2B9AF3C5``, Dragon Quest V ``B64E9939``, Innocent Life ``9AC21F92``,
+#: Grandia II ``B6AB7BC2``),
 #: which only the Japanese releases satisfy; unverified versions are deliberately not listed here.
 SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286", "SLPS-25377",
-                 "SLPM-65800", "SLPM-65920", "SLPM-65555", "SLPS-25763"}
+                 "SLPM-65800", "SLPM-65920", "SLPM-65555", "SLPS-25763", "SLPM-65081"}
 
 #: severity styles of the notice bar (explicit foreground *and* background: readable on any theme)
 NOTICE_STYLE = {
@@ -772,6 +775,12 @@ class MainWindow(QMainWindow):
             # Saved values/presets must not bypass an unsupported UI control.
             settings.use_fov = False
             self.app_settings.use_fov = False
+        # Optional adapter limits also constrain saved/preset lens values, not
+        # just the widget. Adapters without a limit keep the existing range.
+        lo, hi = getattr(adapter, "FOV_RANGE", (FOV_MIN_DEG, FOV_MAX_DEG))
+        settings.fov_deg = max(lo, min(hi, settings.fov_deg))
+        self.app_settings.fov_deg = settings.fov_deg
+        self.sl_fov.set_range(lo, hi)
         lo, hi = getattr(adapter, "DISTANCE_RANGE", (1.0, 200.0))
         self.sl_dist.set_range(lo, hi)
         lo, hi = getattr(adapter, "LOOK_HEIGHT_RANGE", (-40.0, 40.0))
