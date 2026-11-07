@@ -35,6 +35,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | ドラゴンクエストV 天空の花嫁 | `adapters/dragonquest5` | `SLPM-65555` / `B64E9939` | 右スティックyaw＋pitchのOrbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット、原作右回転との競合抑止（特殊cameraの回転解除は未対応） | [解析・確認範囲](docs/games/dragonquest5/CAMERA.md) |
 | 新牧場物語 ピュア イノセントライフ | `adapters/innocentlife` | `SLPS-25763` / `9AC21F92` | 右スティックOrbit、カメラ基準移動・向き、距離、FOV、独立した位置・注視点6軸オフセット、ゲーム内時計の停止（Free非対応） | [解析・確認範囲](docs/games/innocentlife/CAMERA.md) |
 | グランディアII | [Grandia II adapter](<adapters/grandia2/adapter.py>) | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜110°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
+| テイルズ オブ シンフォニア | [Symphonia adapter](<adapters/talesofsymphonia/adapter.py>) | `SLPS-25400` / `830B6FB1` | 町等の通常マップ／徒歩ワールドフィールドのOrbit、移動方向、フィールドコンパス・地図視線、FOV20〜110°、距離・独立6軸オフセット（Free・時計停止・特殊車両非対応） | [解析・確認範囲](<docs/games/talesofsymphonia/CAMERA.md>) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -311,6 +312,24 @@ presets\*.json                                  同梱プリセット（orbit-de
 - 再現用の限定GUI試験は [grandia2_live_check.py](<tools/grandia2_live_check.py>)。通常fieldを実行中に、他PINE clientを閉じ、開始stateを退避してから別々の場面で実行します（`--help`参照）。移動入力・state操作は行わず、任意の外部state読込みはhandshakeで待ちます。
 - [解析・安全条件](<docs/games/grandia2/CAMERA.md>)・[実行した確認と制限](<docs/games/grandia2/TEST_RESULTS.md>)
 
+### 5.11 テイルズ オブ シンフォニア
+- 日本版 `SLPS-25400 / 830B6FB1`。通常の町・ダンジョン系マップ（mode `0x87`）と徒歩ワールドフィールド（mode `0x8A`）向けです。
+  提供8stateは同じ町4つ／ワールド4つで、全ダンジョン・戦闘・イベント・乗り物を確認したものではありません。
+- 右スティック yaw/pitch の Orbit、距離 **50〜6000**、Pitch **−25〜+89.5°**、注視点高さ **−1000〜+1000**（負が上）、
+  eye／target 独立6軸オフセット各 **−3000〜+3000**、水平 **FOV20〜110°**。Free Camera・時計停止は非対応です。
+- 原作の非フィールドには右camera操作なし、ワールドでは右Xの横回転のみです。Orbit中は通常徒歩ワールドのcamera専用RX取得callだけを中立化し、
+  左入力・ボタン・native input bufferを変更しません。特殊車両・飛行cameraは受理しません。
+- 原作rigを更新させ、共通look-atと投影生成に渡す引数コピーだけを差し替えます。移動は実視線XY、ワールドのコンパス／地図視線と地形streaming選択も同じyawに同期します。
+  速度・衝突・キャラの向きは原作の計算を使います。GUI座標は既存Y-downへ変換し、表示Yの負はnative上方向です。
+- FOVは実3D投影copyのsx/syを変更し、native aspect・near/farを保持します。ワールドframe末尾のHUD投影を原作FOVと誤認せず、
+  「ゲーム値に戻す」はその時点のnative lens入力へ戻します（確認した町約35.492°／通常ワールド約44.105°）。Original FOV-onlyは対象外です。
+- **TOS2ではPINEからゲームの実行命令へ書き込みません。** 一時的な町actor／ワールドframe callbackのdata pointerからEE lifecycleを呼び、
+  全11hook+delayを検査してguestが適用・復元し、callbackもnativeへ返します。**PCSX2一時停止中はACKできないため再開して操作してください。**
+  全13code resourceの完全検査は初回・接続世代変更・stock state後・約1秒周期・解除時です。通常publicationはexact hook/magic/flags/ACKを毎回検査し、cave本体だけの損傷は次の完全検査で検知します。
+- 8stateのOrbit／FOV／全hook解除、両sceneの広角110°と4yaw×4pitchでフレーム進行を確認しています。町ではマップ外の黒背景や屋根裏面が見えるため、距離・画角・角度を調整してください。
+  カメラの壁衝突は追加しません。全scene・長時間・全culling／補助描画は未網羅です。
+- [解析・安全条件](<docs/games/talesofsymphonia/CAMERA.md>)・[実行した確認と制限](<docs/games/talesofsymphonia/TEST_RESULTS.md>)
+
 ## 6. ローカルデータの場所（Git 管理外）
 
 ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます（`core/config/paths.py`）。
@@ -350,6 +369,7 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | ミンストレルソング | `python tools/minstrelsong_live_check.py --out <lab>/test_evidence/minstrelsong/run --move`（GUI/Orbit/コンパス/FOV/復元、`--move` は短い左スティック歩行。`--reload-handshake <empty-dir>` は外部stock state読込みと同期。複製カード・保護したステートを使用） |
 | DQⅤ | `python tools/dragonquest5_live_check.py --out <lab>/test_evidence/dragonquest5/run --move`（GUI/Orbit/FOV/右入力競合・復元。`--move`は4yawで短い前後移動・native速度/向き・guest追従を測定。障害物のない場所で実施。外部state読込みは`--reload-handshake <empty-dir>`。複製カード・保護したステートを使用） |
 | イノセントライフ | `python tools/innocentlife_live_check.py --out <lab>/test_evidence/innocentlife/run --move`（GUI/Orbit/FOV/独立時計停止/復元。`--move`は4yawで短い前後移動と向きを測定。複製カード・保護したステートを使用し、通れる場所で実行。外部stock state読込みは`--reload-handshake <empty-dir>`） |
+| テイルズ オブ シンフォニア | `python tools/talesofsymphonia_live_check.py --out <lab>/work/symphonia/gui-run`（実行中の通常町／worldへMainWindowから接続、scriptedカメラ入力・FOV・6offset・全hook/callback復元。state・移動操作なし。freshなGit外出力先、開始状態退避、他PINE client終了が必要。`--help`参照） |
 | ラジアータ／ドルアーガの移動方向 | `python tools/orbit_movement_check.py --game radiata --yaw 180 --direction up --out <lab>/test_evidence/radiata/movement.json`（複製カードと安全な同版ステートを用意。`--game druaga` は城内／Dungeonを識別、Dungeonは方向キー。壁・狭い足場による無移動や横滑りは別途切り分ける） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 

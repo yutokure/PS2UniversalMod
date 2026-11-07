@@ -93,6 +93,15 @@ FOV20/40/60/100/110°・native reset・全7site解除・stock state再適用を�
 実方向キー・全エリア・イベント・戦闘・メニュー・長時間は未網羅。Orbitのcamera collisionはなく、屋内距離2000水平の小さな室内geometry＋黒空間を全scene描画成功と誇張しない。
 6stateのcave空き／snapshot参照なしは永久空き保証ではない。今回の最終テスト・cleanupは結果文書の追記欄で区別する。
 
+テイルズ オブ シンフォニア / `SLPS-25400` / `830B6FB1` は通常町map／徒歩worldの共通look-at・投影引数copy＋native移動／compass consumer方式。
+[解析](<docs/games/talesofsymphonia/CAMERA.md>)、[今回確認](<docs/games/talesofsymphonia/TEST_RESULTS.md>)。
+Orbit・6軸offset・水平FOV20〜110°・移動・world compass/地図視線・yaw streaming選択同期、Free/時計/特殊車両非対応。
+Z-upはadapter境界でcanonical(X,-Z,Y)へ変換しcore不変。原作rig/actor heading/input bufferは保持、worldcamera専用RXcallだけ通常Orbitで中立化。
+TOS1のPINE codebootstrapはPCSX2 `Impossible block clearing failure` crashがあり廃止。TOS2は町actor／worldpostdrawの一時data callbackからEE全11site適用復元、元callbackへ返す（hostcodewriteなし）。
+全13resourceはfull初回・epoch変更・state消失・周期約1秒・解除で検査、hotはexactpair/magic/flags/ACK。bodyだけ破損は次fullまで遅延。
+8提供stateは町4＋world4の限定場面。全ダンジョン・event/menu/battle・長時間/全culling未網羅。町map外黒背景・裏面あり、Orbitcollisionなし。
+旧TOS1はstockstate／再起動で消してからTOS2を使用、未知caveは強制更新しない。pause中ACK不能。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。
