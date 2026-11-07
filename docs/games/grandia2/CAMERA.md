@@ -1,7 +1,8 @@
 # グランディアII — Orbit・FOV・カメラ基準移動
 
 2026-11-07。日本版 **SLPM-65081 / B6AB7BC2** のみ。Serial と CRC の両方を検査する。
-実装は [adapter](<../../../adapters/grandia2/adapter.py>)、[memory map](<../../../adapters/grandia2/memory_map.py>)、[caves](<../../../adapters/grandia2/caves.py>)。
+実装は [adapter](<../../../adapters/grandia2/adapter.py>)、[memory map](<../../../adapters/grandia2/memory_map.py>)、[caves](<../../../adapters/grandia2/caves.py>)、[packets](<../../../adapters/grandia2/packets.py>)。
+現行は**7site／5 code resources／G2C2、水平FOV20〜110°**。旧3hook／G2C1／20〜60°の結果は[過去記録](<TEST_RESULTS.md#過去記録--旧3hookg2c1fov2060-2026-11-07>)、今回の根拠は[現行追記](<TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)を参照する。
 実行済み／保留は [TEST_RESULTS.md](<TEST_RESULTS.md>) に分ける。全エリア・イベント・戦闘対応の保証ではない。
 
 ## 対応機能・操作範囲
@@ -13,7 +14,7 @@
 | Pitch表示 | **−25〜+89.5°**、正でカメラが上。内部角は **−89.5〜+25°** |
 | 注視点高さ | **−1000〜+1000**、正が上 |
 | eye／target XYZ | 独立6軸、各 **−3000〜+3000**、ワールド座標 |
-| FOV | 水平 **20〜60°**、Orbitに付随。100°でnative packet buffer停止を確認したため上限を60°に制限。OriginalのFOV-onlyは非対応 |
+| FOV | 水平 **20〜110°**、Orbitに付随。原作bank内の事前reserve／分割送信を使用。OriginalのFOV-onlyは非対応 |
 | 移動 | 実際のeye→targetの水平視線を原作の移動・向き計算へ渡す |
 | 非対応 | Free Camera、ゲーム内時計停止 |
 
@@ -61,7 +62,10 @@ playerはprimary owner→nodeを使う。`0x232C80`側のsecondary mirrorをprim
    その後のnative fieldがviewをコピーし、真の逆行列・frustum等を生成する。行列要素の単純差替えだけで済ませない。
 6. field tail **`0x1F6200`**で数値・stack・native VIEW/WORLD・focal・flags・current projection pointerを戻す。
    **既にqueueされたprojection cache entriesとcountは巻き戻さない。** 描画packetが参照するrecordを破壊しないためである。
-   次のculling consumerがnative数値から再構築するようdirty状態を戻す。
+   `NJ_FLAGS`は退避した値へ戻す。**`0x233C1C`をculling dirty flagとした旧根拠は誤り**で、そのアドレスへのMOD書込みは削除した。
+   未同定のnative globalへdirty値を強制することで復元済みとはしない。
+7. tailはqueue構築の終端であり、queued geometryのemit／submitはその後に行われる。
+   解除要求があってもpacket hooksを残し、finish call **`0x25DEC0`**でnative frame submit **`0x260210`**から帰還してから全7siteを復元する。
 
 render中に選んだeye/target/focalはMOD mailboxへ記録する。
 `read_game_pose()`／`read_fov_deg()`は適用時にこの診断値を使う。tail後にnativeへ戻った出力をOrbitの現在値と誤認しない。
@@ -89,12 +93,56 @@ actual horizontal_FOV = degrees(2 * atan(width / (2 * focal * aspect)))
 実装はwidth/aspect/focalの有限値と範囲を検査する。表示用スクリーンショット幅をwidthの代用にしない。
 FOVを上書きしないOrbitと「ゲーム値に戻す」は**そのフレームのnative focal**を使う。
 過去のlens値をnative cameraへ書き戻さない。OriginalのFOV-onlyでは描画／移動hookを有効化しない。
-探索時の20/60/100°は数値読戻しが一致したが、**100°ではnative packet bufferのfatal停止を確認したため、現在の上限は60°**。
-100°をUI／保存設定・プリセットから使える範囲として残さない。上限2MiBの2bankと管理globalは原作のまま保持し、安全検査の迂回やbuffer拡張はしない。
-stock stateで復旧後、60°を限定屋外場面で629フレーム継続し、3hook解除・native focal約1815.2589への復帰を確認した。
-追加runで屋外／屋内とも20／40／60°の画面・読戻し、その場のnative FOVへのresetと3hook解除を確認。
-**60°なら全sceneで安全という保証ではない。** コンパス抜き部分にfieldが見える表示は、提供された原作stateの画像とclean stock baselineでも一致した。
-比較した画像の範囲ではnative HUDのclip／透明表現であり、MOD回帰の根拠とはしない。補助描画を全scene保証する確認ではない（[検証記録](<TEST_RESULTS.md>)）。
+旧3hook版では100°の数値読戻し一致後にnative packet buffer fatalが発生し、当時は20〜60°へ制限した。
+その経緯・60°629frame・当時の3hook解除は[旧実績](<TEST_RESULTS.md#過去記録--旧3hookg2c1fov2060-2026-11-07>)として保持し、現行7siteの成功へ読み替えない。
+現行の20〜110°は次節のpacket streamingを前提にする。最終最適化後、屋外／屋内で20／40／60／100／110°の読戻し、native reset、全7site解除とstock state再適用を確認した。
+110°の4yaw×内部pitch4種・各約0.5秒と水平yaw45°・各約20秒は限定場面のフレーム進行確認で、全sceneの広角安全性・描画完全性を保証しない。
+旧コンパス抜き部分のfield表示は比較した原作baselineと一致したが、これも全sceneの補助描画を保証しない（[現行結果・画像の範囲](<TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)）。
+
+<a id="packet-streaming--2mibを拡張せず事前reserveする"></a>
+## Packet streaming — 2MiBを拡張せず事前reserveする
+
+### 原因と変更しない境界
+
+原作は**END生成後**にbankの2MiB上限を検査する。bank0 **`[0x428380,0x628380)`** とbank1 **`[0x628380,0x828380)`** は隣接し、
+直後の **`0x828380`** から管理globalがある。広角で可視geometryが増えた際、遅い検査まで無制限に蓄積させては隣bank／管理領域を破壊し得る。
+容量定数・fatal分岐のbypassやbuffer拡張はしない。既存の2bank・2MiB上限・native fatal検査を維持する。
+
+### Closed payload入口のreserveと順序
+
+[packet emitter](<../../../adapters/grandia2/packets.py>)はCONTROL **`0x260A60`**、DIRECT **`0x260B38`**、UNPACK **`0x260BF8`** の入口をhookする。
+未完のDIRECT／UNPACK内へ割り込まず、payloadが閉じている境界で次の書込みに必要な余裕を先に確保する。
+
+| 入口 | 事前reserve | 根拠 |
+|---|---|---|
+| CONTROL | `0x100` B | 制御・alignment・終端等の余裕 |
+| DIRECT | `0x100100` B | VIF DIRECT最大65535 QW＋alignment／終端・制御余裕 |
+| UNPACK | `0x1100` B | 最大256 QW＋alignment／終端・制御余裕 |
+
+使用量は **raw put `[0x8283A8]` − (`0x428380`＋bank index `[0x428300]`×`0x200000`)** で求める。
+変動するCNT／payload基点をbank baseと誤認しない。余裕が足りなければ次の原作関数列を使用する。
+
+```text
+END 0x2610D8 → finalize 0x261268 → FlushCache(0) 0x2A5820
+→ send 0x261358 → reset 0x260F50 → newCNT 0x261098
+```
+
+DIRECT-onlyでUNPACK work countが0でも必要なflushを行うため、そのcountで抑止される便利入口を使わない。
+CPU側VU index **`[0x828398]`** は退避／復元する。queue・projection cache／count・描画順序を保持し、geometryの破棄やカリングでごまかさない。
+追加のDIRECT前CNT境界 **`0x260D90`** により、累積mesh＋DIRECTのDMA tag **16-bit QWC** がbank容量とは別にoverflowするのを防ぐ。
+ただしvalid native field writerのprotocol／source bounds（field source scratchは80000 **decimal** B、fontも有界）が前提で、
+破損データや任意の巨大DIRECTを有効なpacketへ修復する機能ではない。
+
+### Register透明性・性能・診断
+
+追加native callを行う経路はuser GPRをfull128bitで保存し、HI／LO／HI1／LO1／SA、全32 FPU registerとFCSRも保持する。
+kernel scratch k0/k1は変更せず、SPを元に戻す。元の第2命令はdelay slotで保持し、退避した第1命令を実行してnativeへ戻る。
+no-flush CONTROL／UNPACKは6 scratch GPR保存とinteger checkだけのhot pathとし、実flush／DIRECTのfull-save callから分離する。
+親担当は命令encoding照合に[PCSX2 opcode tables](<https://github.com/PCSX2/pcsx2/blob/master/pcsx2/R5900OpcodeTables.cpp>)を参照した。
+これはversionが異なるmasterのencoding資料であり、game固有の根拠は対象state／実測に置く。実行検証の代用にはしない。
+
+mailboxはflush回数・boundary highwater・stream busyを記録する。**highwaterはreserve入口の観測値であり、全writeの最高水位を計測した証明ではない。**
+大可視量では送信／描画仕事量と負荷増が残る。最終raw runの屋外239frame／718flushと屋内600frame／0flushは各約20秒・固定sceneの結果で、速度保証ではない。
 
 ## カメラ基準移動
 
@@ -113,29 +161,56 @@ analog・方向キー・速度・キャラheading・地形衝突は元の移動�
 
 ## 所有・適用／解除と安全
 
-- hookはrender `0x1F60DC`、tail `0x1F6200`、move `0x1C9E90` の3箇所。元のdelay slotは保持する。
-- caveは **`[0xB9000,0xBA000)`**、**`[0xF5000,0xF6000)`**（tail `0xF5000`、move `0xF5800`）、
-  controlは **`[0xFD000,0xFD800)`**、magicは`G2C1`。ELFより低位にある。
-  6stateで全ゼロ、snapshot上のdirect/KSEG参照なしを確認したが、全kernel/DMA・全生存期間の空き保証ではない。
-- 初回・backend／接続epoch変更・state消失・約1秒ごとの`set_patch(True)`・解除時は、全hook+delay、cave、controlをfull preflightする。
-  hookはstock／自所有pair、caveは全ゼロ／現行exact code、controlは全ゼロ／自所有magicに限る。未知所有はその取引の書込み前に拒否する。
-- 通常の各bank publicationは、同じadapter/backend/epochでの準備済み状態に限り、**3hookのexact pair・control magic・Orbit flags・ACK**を毎回確認する。
+- 現行hookは次の**7site**。元のdelay slotを保持し、guestは変更前に全siteのstock／自所有exact pairを先に検査する。
+
+  | site | EEアドレス | 役割 |
+  |---|---|---|
+  | render | `0x1F60DC` | native camera更新後の描画コピーtransaction |
+  | tail | `0x1F6200` | native数値復元。ここでは最終解除しない |
+  | move | `0x1C9E90` | 移動cameraコピー |
+  | finish | `0x25DEC0` | `0x260210`から帰還後の最終解除 |
+  | packet CONTROL | `0x260A60` | closed control入口reserve |
+  | packet DIRECT | `0x260B38` | closed DIRECT入口reserve＋CNT境界 |
+  | packet UNPACK | `0x260BF8` | closed UNPACK入口reserve |
+
+- code resourcesは次の**5個**。control **`[0xFD000,0xFD800)`** は別のmailboxで、magicは **`G2C2 = 0x47324332`**。
+  endは排他的。実長は今回の最終emitterに対する親担当報告で、将来変更時は生成長を優先する。
+
+  | resource | 予約境界 | 現行生成範囲／words |
+  |---|---|---|
+  | render | `[0xB9000,0xBA000)` | `[0xB9000,0xB9AF0)`／700 |
+  | tail | `[0xF5000,0xF5800)` | `[0xF5000,0xF5704)`／449 |
+  | move | `[0xF5800,0xF6000)` | `[0xF5800,0xF5B64)`／217 |
+  | packet shared＋entry wrappers | `0xBC100`からfinish `0xBD000`未満 | **`[0xBC100,0xBC928)`／522** |
+  | finish | **`[0xBD000,0xBD800)`** | `[0xBD000,0xBD378)`／222 |
+
+  `preflight()`のempty／exact code検査・初期書込みは**実生成範囲**が対象で、packet予約末尾まで全域を所有・検査したとは言わない。
+  6保護stateで今回の最終5生成範囲が全ゼロ、snapshot上direct/KSEG pointer参照なしを再確認したが、全kernel/DMA・全生存期間の空き保証ではない。
+- 初回・backend／接続epoch変更・state消失・約1秒ごとの`set_patch(True)`・解除時は、全7hook+delay、全5生成resource、controlをfull preflightする。
+  hookはstock／自所有pair、caveは全ゼロ／現行exact code、controlは全ゼロ／現行magicに限る。未知所有はその取引の書込み前に拒否する。
+- 通常の各bank publicationは、同じadapter/backend/epochでの準備済み状態に限り、**全7hookのexact pair・control magic・Orbit flags・ACK**を毎回確認する。
   所有確認を別backend／epochへ流用しない。**cave本体だけの破損は即時検知ではなく、次のfull auditで検知する**
   （通常約1秒＋runtime／通信遅延）。ホット経路の軽量検査を全cave毎回検証と誇張しない。
-- hostがnative codeへ書くのは初回renderの1word bootstrapだけ。guest lifecycleは**3siteすべてを先に検査してから**適用／復元する。
-  transaction中の解除要求はtailの数値復元後に処理する。ACKと全site読戻しを確認し、cave自体は消去しない。
+- hostがnative codeへ書くのは初回renderの1word bootstrapだけ。guest lifecycleは**全7siteを先に検査してから**適用／復元する。
+  transaction中の解除要求は数値復元だけでは完了せず、**最終Orbit frameのsubmit帰還後**に全7siteを復元する。
+  native queue tailでpacket hooksを解除するとqueued広角geometryが未送信のまま残るため早すぎる。ACKと全site読戻しを確認し、cave自体は消去しない。
+- **旧G2C1は現行所有と認めずfail-closed**にする。旧adapterを正常解除して終了し、さらにstock state読込みまたはゲーム再起動で旧cave／controlを消してから新版を使う。
+  正常解除だけでは旧cave／G2C1 magicが残り、新版preflightは拒否する。MOD入りstateはstockではないため、clean stockがなければ再起動する。
+  旧adapterと新版を同時に走らせず、旧cave・未知命令を現行exactとして上書きしない。
 - ACK待ちは最大1.5秒。**PCSX2一時停止中はguestが進まないため完了できない**。通常fieldを再開して再試行する。
   強制終了時の自動復元は保証しない。初回bootstrapのPINE code書込みは残り、PCSX2の全code-page競合を解消する保証ではない。
 - host/guestはnative mode **8（屋外追従）と0（屋内固定）**を許可し、field words `0x23217C=0`、`0x2324FC=0`、
   `0x232538=1`、`0x232530=0`、`0x23253C=0`、owner/nodeを検査する。hostは不正geometry・特異な垂直視線も拒否する。
   これを全menu/event識別とは呼ばない。未確認場面ではOriginalへ戻す。
-- runtimeの約1秒ごとの再確認でstock state後の再適用を行う。性能最適化後のMainWindow実機runでも、
-  屋外→屋内state後のyaw120°／FOV45°再適用と解除を確認。測定条件・未網羅範囲は結果文書を優先する。
+- runtimeの約1秒ごとの再確認でstock state後の再適用を行う。今回の最終raw runでも同じadapterで屋外→屋内stock state読込み後の再適用・全7site解除を確認。
+  旧3hook版MainWindowのyaw120°／FOV45°再適用とは別runで、合算しない。測定条件・未網羅範囲は結果文書を優先する。
 - 書込みは`self.backend`経由。GUIはSerial+CRCの既存[GuardedBackend](<../../../core/memory_backend/guard.py>)を使い、
   別ゲーム・識別不能・接続世代変更では旧adapterを復元書込みせず破棄する。既存guardの検出時間窓は残る。
 
 ## 制限・データ保護
 
 Orbitには原作cameraの壁／地形衝突を追加しない。壁内部・裏面・屋内の未作成geometryや黒い空間が見える場合は距離・角度を調整する。
-全エリア・イベント・戦闘・長時間、広角時の全カリング／LOD・補助描画は未網羅。
+全エリア・イベント・メニュー・戦闘・長時間、広角時の全カリング／LOD・補助描画は未網羅。
+屋外110°水平画像はgeometry／HUD表示を親担当が確認したが、屋内距離2000水平は小さな室内geometryと黒空間が見える条件で、全scene描画成功とはしない。
+valid native field writerのprotocol／source boundsが前提であり、破損巨大DIRECT救済はしない。大可視量の負荷増は残る。
 原本ISO・ELF・6提供ステート・RAM・画像はGitに入れない。提供ステートの場所・ユーザー開始状態の退避先は [検証記録](<TEST_RESULTS.md#データ保護と対象>) を参照。

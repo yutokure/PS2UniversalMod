@@ -27,8 +27,9 @@ class Grandia2Adapter:
     DISTANCE_RANGE = (100.0, 10000.0)
     LOOK_HEIGHT_RANGE = (-1000.0, 1000.0)
     OFFSET_RANGE = (-3000.0, 3000.0)
-    # Wider views can exceed the native renderer's packet-buffer budget.
-    FOV_RANGE = (20.0, 60.0)
+    # Closed-payload reservation streams through the native DMA banks; wide
+    # views no longer depend on a scene-specific fixed packet budget.
+    FOV_RANGE = (20.0, 110.0)
     field_projection_centre = 0.0
     patch_recheck_s = 1.0
     # Read-only native sources. All publication writes go to MOD banks instead.

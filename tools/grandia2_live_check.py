@@ -147,12 +147,13 @@ def main():
             window.cmb_input.setCurrentText("scripted")
             window.grp_offsets.setChecked(True)
             features = adapter.features
-            check("supported GUI features and safe FOV range", features.get("free_camera") is False
+            check("supported GUI features and FOV range", features.get("free_camera") is False
                   and not features.get("game_time_pause", False) and not window.rb_free.isEnabled()
                   and not window.chk_game_time.isEnabled() and not runtime.settings.pause_game_time
                   and not window.chk_game_time.isChecked() and window.chk_fov.isEnabled()
                   and all(c.isEnabled() for c in window.off)
-                  and (window.sl_fov.spin.minimum(), window.sl_fov.spin.maximum()) == (20, 60))
+                  and Grandia2Adapter.FOV_RANGE == (20, 110)
+                  and (window.sl_fov.spin.minimum(), window.sl_fov.spin.maximum()) == (20, 110))
             scene = adapter.read_scene()
             check("ordinary field accepted", scene.valid, reason=scene.reason)
             writes = runtime.stats.total_writes
@@ -185,7 +186,7 @@ def main():
                   yaw_delta=yaw_delta, pitch_delta=after.pitch_deg - before.pitch_deg)
             require_same()
             window.chk_fov.setChecked(True)
-            for fov in (20, 40, 60):
+            for fov in (20, 40, 60, 100, 110):
                 require_same()
                 heartbeat = adapter.heartbeat_word()
                 window.sl_fov.spin.setValue(fov)
@@ -236,7 +237,8 @@ def main():
             require_same()
             window._on_mode(MODE_ORIGINAL)
             wait(lambda: stock() and runtime.stats.mode == MODE_ORIGINAL and not runtime.stats.last_error)
-            check("Original restores all three stock hooks", stock() and not adapter.patch_active())
+            check("Original restores all seven stock hooks", len(caves.SITES) == 7
+                  and stock() and not adapter.patch_active())
             shot("restored")
             completed = True
         except Exception as exc:
@@ -255,7 +257,8 @@ def main():
             else:
                 os.environ["APPDATA"] = old_appdata
             sources = [Path(__file__), *(ROOT / p for p in ("adapters/grandia2/adapter.py", "adapters/grandia2/caves.py",
-                       "adapters/grandia2/memory_map.py", "gui/camera_controller/app.py", "core/camera_runtime/engine.py",
+                       "adapters/grandia2/packets.py", "adapters/grandia2/memory_map.py",
+                       "gui/camera_controller/app.py", "core/camera_runtime/engine.py",
                        "core/memory_backend/guard.py"))]
             payload = dict(game="GRANDIA2", completed=completed, passed=completed and all(c["passed"] for c in checks),
                            checks=checks, captures=captures, python=sys.version.split()[0],

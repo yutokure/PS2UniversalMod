@@ -34,7 +34,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | ロマンシング サガ -ミンストレルソング- | `adapters/minstrelsong` | `SLPM-65920` / `2B9AF3C5` | Orbit、コンパス方位盤・キャラの針の連動、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット（右入力遮断なし） | [解析・確認範囲](docs/games/minstrelsong/CAMERA.md) |
 | ドラゴンクエストV 天空の花嫁 | `adapters/dragonquest5` | `SLPM-65555` / `B64E9939` | 右スティックyaw＋pitchのOrbit、カメラ基準移動、距離、FOV、独立した位置・注視点6軸オフセット、原作右回転との競合抑止（特殊cameraの回転解除は未対応） | [解析・確認範囲](docs/games/dragonquest5/CAMERA.md) |
 | 新牧場物語 ピュア イノセントライフ | `adapters/innocentlife` | `SLPS-25763` / `9AC21F92` | 右スティックOrbit、カメラ基準移動・向き、距離、FOV、独立した位置・注視点6軸オフセット、ゲーム内時計の停止（Free非対応） | [解析・確認範囲](docs/games/innocentlife/CAMERA.md) |
-| グランディアII | `adapters/grandia2` | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜60°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
+| グランディアII | [Grandia II adapter](<adapters/grandia2/adapter.py>) | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜110°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -94,7 +94,7 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 | ゲーム内時間 | 対応ゲームのみ「ゲーム内時間を停止」、現在の時刻・パッチ読戻し状態。カメラモードから独立、起動時はオフ。未対応ゲームは理由を表示して無効化 |
 | カメラ回転 | Yaw、Pitch、回転速度、右スティック感度、デッドゾーン、左右反転、上下反転、入力ソース（auto / xinput / keyboard / scripted） |
 | カメラ位置 | 距離、注視点の高さ。「オフセット（詳細）」を開くとカメラ X/Y/Z・注視点 X/Y/Z（0 以外があると見出しに「設定あり」と出ます） |
-| カメラレンズ（FOV） | FOV（通常20〜110°、グランディアIIは20〜60°）、上書きの適用、現在値、ゲーム値に戻す |
+| カメラレンズ（FOV） | FOV（通常20〜110°。グランディアIIも20〜110°）、上書きの適用、現在値、ゲーム値に戻す |
 | ゲーム標準ズーム（対応ゲームのみ） | 現在の段階、段階ボタン、R1 でオービット距離を連動（幻想水滸伝V。連動の設定はゲームごとに保存） |
 | デバッグ表示（既定で折りたたみ） | カメラ座標、プレイヤー座標、更新頻度、最終更新 |
 
@@ -285,25 +285,29 @@ presets\*.json                                  同梱プリセット（orbit-de
 - 日本版 `SLPM-65081 / B6AB7BC2`。通常fieldの屋外追従mode8と屋内固定mode0を対象にします。
   原作には右スティックcameraがなく、入力遮断は追加しません。確認した屋外の原作yaw操作はL1/R1、屋内は固定視点です。
 - 右スティックyaw／pitchのOrbit、距離 **100〜10000**、Pitch表示 **−25〜+89.5°**、注視点高さ **−1000〜+1000**（正が上）、
-  eye／target独立6軸オフセット各 **−3000〜+3000**、水平 **FOV20〜60°**。探索時100°で原作packet buffer停止を確認したため60°に制限し、buffer拡張・安全検査の迂回はしません。Free Camera・時計停止は非対応です。
+  eye／target独立6軸オフセット各 **−3000〜+3000**、水平 **FOV20〜110°**。Free Camera・時計停止は非対応です。
 - 原作cameraを更新した後、描画用NJ cameraのコピーへeye／単位forwardを渡し、native builderでview・逆行列・frustumを作ります。
-  最終focalとfield focalを一致させ、field tailでnative数値・current projection pointerへ戻します。queued projection recordは消しません。
+  最終focalとfield focalを一致させ、field tailでnative数値・current projection pointerへ戻します。queued projection records/countは消しません。
   native camera structは書き換えず、guestが最新player位置を加算して追従します。
 - 左analog／方向キーは、camera引数のコピーに実視線yawだけを設定して原作移動関数へ渡す方式です。
-  offsetで変化した視線も反映し、速度・向き・衝突・ボタン入力は原作に任せます。
+  offsetで変化した視線も反映し、速度・向き・衝突・ボタン入力は原作に任せます。旧3hook版の短い歩行測定では屋内の横滑り／停止があり、実方向キー入力は未検証です。
 - 原作の屋外は距離2400／pitch30°／高さ180／水平FOV約19.995°、屋内は距離1400／pitch12°／水平FOV約29.993°。
   FOVはangle fieldだけではなく最終focalで制御し、「ゲーム値に戻す」はその時点の原作focalを選びます。OriginalのFOV-onlyは対象外です。
-- Original／正常終了の3hook復元はguest EE threadが行い、hostは初回render1wordだけをbootstrapします。
-  **PCSX2一時停止中は適用／解除を完了できません**。通常fieldを再開して再試行してください。未知hook／caveは強制上書きしません。
-- 屋外・屋内のyaw／pitch描画、4yawの短い前進、FOV20／40／60°の画面・読戻し・原作画角resetと3hook解除を確認。
-  offset付きW/S/D/Aも限定測定しましたが、屋内0°の前進・段差付近は衝突による横滑り／停止があり、全方向が完全一致という結果ではありません。
-  100°のnative fatal後はstock stateで復旧し、限定屋外で60°を629フレーム継続。60°なら全場面で安全という保証ではありません。
-  MainWindow＋実PINEで両sceneのscripted入力・6offset・FOV40°・reset・Original復帰、屋外→屋内stock state後のyaw120°／FOV45°再適用と解除を確認しました。
-  性能最適化後の関連テスト320件とMainWindow実機11項目の再実行も成功。各bank公開は3hook pair・control所有・ACKを確認し、
-  全cave検査は初回／backend・epoch変更／state消失／約1秒の周期確認／解除時です。cave本体だけの破損は即時検知しません。
-  コンパスの抜き部分にfieldが見える表示は、提供原作画像・clean stock baselineとも一致し、比較範囲ではMOD回帰の根拠ではありません。
-  実方向キー入力・全menuの判別は未確認です。測定条件・制限・cleanup状態は[検証記録](<docs/games/grandia2/TEST_RESULTS.md>)を参照してください。
-  壁・裏面・屋内geometry外の黒い空間は距離・角度で回避してください。全エリア・イベント・戦闘・長時間は未網羅です。
+- 旧版で100°時に停止した原因は、原作がpacketのEND生成**後**に2MiB上限を検査していたことです。現行版はclosed DIRECT／UNPACK／CONTROL入口で事前reserveし、
+  足りなければ原作のEND→finalize→FlushCache→send→reset→newCNTで分割送信します。原作2bank・上限・fatal検査を変更せず、queue・projection・順序・CPU側VU indexを保持します。
+  DIRECT前には別CNT境界も作りDMA tagのQWCを保護します。valid native field writerのprotocol／source boundsが前提で、破損データの巨大DIRECTを救済する機能ではありません。
+- 現行はrender／tail／move＋finish＋packet3入口の**全7site、5 code resources、G2C2**です。Original／正常終了では最後のOrbit frameのsubmit帰還後に全7siteをguestが復元します。
+  native queue tailでの解除は早すぎるため行いません。hostは初回render1wordだけをbootstrapし、**一時停止中はguest ACKできません**。
+  各bank公開は全7exact hook pair・control magic・flags・ACKを確認し、全cave検査は初回／backend・epoch変更／state消失／約1秒の周期確認／解除時です。
+  cave本体だけの破損は即時検知しません。GUI書込みは既存GuardedBackend経由です。
+- **旧G2C1と現行版の混在はfail-closed**です。旧adapterを正常解除して終了し、さらにstock state読込みまたはゲーム再起動で旧cave／controlを消してから新版を使ってください。
+  正常解除だけでは旧cave／G2C1 magicが残ります。MODを含むstateはstockではないため、clean stockがなければ再起動してください。未知hook／caveを強制上書きしません。
+- 最終最適化後のraw実機runでは両sceneでFOV110°、4yaw×内部pitch4種の各約0.5秒でフレーム進行を確認。yaw45°水平の各約20秒では屋外239frame／718flush、屋内600frame／0flushでした。
+  boundary highwaterは屋外1126008B／屋内1023844B（reserve入口の観測値で、全write最高水位の証明ではありません）。FOV20／40／60／100／110°読戻し・native reset・全7site解除・stock state再適用も確認。
+  MainWindowの別runは14項目成功（Original起動0write・GUI範囲／入力・FOV・reset pose保持・6offset・全7site復元）。独立レビューではありません。
+  屋外110°水平画像はgeometry／HUD表示を親担当が確認。屋内は距離2000で小さな室内geometryと黒い空間が見えており、全scene描画成功とはしません。
+  壁・裏面・屋内geometry外の黒い空間は距離・角度で回避してください。全エリア・イベント・戦闘・メニュー・長時間は未網羅で、大可視量による負荷増は残ります。
+  旧3hook／20〜60°実績とcleanupは過去記録です。今回の測定条件・制限・最終テスト／cleanup追記欄は[検証記録の現行追記](<docs/games/grandia2/TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)を参照してください。
 - 再現用の限定GUI試験は [grandia2_live_check.py](<tools/grandia2_live_check.py>)。通常fieldを実行中に、他PINE clientを閉じ、開始stateを退避してから別々の場面で実行します（`--help`参照）。移動入力・state操作は行わず、任意の外部state読込みはhandshakeで待ちます。
 - [解析・安全条件](<docs/games/grandia2/CAMERA.md>)・[実行した確認と制限](<docs/games/grandia2/TEST_RESULTS.md>)
 

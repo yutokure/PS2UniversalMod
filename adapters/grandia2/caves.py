@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from core import mips_asm as m
-from . import memory_map as mm
+from . import memory_map as mm, packets
 
 
 class PatchConflict(RuntimeError):
@@ -79,13 +79,15 @@ def _bank(a, reject):
 RENDER_PAIR = (m.jal(mm.RENDER_CAVE), mm.RENDER_STOCK[1])
 TAIL_PAIR = (m.j(mm.TAIL_CAVE), mm.TAIL_STOCK[1])
 MOVE_PAIR = (m.jal(mm.MOVE_CAVE), mm.MOVE_STOCK[1])
+FINISH_PAIR = (m.jal(mm.FINISH_CAVE), mm.FINISH_STOCK[1])
 SITES = ((mm.RENDER_HOOK, mm.RENDER_STOCK, RENDER_PAIR),
          (mm.TAIL_HOOK, mm.TAIL_STOCK, TAIL_PAIR),
-         (mm.MOVE_HOOK, mm.MOVE_STOCK, MOVE_PAIR))
+         (mm.MOVE_HOOK, mm.MOVE_STOCK, MOVE_PAIR),
+         (mm.FINISH_HOOK, mm.FINISH_STOCK, FINISH_PAIR), *packets.SITES)
 
 
-def _lifecycle(a, prefix):
-    """Validate ALL instruction pairs, then atomically change one-word sites."""
+def _lifecycle(a, prefix, *, allow_detach=False, bootstrap=False):
+    """Validate every pair before changing sites; detach after frame submission."""
     e = a.emit
     done, conflict = prefix + 'done', prefix + 'conflict'
     _addr(e, m.T0, mm.MOD_BLOCK)
@@ -96,6 +98,18 @@ def _lifecycle(a, prefix):
     _branch(a, 'bne', m.T2, m.T3, done)
     e(m.lw(m.T6, m.T0, mm.MB_FLAGS)); e(m.andi(m.T2, m.T6, 1))
     _branch(a, 'bne', m.T2, m.T6, conflict)
+    if not allow_detach:
+        # A queued wide view still needs streaming even after numeric restore.
+        if bootstrap:
+            _branch(a, 'bne', m.T6, m.ZERO, prefix + 'can_install')
+            e(m.lw(m.T2, m.T0, mm.MB_ACK))
+            _branch(a, 'bne', m.T2, m.ZERO, done)
+            # A cancelled first bootstrap has no Orbit queue and no finish hook.
+            a.label(prefix + 'can_install')
+        else:
+            _branch(a, 'beq', m.T6, m.ZERO, done)
+    e(m.lw(m.T2, m.T0, packets.MB_STREAM_BUSY))
+    _branch(a, 'bne', m.T2, m.ZERO, done)
     for index, (address, stock, hook) in enumerate(SITES):
         _addr(e, m.T1, address)
         e(m.lw(m.T2, m.T1, 4)); _addr(e, m.T3, stock[1])
@@ -130,7 +144,7 @@ def render_words():
     e(m.lw(m.T2, m.T0, mm.MB_PENDING)); _branch(a, 'bne', m.T2, m.ZERO, 'return')
     e(m.sw(m.ZERO, m.T0, mm.MB_APPLIED))
     # Apply/detach requests even when scene guards prevent Orbit rendering.
-    _lifecycle(a, 'render_life_')
+    _lifecycle(a, 'render_life_', bootstrap=True)
     _bank(a, 'return')
     # Save numeric engine outputs, NOT queued projection records/count.
     _copy(e, mm.NJ_STATE, mm.MOD_BLOCK + mm.MB_NATIVE_NJ, mm.NJ_STATE_SIZE)
@@ -199,8 +213,6 @@ def tail_words():
                             (mm.NJ_FLAGS, mm.MB_NATIVE_FLAGS),
                             (mm.PROJECTION_RECORD_PTR, mm.MB_NATIVE_PROJECTION_PTR)):
         e(m.lw(m.T2, m.T0, offset)); _addr(e, m.T3, address); e(m.sw(m.T2, m.T3, 0))
-    # Next culling consumer must rebuild from restored numeric camera state.
-    _addr(e, m.T2, 0x233C1C); e(m.sw(m.ZERO, m.T2, 0))
     e(m.sw(m.ZERO, m.T0, mm.MB_PENDING))
     a.label('lifecycle'); _lifecycle(a, 'tail_life_')
     a.label('native'); e(0xDFBF0010); e(m.addiu(m.SP, m.SP, 0x20))
@@ -224,11 +236,26 @@ def move_words():
     return a.assemble()
 
 
+def finish_words():
+    a = m.Assembler(); e = a.emit
+    e(m.addiu(m.SP, m.SP, -0x20)); e(0xFFBF0010)
+    e(m.jal(mm.FUN_FRAME_SUBMIT)); e(m.NOP)
+    # Only now has the last queued Orbit frame been emitted and submitted.
+    _lifecycle(a, 'finish_life_', allow_detach=True)
+    e(0xDFBF0010); e(0x03E00008); e(m.addiu(m.SP, m.SP, 0x20))
+    return a.assemble()
+
+
 RENDER_WORDS, TAIL_WORDS, MOVE_WORDS = render_words(), tail_words(), move_words()
-RESOURCES = ((mm.RENDER_CAVE, RENDER_WORDS), (mm.TAIL_CAVE, TAIL_WORDS), (mm.MOVE_CAVE, MOVE_WORDS))
+FINISH_WORDS = finish_words()
+RESOURCES = ((mm.RENDER_CAVE, RENDER_WORDS), (mm.TAIL_CAVE, TAIL_WORDS),
+             (mm.MOVE_CAVE, MOVE_WORDS), (packets.BASE, packets.WORDS),
+             (mm.FINISH_CAVE, FINISH_WORDS))
 assert mm.RENDER_CAVE + len(RENDER_WORDS)*4 <= 0xBA000
 assert mm.TAIL_CAVE + len(TAIL_WORDS)*4 <= mm.MOVE_CAVE
 assert mm.MOVE_CAVE + len(MOVE_WORDS)*4 <= 0xF6000
+assert packets.BASE + len(packets.WORDS)*4 <= mm.FINISH_CAVE
+assert mm.FINISH_CAVE + len(FINISH_WORDS)*4 <= packets.LIMIT
 
 
 def read_words(b, address, count):

@@ -45,7 +45,7 @@ def rendered_regions(b):
 
 
 class FakeBackend(ByteBackend):
-    """Publication may schedule one EE render+tail callback, never a live VM."""
+    """Publication may schedule EE render→tail→submit callbacks, never a live VM."""
     def __init__(self, serial=mm.GAME_ID, crc=mm.DISC_CRC):
         super().__init__(serial, crc)
         self.auto_guest = True
@@ -77,6 +77,7 @@ class FakeBackend(ByteBackend):
                 machine = CaveMachine(self)
                 machine.render()
                 machine.finish()
+                machine.submit()
                 self.guest_cycles.append(machine)
                 if self.after_guest:
                     self.after_guest(self)
@@ -145,6 +146,7 @@ class CaveMachine(BaseMachine):
         self.native_snapshots = []
         self.on_builder = None
         self.on_native_camera = None
+        self.on_submit = None
 
     def run(self, address):
         previous = self.b.in_guest
@@ -207,6 +209,10 @@ class CaveMachine(BaseMachine):
         elif target == mm.FUN_NATIVE_TAIL:
             self.calls.append(('tail',))
             return
+        elif target == mm.FUN_FRAME_SUBMIT:
+            self.calls.append(('submit',))
+            if self.on_submit:
+                self.on_submit(self)
         else:
             raise AssertionError(f'unexpected native boundary {target:08X}')
         # Native calls may destroy all caller-saved registers.
@@ -222,7 +228,12 @@ class CaveMachine(BaseMachine):
         return next((c for c in self.calls if c[0] == 'nj'), None)
 
     def finish(self):
+        """Restore numeric outputs at field tail, before queued frame emission."""
         self.run(mm.TAIL_CAVE)
+
+    def submit(self):
+        """Submit queued native frame, then service the final detach request."""
+        self.run(mm.FINISH_CAVE)
 
     def movement(self):
         self.regs[m.A0], self.regs[m.A1] = PAD, mm.CAMERA
@@ -237,7 +248,8 @@ def activate(be):
 
 
 def test_generated_resources_fit_owned_nonoverlapping_allocations():
-    assert len(caves.SITES) == len(caves.RESOURCES) == 3
+    assert len(caves.SITES) == 7
+    assert len(caves.RESOURCES) == 5
     regions = sorted((a, a + len(words) * 4) for a, words in caves.RESOURCES)
     assert all(end <= next_start for (_, end), (next_start, _) in zip(regions, regions[1:]))
     assert all(not start <= mm.MOD_BLOCK < end for start, end in regions)
@@ -268,7 +280,7 @@ def test_indoor_fixed_and_outdoor_modes_read_owned_actor_without_writes(mode):
     assert not b.writes
 
 
-@pytest.mark.parametrize('degrees', [20, 40, 60])
+@pytest.mark.parametrize('degrees', [20, 40, 60, 100, 110])
 @pytest.mark.parametrize('aspect', [1, 1.25])
 def test_fov_roundtrip_uses_real_emitted_builder_then_final_focal_and_restores_tail(degrees, aspect):
     b = seed_field(FakeBackend(), aspect=aspect)
@@ -308,9 +320,10 @@ def test_fov_roundtrip_uses_real_emitted_builder_then_final_focal_and_restores_t
 
 
 @pytest.mark.parametrize('requested,expected', [(1, 20), (19, 20), (20, 20), (60, 60),
-                                               (61, 60), (100, 60), (1e20, 60)])
+                                               (61, 61), (100, 100), (110, 110),
+                                               (111, 110), (1e20, 110)])
 def test_fov_range_contract_bounds_publication_and_sync_to_supported_lens(be, requested, expected):
-    assert Grandia2Adapter.FOV_RANGE == (20.0, 60.0)
+    assert Grandia2Adapter.FOV_RANGE == (20.0, 110.0)
     ad = activate(be)
     native = be.bytes_at(mm.CAMERA, mm.CAMERA_SIZE)
     ad.write_fov_deg(requested)
@@ -431,8 +444,8 @@ def test_host_guard_rejects_unknown_scene_or_owner_before_writing(be, address, v
 
 
 @pytest.mark.parametrize('address', [
-    mm.RENDER_HOOK, mm.RENDER_HOOK + 4, mm.TAIL_HOOK, mm.MOVE_HOOK + 4,
-    mm.RENDER_CAVE, mm.TAIL_CAVE + 4, mm.MOVE_CAVE,
+    *(site + off for site, _stock, _hook in caves.SITES for off in (0, 4)),
+    *(start + off for start, words in caves.RESOURCES for off in (0, (len(words) - 1) * 4)),
     mm.MOD_BLOCK, mm.MOD_BLOCK + 0x10,
 ])
 @pytest.mark.parametrize('operation', ['enable', 'pose', 'fov', 'restore'])
@@ -447,15 +460,21 @@ def test_unknown_hook_cave_or_block_rejects_entire_operation_before_any_write(be
     assert not be.writes
 
 
-def test_three_site_lifecycle_host_bootstraps_only_render_guest_owns_final_detach(be):
+def test_seven_site_lifecycle_host_bootstraps_only_render_guest_owns_final_detach(be):
     ad = activate(be)
     assert caves.site_state(be) == 'applied'
+    assert all(caves.read_words(be, address, len(hook)) == hook
+               for address, _stock, hook in caves.SITES)
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_ACK
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_ACK) == mm.FLAG_ORBIT
+    assert [call[0] for call in be.guest_cycles[-1].calls][-2:] == ['tail', 'submit']
     host_sites = [(a, v) for a, v in be.host_writes if any(a == s for s, _, _ in caves.SITES)]
     assert host_sites == [(mm.RENDER_HOOK, caves.RENDER_PAIR[0])]
     ad.restore()
     assert caves.site_state(be) == 'stock'
+    assert all(caves.read_words(be, address, len(stock)) == stock
+               for address, stock, _hook in caves.SITES)
+    assert [call[0] for call in be.guest_cycles[-1].calls] == ['native', 'tail', 'submit']
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_ACK) == 0
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_APPLIED) == 0
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 0
@@ -463,19 +482,27 @@ def test_three_site_lifecycle_host_bootstraps_only_render_guest_owns_final_detac
     assert all(c.regs[m.SP] == 0x1F00000 for c in be.guest_cycles)
 
 
-def test_guest_conflict_validates_all_sites_before_instruction_changes(be):
+@pytest.mark.parametrize('address', [
+    site + off for site, _stock, _hook in caves.SITES for off in (0, 4)
+])
+def test_guest_conflict_validates_all_sites_before_instruction_changes(be, address):
     activate(be)
     be.auto_guest = False
     be.seed_u32(mm.MOD_BLOCK + mm.MB_FLAGS, 0)
     be.seed_u32(mm.MOD_BLOCK + mm.MB_COMMAND, mm.CMD_SYNC)
-    be.seed_u32(mm.MOVE_HOOK + 4, 0xBAD0BAD0)
+    be.seed_u32(address, 0xBAD0BAD0)
     previous = [caves.read_words(be, a, 2) for a, _, _ in caves.SITES]
-    CaveMachine(be).finish()
+    machine = CaveMachine(be)
+    machine.finish()
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_SYNC
+    assert [caves.read_words(be, a, 2) for a, _, _ in caves.SITES] == previous
+    machine.submit()
+    assert machine.calls == [('tail',), ('submit',)]
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_CONFLICT
     assert [caves.read_words(be, a, 2) for a, _, _ in caves.SITES] == previous
 
 
-def test_detach_waits_until_numeric_restore_even_if_request_arrives_inside_builder(be):
+def test_detach_inside_builder_waits_past_numeric_restore_until_native_frame_submit(be):
     activate(be)
     be.auto_guest = False
     machine = CaveMachine(be)
@@ -483,13 +510,33 @@ def test_detach_waits_until_numeric_restore_even_if_request_arrives_inside_build
         assert be.read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 1
         be.seed_u32(mm.MOD_BLOCK + mm.MB_FLAGS, 0)
         be.seed_u32(mm.MOD_BLOCK + mm.MB_COMMAND, mm.CMD_SYNC)
+    def before_submit_returns(cpu):
+        # Native submit still needs every hook for the final queued Orbit frame.
+        assert rendered_regions(be) == machine.native_snapshots[0]
+        assert all(caves.read_words(be, address, len(hook)) == hook
+                   for address, _stock, hook in caves.SITES)
+        assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_SYNC
     machine.on_builder = detach_inside_builder
+    machine.on_submit = before_submit_returns
     machine.render()
     assert caves.site_state(be) == 'applied'
     machine.finish()
     assert rendered_regions(be) == machine.native_snapshots[0]
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_PENDING) == 0
+    assert all(caves.read_words(be, address, len(hook)) == hook
+               for address, _stock, hook in caves.SITES)
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_SYNC
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_ACK) == mm.FLAG_ORBIT
+    machine.submit()
+    assert machine.calls[-2:] == [('tail',), ('submit',)]
+    assert rendered_regions(be) == machine.native_snapshots[0]
     assert caves.site_state(be) == 'stock'
+    assert all(caves.read_words(be, address, len(stock)) == stock
+               for address, stock, _hook in caves.SITES)
     assert be.read_u32(mm.MOD_BLOCK + mm.MB_COMMAND) == mm.CMD_ACK
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_ACK) == 0
+    assert be.read_u32(mm.MOD_BLOCK + mm.MB_APPLIED) == 0
+    assert machine.regs[m.SP] == 0x1F00000
 
 
 def test_bank_snapshot_remains_stable_across_two_host_publications_inside_nj_builder(be):
@@ -512,11 +559,11 @@ def test_bank_snapshot_remains_stable_across_two_host_publications_inside_nj_bui
     machine.finish()
     newer = CaveMachine(be)
     newer.render()
-    assert newer.calls[-1] == ('focal', pytest.approx(focal_for(60)))
+    assert newer.calls[-1] == ('focal', pytest.approx(focal_for(100)))
     newer.finish()
 
 
-def test_stock_state_reload_republishes_cached_pose_lens_and_three_hooks(be):
+def test_stock_state_reload_republishes_cached_pose_lens_and_seven_hooks(be):
     ad = activate(be)
     ad.write_orbit_params(PLAYER, 80, -40, 1800,
                           pos_offset=Vec3(70, 20, -30), target_offset=Vec3(10, 180, -15))
@@ -528,8 +575,8 @@ def test_stock_state_reload_republishes_cached_pose_lens_and_three_hooks(be):
     assert caves.site_state(be) == 'applied'
     assert be.bytes_at(active_bank(be) + mm.SLOT_EYE, mm.SLOT_SIZE - mm.SLOT_EYE) == previous
     assert be.read_u32(active_bank(be) + mm.SLOT_SEQUENCE) % 2 == 0
-    assert ad.fov_in_sync(100)  # request is clamped just as during publication
-    assert ad.read_fov_deg() == pytest.approx(60, abs=1e-4)
+    assert ad.fov_in_sync(100)
+    assert ad.read_fov_deg() == pytest.approx(100, abs=1e-4)
     ad.restore()
     assert caves.site_state(be) == 'stock'
 
