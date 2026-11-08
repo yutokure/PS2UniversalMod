@@ -19,6 +19,31 @@ walking=`MrtsFieldStateDetectMode`（`0x31CC`）、running=`MrtsFieldStateNormal
 初期の静的な名前対応推測に逆転があったため、実際のstate chainを正本とする。
 モードを固定して視界を変える方法は速度・遭遇にも作用するため使わない。
 
+### 2026-11-08 — エリア変更後にOrbitを拒否する原因と修正
+
+追加の `other_area` / `other_area_2` を含む6stateを比較。旧 `MAGI_GLOBAL=0x56DB1C` は
+専用globalではなく **UObject name-hash `0x56A5D0` のbucket `[0xD53]`** だった。
+native insert `0x1B2100` は object `+0x20` のnameを `&0xFFF` し、bucket headを更新する。
+元4stateでは偶然 `MrtsGameMagi0`、追加2stateでは `FinalBlend133` / `ConvexPrimitive174` が入り、
+いずれも `+0x0C=0` のため旧host/guest guardは通常fieldでもscript frameなしとして拒否した。
+renderer/vtableの違いや、field script名IDの変化が今回の原因ではない。
+
+現行は**現在のPawnが所有する参照を毎回たどる**：
+
+- `PLAYER_GLOBAL → Pawn +0x3E4 (Magi) → Magi +0x220 (DataManager)`。
+- DataManagerはnative manager registry `0x5527B0[3] = 0x5527BC` と一致し、
+  `DataManager +0x7D4 (Magi)` が同じMagiを指すことをhost/guest双方で確認する。
+- 3つのpropertyはreflection metadataと6stateの実体で確認。native `0x3F8AA0` はPawn `+0x3E4` setter。
+  registryは `0x19B4D0/0x19B4F0` のindex付きsetter/getterであり、hash bucketではない。
+- PartyData mode1/2、Magi `+0x0C → frame +0x18 → State +0x20` の**full-u32** field script名判定は維持。
+  `0x31CC/0x31D3` は今回6state共通。未知状態を単に許可する修正ではない。
+- player/Magiのheap addressや生成instance名IDはキャッシュしない。新playerを含むbankを公開し、
+  guestはA2/current player/snapshot player一致後だけ描画と移動の所有権を受理する。
+
+元4stateのMagiは `0x12031B0`、追加2stateは `0x142E990` / `0x1A9F660`。
+これらのheap値を製品の探索条件にはしない。native FOV診断もPawn `+0x1EC → controller +0x1F4` に訂正
+（旧Pawn `+0x1F4` は6stateで非pointerの `0x3A04` であり、55°fallbackを読んでいた）。
+
 ## 座標・カメラ
 
 native は XY 平面・Z 上。adapter 境界で `(X,-Z,Y)` に変換し共通数学を変更しない。
@@ -99,12 +124,20 @@ full preflight は初回・接続epoch変更・state消失・約1秒周期・解
 hot path は全hook pair、magic、flags/ACK/vtableを確認する。
 cave bodyだけの破損は次のfull auditまで検出遅延がある。
 pause中はEEが動かずACK不能。ゲームを再開して再試行する。
-新版でcave生成内容が変わった場合、旧版を正常解除した後でもcaveは残るため、
-**clean stock stateを読むかゲーム再起動してから**新版を使う。未知cave強制更新はしない。
+追加2stateは旧MOD入りで、旧5hook・全6caveが既知exact、MCA1/ACKも整合していた。
+今回版はその**完全一致する旧renderer body＋新版が延長する範囲のゼロ**だけを認識し、
+他の全cave・hook pair・control/ACK・native callbackも検査したうえで自動移行する。
+旧EE lifecycleへflags0を要求 → ACK・全5hook stock・callback nativeを再検査 →
+到達不能となったrenderer caveだけを新版へ置換 → 現在playerのbankを公開・再適用、の順序を守る。
+旧命令を実行中のままhostが上書きする方法ではない。pause中・旧transaction中は移行しない。
+magic一致だけ、未知/破損したcave、認識外の版との混在、任意の将来版は対象外でfail-closed。
+認識外の版では従来通り **clean stock stateまたはゲーム再起動** が必要。原本stateへ保存はしない。
 
 ## 制限
 
-提供stateは同一フィールド付近の限定条件。selector1/2とplayer所有確認は全event/menu/battleを
-完全に識別する保証ではない。全map、長時間、全特殊camera、強制戦闘は未網羅。
+確認対象は元4state＋追加2state（2map/2Field・再訪状態）と通常歩行のmap境界越え1例。
+所有参照はmapのheap address非依存だが、
+selector1/2・active script・player所有確認は全event/menu/battleを完全に識別する保証ではない。
+全map、長時間、全特殊camera、強制戦闘は未網羅。実行した条件は [TEST_RESULTS](TEST_RESULTS.md) を参照。
 Orbit collision はなく、壁・樹木へのめり込み、裏面・map外の背景は残る。
 機能の実装と今回の確認範囲を混同しない。

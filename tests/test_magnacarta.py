@@ -71,7 +71,8 @@ def seed_field(b=None):
     b = b or FakeBackend()
     for address, value in ((mm.PLAYER_GLOBAL, ACTOR), (mm.FIELD_OWNER_GLOBAL, OWNER),
                            (OWNER + mm.STATE_POINTER, STATE), (STATE + 0x90, 2 << 8),
-                           (mm.MAGI_GLOBAL, MAGI), (MAGI + 0x0C, SCRIPT_FRAME),
+                           (ACTOR + mm.PLAYER_MAGI, MAGI), (MAGI + mm.MAGI_OWNER, OWNER),
+                           (OWNER + mm.OWNER_MAGI, MAGI), (MAGI + 0x0C, SCRIPT_FRAME),
                            (SCRIPT_FRAME + 0x18, SCRIPT_STATE), (SCRIPT_STATE + 0x20, 0x31CC),
                            (mm.BOOT_SITE, mm.BOOT_NATIVE)):
         b.seed_u32(address, value)
@@ -183,7 +184,8 @@ def test_walking_running_and_coordinate_boundary(be, adapter, mode, script_name)
 
 
 @pytest.mark.parametrize('address,value', [
-    (0x56DB1C, 0), (0x56DB1C, MAGI + 1), (0x56DB1C, 0x2000000),
+    (ACTOR + mm.PLAYER_MAGI, 0), (ACTOR + mm.PLAYER_MAGI, MAGI + 1),
+    (ACTOR + mm.PLAYER_MAGI, 0x2000000),
     (MAGI + 0x0C, 0), (MAGI + 0x0C, SCRIPT_FRAME + 4),
     (MAGI + 0x0C, 0x2000000), (SCRIPT_FRAME + 0x18, 0),
     (SCRIPT_FRAME + 0x18, SCRIPT_STATE + 1), (SCRIPT_FRAME + 0x18, 0x2000000),
@@ -454,7 +456,8 @@ def test_optional_local_states_have_stock_hook_pairs_and_empty_caves(state):
     path = Path('C:/PS2CameraLab/work/magnacarta/states') / state / 'eeMemory.bin'
     if not path.is_file(): pytest.skip('optional private local RAM state unavailable')
     ram = path.read_bytes()
-    magi = struct.unpack_from('<I', ram, mm.MAGI_GLOBAL)[0]
+    actor = struct.unpack_from('<I', ram, mm.PLAYER_GLOBAL)[0]
+    magi = struct.unpack_from('<I', ram, actor + mm.PLAYER_MAGI)[0]
     frame = struct.unpack_from('<I', ram, magi + 0x0C)[0]
     script_state = struct.unpack_from('<I', ram, frame + 0x18)[0]
     script_name = struct.unpack_from('<I', ram, script_state + 0x20)[0]

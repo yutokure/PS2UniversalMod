@@ -36,7 +36,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | 新牧場物語 ピュア イノセントライフ | `adapters/innocentlife` | `SLPS-25763` / `9AC21F92` | 右スティックOrbit、カメラ基準移動・向き、距離、FOV、独立した位置・注視点6軸オフセット、ゲーム内時計の停止（Free非対応） | [解析・確認範囲](docs/games/innocentlife/CAMERA.md) |
 | グランディアII | [Grandia II adapter](<adapters/grandia2/adapter.py>) | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜110°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
 | テイルズ オブ シンフォニア | [Symphonia adapter](<adapters/talesofsymphonia/adapter.py>) | `SLPS-25400` / `830B6FB1` | 町等の通常マップ／徒歩ワールドフィールドのOrbit、移動方向、フィールドコンパス・地図視線、FOV20〜110°、距離・独立6軸オフセット（Free・時計停止・特殊車両非対応） | [解析・確認範囲](<docs/games/talesofsymphonia/CAMERA.md>) |
-| マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | Orbit、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
+| マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | エリア変更に追従するOrbit（Pawn所有参照、提供2マップ・再訪状態で確認）、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
