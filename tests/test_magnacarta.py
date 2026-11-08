@@ -84,13 +84,51 @@ def seed_field(b=None):
     return b
 
 
-@pytest.mark.parametrize('yaw', [0, 90, 180, 270])
-def test_published_movement_uses_native_backward_basis(yaw):
-    b=seed_field(); a=MagnaCartaAdapter(b)
-    a.write_orbit_params(a.read_player(),yaw,20,1600,target_offset=Vec3(0,-100,0))
-    bank=mm.MOD_BLOCK+mm.SLOTS[b.read_u32(mm.MOD_BLOCK+mm.MB_SLOT)&1]
-    render_yaw=b.read_u32(bank+mm.SLOT_ROT_YAW)
-    assert b.read_u32(bank+mm.SLOT_YAW)==(render_yaw+32768)&65535
+@pytest.mark.parametrize('yaw', [0, 45, 90, 135, 180, 225, 270, 315, -90, 450])
+@pytest.mark.parametrize('pitch,pos_offset', [
+    (-25, Vec3(0, 0, 0)), (20, Vec3(130, -20, 70)), (89.5, Vec3(0, 0, 0)),
+])
+def test_published_movement_and_render_yaw_follow_actual_view(yaw, pitch, pos_offset):
+    b = seed_field(); a = MagnaCartaAdapter(b)
+    a.write_orbit_params(a.read_player(), yaw, pitch, 1600,
+                         pos_offset=pos_offset, target_offset=Vec3(0, -100, 0))
+    bank = mm.MOD_BLOCK + mm.SLOTS[b.read_u32(mm.MOD_BLOCK + mm.MB_SLOT) & 1]
+    eye = b.read_floats(bank + mm.SLOT_EYE, 3)
+    target = b.read_floats(bank + mm.SLOT_TARGET, 3)
+    fx, fy = target[0] - eye[0], target[1] - eye[1]
+    length = math.hypot(fx, fy)
+    fx, fy = fx / length, fy / length
+    render_yaw = b.read_u32(bank + mm.SLOT_ROT_YAW)
+    movement_yaw = b.read_u32(bank + mm.SLOT_YAW)
+    # Pad up uses forward, not forward + pi. Pin to the actual eye/target too,
+    # so changing both yaw fields to the same wrong value cannot pass.
+    # Only the <=8-unit native singularity guard may separate the two fields.
+    difference = (movement_yaw - render_yaw + 32768) % 65536 - 32768
+    assert abs(difference) <= 8
+    render_angle = render_yaw * (2 * math.pi / 65536)
+    assert (math.cos(render_angle), math.sin(render_angle)) == pytest.approx((fx, fy), abs=1e-4)
+    angle = movement_yaw * (2 * math.pi / 65536)
+    assert (math.cos(angle), math.sin(angle)) == pytest.approx((fx, fy), abs=9e-4)
+    # Native Unreal XY/Z-up uses screen right = (-forward.y, forward.x).
+    # Check cardinal/diagonal directions independent of GUI Orbit yaw.
+    for right, up in ((0, 1), (0, -1), (-1, 0), (1, 0),
+                      (-1, 1), (1, 1), (-1, -1), (1, -1)):
+        actual = (up * math.cos(angle) - right * math.sin(angle),
+                  up * math.sin(angle) + right * math.cos(angle))
+        expected = (up * fx - right * fy, up * fy + right * fx)
+        assert actual == pytest.approx(expected, abs=1.8e-3)
+
+
+def test_movement_yaw_avoids_native_axis_singularity_without_half_turn():
+    # Exhaust the 16-bit circle, including wraparound and the 4-unit lookup bins.
+    for yaw in range(65536):
+        movement = MagnaCartaAdapter._movement_yaw(yaw)
+        assert 0 <= movement <= 65535
+        assert 8 <= movement % 16384 <= 16376
+        difference = (movement - yaw + 32768) % 65536 - 32768
+        assert abs(difference) <= 8
+        if 8 <= yaw % 16384 <= 16376:
+            assert movement == yaw
 
 
 def test_center_uses_parameter_path_not_native_output_writes():
