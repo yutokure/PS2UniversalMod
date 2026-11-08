@@ -3,6 +3,10 @@
 2026-11-07、SLPS-25401 / EB925207、作業branch `feat/magnacarta-orbit`。
 実装側の自己検証であり独立レビューではない。[方式](CAMERA.md)参照。
 
+**移動方向の旧結論は2026-11-08に訂正。** 下記の2026-11-07記録は当時の条件を残すが、
+「上」とした入力はAPI上の `y=-1`、すなわち実際にはLDownだった。逆基底の根拠にはならず、
+旧版の `+0x8000` が全移動方向を逆転させていた。現行の修正・測定は末尾の追記を参照。
+
 ## 実行したこと
 
 - 提供4stateを読み取り専用の解析元として展開。元stateは上書きしない。
@@ -84,3 +88,40 @@ git diff --check
 
 親ラボpytest.iniの `--timeout=300` に対しローカル環境にpytest-timeoutがないため、
 環境を書き換えず `-o addopts=` で指定テストを実行した。
+
+## 2026-11-08 — Orbitの移動逆転を修正
+
+対象sourceは `fix/magnacarta-orbit-movement`、SLPS-25401 / EB925207。
+旧結論の訂正と移動用パラメータのみの修正。描画・cave命令・hook・所有guard・原作heading／
+ミニマップ・速度・衝突・2toggleの方式は変更しない。独立レビューではない。
+
+- 原因：旧検証の `input_analog_send(0,-1)` は LUp ではなく **LDown（Keyboard/S）**。
+  実際の LUp は `y=+1`（Keyboard/W）。旧 `+32768` を再現した実機条件では、
+  walking／yaw0°／LUpの実変位と描画forwardのdotは **−0.99995** で逆転した。
+- 修正：`target-eye` から得る実視線yawを移動consumerへ公開し、不要な半回転を除去。
+  さらに軸方向付近のnative sin/cos lookup→acos計算が巨大heading・無移動となる数値境界を
+  移動角だけ最大8 turn units（約0.044°）ずらして回避。描画yawは変更しない。
+- 回帰テスト：旧「半回転を期待するテスト」を実eye/target基準へ訂正。
+  yaw10条件（負角／1周超を含む）×pitch／offset3条件で、描画・移動forwardと8方向の数学を確認。
+  全65536角度について境界回避、最大差8、境界外は無変更を確認。
+- 最終sourceのPCSX2実入力：walking/running × yaw0/45/90/135/180/225/270/315° ×
+  LUp/LDown/LLeft/LRight = **64条件**、各約0.7秒。Keyboard/W/S/A/Dの対応を確認し、
+  単一PINE＋GuardedBackend＋単一RSPで測定。全条件で移動し、実変位と期待方向のdotは
+  **0.85949〜1.0**、実headingのdotは **0.9999997以上**、heartbeatは各20〜22進行。
+  変位には原作の旋回・衝突・地形の横ずれが残り、速度／collisionを迂回していない。
+  軸境界での巨大heading・無移動は最終64条件では発生しなかった。
+- 各条件でcamera／toggle解除後の全5hook stock・vtable nativeを確認。
+  最後にstock walking stateを読み、control blockゼロ・全hook stock・入力中立を確認して
+  検証用VMを終了。開始時はVMなしだったためユーザーの進行中場面は変更していない。
+  walking/runningの原本state SHA-256は既存manifestと一致、原本へ保存していない。
+  ローカル証跡は `C:/PS2CameraLab/work/magnacarta/direction_fix_evidence/`（Git管理外）。
+- 関連7ファイルの最終run：**230 passed / 4.88秒**。
+  合成backend／命令interpreterの既存所有・復元・ABI・game guard・独立toggle回帰を含む。
+  nativeゲーム処理を実行したという意味ではない。
+
+```powershell
+python -m pytest -o addopts= tests/test_magnacarta.py tests/test_magnacarta_directions.py tests/test_magnacarta_gameplay.py tests/test_core.py tests/test_game_guard.py tests/test_game_toggles.py tests/test_game_toggles_registration.py -q
+```
+
+README対応一覧・ADAPTER_GUIDE・文書索引の公開機能は変わらず、更新不要と判断。
+全map／event／menu／battle／長時間の網羅検証ではなく、既存の制限は残る。

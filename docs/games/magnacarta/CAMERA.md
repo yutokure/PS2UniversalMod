@@ -40,8 +40,17 @@ player global `0x53B868` → actor `+0xD0` が位置、`+0xDC/E0/E4` が Unreal 
 axes builder の共通call `0x446314` → `0x192080` を wrap し、fresh/cache 両経路の
 **関数ローカルrotator yawだけ**を差し替える。原作速度・衝突・heading slew を流用する。
 
-実入力から、axes の「上」は描画 forward と逆の基底を使うことが分かったため、
-consumer yaw は実視線 native yaw に `0x8000` を足す。描画 yaw 自体は変更しない。
+consumer yaw は**実視線の native yaw を使い、半回転させない**。描画 yaw と同じく、位置offsetを
+含む `target - eye` の水平角が基準であり、`0x8000` は加算しない。加算すると上下左右がすべて逆になる。
+2026-11-08修正：旧実験は入力APIの `y=-1`（実際は LDown）を「上」と誤認し、
+不要な半回転を導入していた。入力APIは `y=+1` が LUp、`y=-1` が LDown。
+描画・actor heading・ミニマップには追加補正を入れない。
+
+原作は4 turn-unit刻みのsin/cos tableと `acos(-y/length)` で移動headingを求める。
+ちょうど軸方向の付近では丸め誤差でacos入力が範囲外になり、headingが巨大値になって
+移動が止まる条件を確認した。移動consumerだけを90°境界から8 turn units以上離す
+（実視線との差は最大8/65536回転、約0.044°）。描画yaw/pitchは正確な実視線のまま。
+速度・衝突・向きの更新自体を置換せず、native経路を保持する。
 actor/accepted snapshot/controller pawn の一致がない場合は native に戻す。
 render ごとに accepted ownership を失効し、その frame で再受理した場合のみ再設定する。
 

@@ -139,6 +139,19 @@ class MagnaCartaAdapter:
         pitch=round(math.atan2(-forward.y,horizontal)*65536/(2*math.pi)) & 65535
         return pitch,yaw
 
+    @staticmethod
+    def _movement_yaw(yaw):
+        # Native sin/cos uses a 4-turn-unit lookup; ProcessAnalog then derives
+        # heading with acos(-y/length). Near exact axes, rounding can exceed its
+        # domain and produce a huge heading/no movement. Keep only that consumer
+        # at least 8 turn units (0.044 degrees) from a quadrant boundary.
+        phase = yaw & 0x3FFF
+        if phase < 8:
+            return (yaw + 8 - phase) & 0xFFFF
+        if phase > 0x4000 - 8:
+            return yaw - (phase - (0x4000 - 8))
+        return yaw
+
     def _publish(self,p=None):
         b=self.backend; actor,_=self._field(); pitch,yaw=self._rotation(self._relative)
         if p is not None: caves.prepare(b,p)
@@ -150,9 +163,9 @@ class MagnaCartaAdapter:
         b.write_float_block(address+mm.SLOT_EYE,(*self._native(self._relative.eye),0))
         b.write_float_block(address+mm.SLOT_TARGET,(*self._native(self._relative.target),0))
         b.write_u32(address+mm.SLOT_PITCH,pitch); b.write_u32(address+mm.SLOT_ROT_YAW,yaw)
-        # ProcessAnalog's native axes use the backward/view basis for pad up.
-        # Keep the rendering yaw unchanged and rotate only that consumer by pi.
-        b.write_u32(address+mm.SLOT_YAW,(yaw+32768)&65535); b.write_float_block(address+mm.SLOT_FOV,(self._fov or 55.0,))
+        # ProcessAnalog's pad-up direction uses the actual view forward yaw.
+        # An extra half-turn here reverses every movement direction, not rendering.
+        b.write_u32(address+mm.SLOT_YAW,self._movement_yaw(yaw)); b.write_float_block(address+mm.SLOT_FOV,(self._fov or 55.0,))
         b.write_u32(address,seq); b.write_u32(mm.MOD_BLOCK+mm.MB_SLOT,slot)
 
     def _sync(self,*,publish=False,full=False):
