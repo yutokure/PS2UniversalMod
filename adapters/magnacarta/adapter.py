@@ -62,18 +62,22 @@ class MagnaCartaAdapter:
     def _field(self):
         b=self.backend
         actor=b.read_u32(mm.PLAYER_GLOBAL)
-        owner=b.read_u32(mm.FIELD_OWNER_GLOBAL)
-        if not self._ptr(actor) or not self._ptr(owner): raise caves.PatchConflict('Magna Carta field player/owner unavailable')
+        if not self._ptr(actor): raise caves.PatchConflict('Magna Carta field player unavailable')
+        magi=b.read_u32(actor+mm.PLAYER_MAGI)
+        if not self._ptr(magi): raise caves.PatchConflict('Magna Carta active script owner unavailable')
+        owner=b.read_u32(magi+mm.MAGI_OWNER)
+        if (not self._ptr(owner) or b.read_u32(mm.FIELD_OWNER_GLOBAL)!=owner
+                or b.read_u32(owner+mm.OWNER_MAGI)!=magi):
+            raise caves.PatchConflict('Magna Carta field/script ownership mismatch')
         state=b.read_u32(owner+mm.STATE_POINTER)
         if not self._ptr(state): raise caves.PatchConflict('Magna Carta field state unavailable')
         mode=(b.read_u32(state+0x90)>>8)&255
         if mode not in mm.FIELD_MODES: raise caves.PatchConflict('Magna Carta ordinary walking/running field unavailable')
         # The selector above remains 1/2 in battle too. Require the active Magi
-        # script state, not just the remembered walking/running mode. All four
-        # stock RAM samples use a full u32 FName index (upper bits zero); do not
+        # script state, not just the remembered walking/running mode. All
+        # six RAM samples use a full u32 FName index (upper bits zero); do not
         # mask unknown high bits into an otherwise allowed field state.
-        magi=b.read_u32(mm.MAGI_GLOBAL)
-        if not self._ptr(magi): raise caves.PatchConflict('Magna Carta active script owner unavailable')
+        # The pawn-owned Magi changes on area load. Never cache a hash bucket.
         frame=b.read_u32(magi+0x0C)
         if not self._ptr(frame): raise caves.PatchConflict('Magna Carta active script frame unavailable')
         script_state=b.read_u32(frame+0x18)
@@ -217,7 +221,7 @@ class MagnaCartaAdapter:
         # Player viewactor carries native horizontal FOV; live builder F12=55.
         b=self.backend; actor=b.read_u32(mm.PLAYER_GLOBAL)
         if self._ptr(actor):
-            controller=b.read_u32(actor+0x1F4)
+            controller=b.read_u32(actor+mm.PLAYER_CONTROLLER)
             if self._ptr(controller):
                 fov=b.read_f32(controller+0x1F4)
                 if math.isfinite(fov) and 5<fov<170: return fov

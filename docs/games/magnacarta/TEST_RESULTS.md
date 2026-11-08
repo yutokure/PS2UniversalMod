@@ -125,3 +125,79 @@ python -m pytest -o addopts= tests/test_magnacarta.py tests/test_magnacarta_dire
 
 README対応一覧・ADAPTER_GUIDE・文書索引の公開機能は変わらず、更新不要と判断。
 全map／event／menu／battle／長時間の網羅検証ではなく、既存の制限は残る。
+
+## 2026-11-08 — エリア変更後のOrbit拒否を修正
+
+対象sourceは `fix/magnacarta-area-orbit`、基準HEAD `555a7a3`、SLPS-25401 / EB925207。
+実装側の解析・自己検証であり独立reviewではない。
+
+### 原因・変更
+
+- 元4state＋追加2stateのZIPを読み取り専用で比較。`0x56DB1C` がGameMagi専用globalでなく
+  UObject name-hashのbucketであることをnative insert/removeの `name & 0xFFF` とsnapshotで確定。
+  追加2stateでは材質／衝突形状objectを指し `+0x0C=0`、旧host/guestは通常fieldを拒否していた。
+- Pawn.Magi `+0x3E4` → Magi.DataManager `+0x220` → DataManager.Magi `+0x7D4` の往復一致と
+  manager registry一致へ変更。reflection metadata・native setter・6stateの実体を照合した。
+  walking/runningのfull script名判定、viewactor/snapshot/player所有、native fallbackは維持。
+- native FOV診断のPawn→controllerを誤った `+0x1F4` から実property `+0x1EC` へ訂正。
+- 追加2stateは旧MOD入り（全5hook applied、全6cave exact、flags13/12、bankのplayerは旧map）だった。
+  全resource/control整合と旧body＋延長範囲zeroが完全一致する場合だけ、旧EE lifecycle解除ACK後に
+  全5hook stock/native callbackを再検査し、到達不能rendererを新版へ移行。未知/破損/混在は拒否する。
+
+### 実行したPCSX2確認
+
+単一PINE＋GuardedBackend＋単一RSPを使用。原本への保存、ISO/メモリーカードの変更なし。
+
+- **6stateすべて**：同じadapter/接続のまま順番に読込み、yaw0/90/180/270°を各約0.35秒。
+  current playerの受理、heartbeat進行、実eye/target、画面の回転を確認。
+- 各stateでFOV20/55/80/110°を各約0.25秒。builder側render FOV、実画面、heartbeatを確認。
+  FOV解除でnative55°、camera＋2toggle解除で全5hook stock・callback native・flags0。
+  新bodyのfull preflightにも一致。追加2stateは旧caveから直接移行し、原本の手直し不要。
+- 追加2エリア × yaw0/90/180/270° × LUp/LDown/LLeft/LRight = **32条件**、各約0.7秒の実keyboard入力。
+  すべて移動し、変位265.34〜390.30units、期待方向とのdot **0.992547〜0.999999**、
+  実headingのdot **0.9999997以上**、heartbeat **21〜22frame**。
+  原作の旋回・速度・衝突を流用し、移動・minimap矢印へ別の半回転補正は追加していない。
+- 最終はclean stockのwalking stateを読込み、全5hook stock・callback native・controlゼロ・入力中立を確認。
+  全6原本のSHA-256は開始時と終了時で一致。
+- 初回live harnessは隠れたPCSX2窓にkeyboard入力を送れず、ゲーム変更前に停止した。
+  既存の非アクティブ表示手順で復旧後、上記6state/32条件を完走。失敗runを成功に読み替えていない。
+
+### 実GUIでのstate切替
+
+- 実際のMainWindow＋GuardedBackend＋runtime/status workerを使用し、APPDATA/Qt設定は実験profileへ隔離。
+- Orbit/FOV70°のまま `walking_base → other_area → other_area_2 → walking_base → other_area` を順に読み、
+  同じGUI/runtime/adapterが現在playerを再取得。全段階でscene有効、accepted=current player、FOV70°、
+  runtime errorなし、新cave exactを確認した。追加2stateに保存された旧設定・旧player bankを引きずらない。
+- Original→native55°/全hook stock、再有効化→Orbit70°、無効化→stock、通常close→PINE解放も確認。
+  最終clean walking stateを読んでcontrolゼロ・全hook stockをRSPで再確認。
+- 初回GUI runは製品の全操作確認後、検証scriptがclose後の破棄済みadapter lockへ触れてcleanupに失敗。
+  script側のNone条件を修正して全段階＋最終cleanupを再実行し成功。製品の不具合として混同しない。
+
+### 通常歩行での自然なマップ境界越え
+
+- `other_area` のLinkVolume key20032（FieldDataの矩形範囲）へ、通常の左analog入力だけで歩行。
+  native BlockingVolumeで直進が止まるため西側へ回り込み、actor座標/trigger/GSWの直接書換え・teleportは行わない。
+- **Field7208/Map6663 → Field6946/Map7690** の実ロードを確認。
+  player `0x1A205E0 → 0x19E0B80`、Magi `0x142E990 → 0x1A9F660` に変化。
+- ロード中は旧Pawn.Magiが0となり、accepted=0/heartbeat停止。新Pawn生成直後もfield modeが未成立なら拒否し、
+  通常field復帰後は同じruntimeがaccepted=new player、Orbit距離650/FOV70°へ自動復帰しheartbeatも再進行。
+  最終scene有効・runtime errorなし・実画面を確認。これはstate読込みだけの試験ではない。
+- 初回は境界手前で停止し、次の試行はロード完了を3秒で判断してassertに失敗。
+  ロードを最大20秒まで有界観測する手順へ訂正し、最終は32回の0.5秒sample内で復帰を確認。
+  ロード速度の保証ではない。最終cleanupで原作hook/control/入力を返し、検証VMを正常終了。
+  開始時はVMのないPCSX2だったため、同じ実行ファイルをゲームなしで再起動して開始状態へ戻した。
+
+### 回帰と残る範囲
+
+- 関連9ファイルの最終指定run：**358 passed / 60.26秒**（旧body digest固定と解除後race拒否を追加）。
+  新規 [area tests](../../../tests/test_magnacarta_areas.py) はhost/guest所有不一致、full128 scratch、
+  copied-eye/rotator/FOV、別viewactorでの失効、旧cave安全移行・未知/paused拒否、optional6ZIP整合を確認。
+  合成native builderはstubであり、ゲーム描画の実行証明ではない。
+- 初回新test runではnative引数用T0を復帰保存対象と誤認したassertと、Python標準zipfileの
+  Zstd method93非対応を検知。テスト側のABI期待値・Zstd読取りを訂正し、最終runでは解消。
+- ローカル証跡は `C:/PS2CameraLab/work/magnacarta/area_fix/`、Gitには解析要約・自作source/testのみ。
+- 確認したのは提供6state・2つのmap package（`00007690` / `00006663`、前者の再訪状態を含む）。
+  `other_area_2` は元4stateと同じmapの別位置・再ロード後heapであり、3mapとは数えない。
+  全map/event/menu/battle/特殊camera/長時間は未網羅。
+  エリア固有アドレスや生成instance IDへの依存は除去したが、「全場面で実証済み」とはしない。
+  Orbit collisionはなく、森林の木や町の壁/屋根へのめり込み・遮蔽は残る。

@@ -48,6 +48,9 @@ lease仕様と残る時間窓は変更していません。
 real GUIではOriginalで2toggleを保持し、無効化で全5site stockへ戻ることを確認しました。
 field rendererのdata callbackからEE threadでcode hookを適用復元しますが、
 lease時間窓・ゲーム切替検知までの制約を変更したものではありません。
+2026-11-08のエリア修正も同じbackendを使用します。既知旧版の全resource exact一致時だけ、
+EEで全hook解除ACK→stock再検査後、到達不能renderer caveを新版へ移行します。
+未知caveをmagicだけで更新する処理や、別game/不明時の復元書込みは追加していません。
 
 ### 残る時間窓
 
