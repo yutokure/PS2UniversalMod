@@ -1,11 +1,11 @@
-"""SLPS-25401 / EB925207, six user states plus live watchpoints/Ghidra.
+"""SLPS-25401 / EB925207, user states plus live watchpoints/Ghidra.
 
 Native XY ground, Z up; the adapter exposes canonical (X,-Z,Y).
 Addresses are specific to this Japanese executable, never shared through core.
 """
 GAME_ID = 'SLPS-25401'
 DISC_CRC = 'EB925207'
-PLAYER_GLOBAL = 0x53B868
+PLAYER_GLOBAL = 0x53B868  # historical pawn alias (can be AI); released code identity only
 FIELD_OWNER_GLOBAL = 0x5527BC  # native manager registry 0x5527B0[3], DataManager
 # 0x56DB1C is UObject's name-hash bucket[D53], NOT a GameMagi global.
 # Reflection-confirmed ownership properties; follow the current pawn each time.
@@ -13,7 +13,15 @@ PLAYER_MAGI = 0x3E4
 MAGI_OWNER = 0x220
 OWNER_MAGI = 0x7D4
 PLAYER_CONTROLLER = 0x1EC
-FIELD_SCRIPT_NAMES = (0x31CC, 0x31D3)
+ACTOR_LEVEL = 0x78
+LEVEL_GAME = 0x364
+GAME_LOCAL_PC = 0x358
+PC_PLAYER = 0x338  # local UPlayer/viewport
+VIEWPORT_ACTOR = 0x30
+PC_PAWN = 0x1EC
+FIELD_SCRIPT_NAMES = (0x31CC, 0x31D3)  # Detect / Normal (released emitters also use this order)
+ADVENTURE_NAME = 0x3148
+FIELD_SCENES = ((0, ADVENTURE_NAME), (1, FIELD_SCRIPT_NAMES[1]), (2, FIELD_SCRIPT_NAMES[0]))
 PLAYER_POSITION = 0xD0
 STATE_POINTER = 0x330
 STATE_MODE = 0x91

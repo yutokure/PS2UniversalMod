@@ -15,7 +15,8 @@ from tests.test_radiata import CaveMachine as BaseMachine
 # these values independently, so changing shared-map layout needs review here.
 MAP = SimpleNamespace(MOD_BLOCK=0xFF000, MAGIC=0x4D434131, MB_FLAGS=4,
                       FLAG_ORBIT=1, MB_ACCEPTED=28, MB_SNAPSHOT=0x100,
-                      SLOT_PLAYER=12, SLOT_YAW=0x38, PLAYER_GLOBAL=0x53B868)
+                      SLOT_PLAYER=12, SLOT_YAW=0x38, PLAYER_GLOBAL=0x53B868,
+                      PC_PAWN=0x1EC, PLAYER_CONTROLLER=0x1EC)
 PLAYER, CONTROLLER = 0x01928320, 0x01680BC0
 ROTATOR = 0x01F000C8
 
@@ -36,7 +37,8 @@ def movement(monkeypatch):
             be.seed_u32(address + i * 4, word)
     for address, value in (
         (MAP.MOD_BLOCK, MAP.MAGIC), (MAP.MOD_BLOCK + MAP.MB_FLAGS, MAP.FLAG_ORBIT),
-        (MAP.PLAYER_GLOBAL, PLAYER), (MAP.MOD_BLOCK + MAP.MB_ACCEPTED, PLAYER),
+        (MAP.PLAYER_GLOBAL, PLAYER+0x100), (MAP.MOD_BLOCK + MAP.MB_ACCEPTED, PLAYER),
+        (PLAYER + MAP.PLAYER_CONTROLLER, CONTROLLER),
         (MAP.MOD_BLOCK + MAP.MB_SNAPSHOT + MAP.SLOT_PLAYER, PLAYER),
         (MAP.MOD_BLOCK + MAP.MB_SNAPSHOT + MAP.SLOT_YAW, 0xC123),
         (CONTROLLER + 0x1EC, PLAYER),
@@ -80,8 +82,8 @@ def test_active_uses_accepted_snapshot_yaw_only_and_preserves_abi(movement):
 
 @pytest.mark.parametrize('address,value', [
     (MAP.MOD_BLOCK, 0), (MAP.MOD_BLOCK + MAP.MB_FLAGS, 0),
-    (MAP.MOD_BLOCK + MAP.MB_FLAGS, 2), (MAP.PLAYER_GLOBAL, 0),
-    (MAP.PLAYER_GLOBAL, PLAYER + 1),
+    (MAP.MOD_BLOCK + MAP.MB_FLAGS, 2), (PLAYER + MAP.PLAYER_CONTROLLER, 0),
+    (PLAYER + MAP.PLAYER_CONTROLLER, CONTROLLER + 16), (CONTROLLER + MAP.PC_PAWN, PLAYER + 1),
     (MAP.MOD_BLOCK + MAP.MB_ACCEPTED, PLAYER + 16),
     (MAP.MOD_BLOCK + MAP.MB_SNAPSHOT + MAP.SLOT_PLAYER, PLAYER + 16),
     (CONTROLLER + 0x1EC, PLAYER + 16),

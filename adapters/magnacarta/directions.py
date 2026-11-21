@@ -46,7 +46,7 @@ def _branch(a, kind, rs, rt, label):
     a.emit(m.NOP)
 
 
-def movement_words() -> tuple[int, ...]:
+def movement_words(*, released=False) -> tuple[int, ...]:
     mm = _map()
     a = m.Assembler()
     e = a.emit
@@ -60,19 +60,29 @@ def movement_words() -> tuple[int, ...]:
     e(m.lw(m.T1, m.T0, mm.MB_FLAGS))
     e(m.andi(m.T1, m.T1, mm.FLAG_ORBIT))
     _branch(a, 'beq', m.T1, m.ZERO, 'native')
-    _addr(e, m.T1, mm.PLAYER_GLOBAL)
-    e(m.lw(m.T1, m.T1, 0))
-    _branch(a, 'beq', m.T1, m.ZERO, 'native')
-    e(m.andi(m.T2, m.T1, 15))
-    _branch(a, 'bne', m.T2, m.ZERO, 'native')
+    if released:  # only to recognize both earlier MCA1 state formats
+        _addr(e, m.T1, mm.PLAYER_GLOBAL)
+        e(m.lw(m.T1, m.T1, 0))
+        _branch(a, 'beq', m.T1, m.ZERO, 'native')
+        e(m.andi(m.T2, m.T1, 15))
+        _branch(a, 'bne', m.T2, m.ZERO, 'native')
+    else:
+        from .caves import pointer
+        pointer(a, m.S1, 'native')
+        e(m.lw(m.T1, m.S1, mm.PC_PAWN))
+        pointer(a, m.T1, 'native')
     e(m.lw(m.T2, m.T0, mm.MB_ACCEPTED))
     _branch(a, 'bne', m.T1, m.T2, 'native')
     e(m.lw(m.T2, m.T0, mm.MB_SNAPSHOT + mm.SLOT_PLAYER))
     _branch(a, 'bne', m.T1, m.T2, 'native')
     # ProcessAnalog's S1 is the native player controller (not a fixed heap
     # address). Never redirect another controller's movement using our snapshot.
-    e(m.lw(m.T2, m.S1, 0x1EC))
-    _branch(a, 'bne', m.T1, m.T2, 'native')
+    if released:
+        e(m.lw(m.T2, m.S1, 0x1EC))
+        _branch(a, 'bne', m.T1, m.T2, 'native')
+    else:
+        e(m.lw(m.T2, m.T1, mm.PLAYER_CONTROLLER))
+        _branch(a, 'bne', m.S1, m.T2, 'native')
     e(m.lw(m.T3, m.T0, mm.MB_SNAPSHOT + mm.SLOT_YAW))
     e(m.sw(m.T3, m.A2, 4))
     a.label('native')

@@ -1,16 +1,16 @@
 # ロマンシング サガ -ミンストレルソング- カメラ解析
 
-対象: 日本版 **SLPM-65920 / CRC 2B9AF3C5**。2026-11-04。
+対象: 日本版 **SLPM-65920 / CRC 2B9AF3C5**。初回解析2026-11-04、フィールド追従モード1の追加2026-11-21。
 ISO・ELF・RAM・画像・ステートはラボのGit管理外に置き、ここにはアドレスと測定要約だけを記す。
 
 ## 対応範囲
 
-- 通常フィールドの追従モード2でOrbit、距離1〜80、Pitch −25〜89.5°（正が上）、注視点高さ−10〜10（負が上）。
+- 通常フィールドの追従モード1・2でOrbit、距離1〜80、Pitch −25〜89.5°（正が上）、注視点高さ−10〜10（負が上）。
 - 独立した視点XYZ・注視点XYZオフセット（−30〜30）、水平FOV20〜110°。
 - 原作のコンパス方位盤とキャラクターの針、カメラ基準の歩行方向へ連動する。
 - Free Cameraは非対応。原作は右スティックでカメラ回転しないため入力遮断パッチは追加しない。
 - 原作カメラの衝突補正はOrbitへ適用しない。壁の内側・柱・未描画面が見えることがある。
-- 確認場面は提供ステートのイスマス城内。全エリア・全イベント・戦闘・長時間は未検証。
+- 確認場面は提供ステートのイスマス城内、カクラム砂漠など。全エリア・全イベント・戦闘・長時間は未検証。
 
 ## 4ステートからの発見
 
@@ -48,7 +48,7 @@ Ghidraで後続のlook-at生成とfield専用callを確認した。共有builder
 | `0x00417450 / 0x00417460` | 原作Target / Eye（変更しない） |
 | `0x00417470 / 0x00417480` | up / view追加translation |
 | `0x00417490` | cameraのtarget owner pointer |
-| `0x00417520` | camera mode。今回2だけ受理 |
+| `0x00417520` | camera mode。フィールド追従1・2だけ受理 |
 | `0x00417524` | 原作焦点距離。512.8956299、変更しない |
 | `0x0041752C / 0x00417530` | 消費側へ渡るOrbit yaw(rad) / distance |
 | `0x00417534 / 0x00417538` | 前frameのyaw / distance |
@@ -100,13 +100,17 @@ FOVはOrbitに付随。共通runtimeはOriginalのFOV-onlyを実行しない。
 ## 安全条件・復元
 
 - identifyはSerialとCRC両方。全adapter書込みはGUIのGuardedBackendを渡された `self.backend` 経由。
-- guest/host双方が mode2、target owner=canonical player、camera pointer一致、既知pause/load/field flagsを確認。
-  全special sceneを判別する保証ではない。
+- guest/host双方が mode1または2、target owner=canonical player、camera pointer一致、従来のpause/load/field 7フラグを確認。
+  カクラム砂漠の反例はmode1で原作poseを `0x001106B8` から、従来のmode2は別の分岐から作るが、どちらも同じfield look-at/angle callに合流する。
+  mode0は入口を共有しても今回の反例に該当しないので許可しない。全special sceneを判別する保証ではない。
 - **メニューはhostのread_sceneでは識別できない**。確認したメニューではfield専用hookが実行されず
   heartbeatが停止した。runtimeがheartbeat監視で安全を保証しているという意味ではない。
   メニューではOriginalへ戻すことを推奨。メニュー内での全hook/lens解除は実測した。
 - 全hook+delay/cave/control blockを最初の書込み前に検査。未知命令・非zeroの別caveは強制上書きしない。
   毎parameter発行前も全resourceを検査・不足code再構築する。
+- `other_area_1` と `playable1` は3hookこそstockだが、以前のmode2専用caveが残る。全3本の旧code全長が既知SHA-256と一致し、
+  全hook＋delayがstock、control magicがMSG1、flags/applied/projection所有がすべて0の場合に限り、新しいOrbit要求時に同じ範囲へ移行する。
+  Originalのままなら書かない。旧hook稼働中、一部混在、未知命令の場合は中止し、MOD未適用stateかゲーム再起動で復旧する。
 - cave `0x000F0000..0x000F1000`、block `0x000F1000..0x000F1300` は4状態で全zero、
   ELF最小PT_LOAD `0x00100000` より下。全将来kernel/overlay配置まで保証するものではない。
 - Original/通常終了で3hookをstockへ返し、projectionとnative eye/targetから求めたyaw/distanceを返す。

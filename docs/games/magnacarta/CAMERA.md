@@ -28,7 +28,7 @@ native insert `0x1B2100` は object `+0x20` のnameを `&0xFFF` し、bucket hea
 いずれも `+0x0C=0` のため旧host/guest guardは通常fieldでもscript frameなしとして拒否した。
 renderer/vtableの違いや、field script名IDの変化が今回の原因ではない。
 
-現行は**現在のPawnが所有する参照を毎回たどる**：
+11月8日版は**`0x53B868` の指すPawnが所有する参照を毎回たどる**方式だった（この入口は11月21日版で廃止）：
 
 - `PLAYER_GLOBAL → Pawn +0x3E4 (Magi) → Magi +0x220 (DataManager)`。
 - DataManagerはnative manager registry `0x5527B0[3] = 0x5527BC` と一致し、
@@ -44,10 +44,27 @@ renderer/vtableの違いや、field script名IDの変化が今回の原因では
 これらのheap値を製品の探索条件にはしない。native FOV診断もPawn `+0x1EC → controller +0x1F4` に訂正
 （旧Pawn `+0x1F4` は6stateで非pointerの `0x3A04` であり、55°fallbackを読んでいた）。
 
+### 2026-11-21 — ローカルプレイヤーの特定と Adventure field
+
+`0x53B868` はローカルプレイヤー専用のポインタではない。今回の追加10stateのうち6件では戦闘用AI側のPawnを指し、11月8日版は別Actorを追っていた。残る4件のうち2件は `MrtsFieldStateAdventure` で、旧mode 1/2の判定から外れていた。場所名・固定heap address・新たな例外mapは使用しない。
+
+現行はnativeのmanager registryから現在のworldに属するローカルコントローラを毎回特定する。`[p+n]` をEEポインタ読出しとすると経路は次のとおり。
+
+```text
+manager = [0x5527BC];         magi = [manager+0x7D4]
+level = [magi+0x78];          game = [level+0x364]
+pc = [game+0x358];            viewport = [pc+0x338];  pawn = [pc+0x1EC]
+```
+
+- `game+0x358` は16/16のstateで実体・相互参照が一致したフィールド（反射情報からのproperty名断定ではない）。`[magi+0x220]==manager`、`[viewport+0x30]==pc`、`[pawn+0x1EC]==pc`、`[pawn+0x3E4]==magi` をhost/guestの両方で照合する。
+- selector と active script のfull FName ID **の組**を `0 / 0x3148 (Adventure)`、`1 / 0x31D3 (Normal)`、`2 / 0x31CC (Detect)` に限定する。selector=0一般、未知script、組の入替えは許可しない。この拡張はカメラ用で、広域表示・エンカウントの既存guest条件は変更しない。
+- position・Orbit中心・native FOV (`pc+0x1F4`) は同じローカルプレイヤーから読む。別Pawnを受理した古い描画結果はpose/FOV表示に使わない。guestはさらに **native A1=viewport、A2=pawn** を要求し、sequenceが同一偶数で確定した**コピー済みbank**のplayerを照合してから受理する。
+- 移動は `ProcessAnalog` のS1とそのPawnの往復、直近の描画で受理したPawn、snapshot playerが一致した時だけローカルyawを変更する。別controller・別view actorではnativeに戻す。
+
 ## 座標・カメラ
 
 native は XY 平面・Z 上。adapter 境界で `(X,-Z,Y)` に変換し共通数学を変更しない。
-player global `0x53B868` → actor `+0xD0` が位置、`+0xDC/E0/E4` が Unreal rotator。
+上記のローカルPawn `+0xD0` が位置、`+0xDC/E0/E4` が Unreal rotator。
 描画nodeの Z は actor より80低い場合があり、移動判定の位置と混同しない。
 
 - field renderer `0x2B3940` の call `0x2B3B7C` → builder `0x2BD4B0`。
@@ -124,20 +141,17 @@ full preflight は初回・接続epoch変更・state消失・約1秒周期・解
 hot path は全hook pair、magic、flags/ACK/vtableを確認する。
 cave bodyだけの破損は次のfull auditまで検出遅延がある。
 pause中はEEが動かずACK不能。ゲームを再開して再試行する。
-追加2stateは旧MOD入りで、旧5hook・全6caveが既知exact、MCA1/ACKも整合していた。
-今回版はその**完全一致する旧renderer body＋新版が延長する範囲のゼロ**だけを認識し、
-他の全cave・hook pair・control/ACK・native callbackも検査したうえで自動移行する。
-旧EE lifecycleへflags0を要求 → ACK・全5hook stock・callback nativeを再検査 →
-到達不能となったrenderer caveだけを新版へ置換 → 現在playerのbankを公開・再適用、の順序を守る。
+提供された旧MOD入り12stateには2世代がある。`other_area` / `other_area_2` は初版render 1116 bytes、今回の10件は11月8日版render 1160 bytesで、移動168 bytesは共通。**旧renderと旧移動の両方が既知の完全一致、かつ両方の延長領域がゼロ**の場合だけ移行対象とする。boot・gameplayを含む他の全cave、flagsに対応した全hook pair、control/ACK、native callbackも照合する。
+旧EE lifecycleへflags0を要求（既にstock/ACK0なら再要求不要）→ ACK・全5hook stock・callback native・旧body一式を再検査 →
+到達不能となったrender/移動の2本だけを新版へ置換 → 現在のplayerを持つbankを公開・再適用、の順序を守る。
 旧命令を実行中のままhostが上書きする方法ではない。pause中・旧transaction中は移行しない。
 magic一致だけ、未知/破損したcave、認識外の版との混在、任意の将来版は対象外でfail-closed。
 認識外の版では従来通り **clean stock stateまたはゲーム再起動** が必要。原本stateへ保存はしない。
 
 ## 制限
 
-確認対象は元4state＋追加2state（2map/2Field・再訪状態）と通常歩行のmap境界越え1例。
-所有参照はmapのheap address非依存だが、
-selector1/2・active script・player所有確認は全event/menu/battleを完全に識別する保証ではない。
+11月8日版の確認対象は6stateと通常歩行のmap境界越え1例。11月21日版は追加10件を含む16stateでローカルplayerの所有関係、4姿勢の描画・FOV・Original復帰を確認した。敵に隣接する旧stateは、移行中にエンカウント無効が一時解除されるため、その場を離れてから切り替える。
+所有参照はmapのheap address非依存だが、3組のselector/active script、viewportやplayer所有確認は全event/menu/battleを完全に識別する保証ではない。
 全map、長時間、全特殊camera、強制戦闘は未網羅。実行した条件は [TEST_RESULTS](TEST_RESULTS.md) を参照。
 Orbit collision はなく、壁・樹木へのめり込み、裏面・map外の背景は残る。
 機能の実装と今回の確認範囲を混同しない。

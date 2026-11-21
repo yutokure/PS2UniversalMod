@@ -3,6 +3,9 @@
 The field angle call computes native yaw first (for safe restoration) then the
 render yaw. The stock compass disk/needle and walk consumers see that render yaw.
 """
+import hashlib
+import struct
+
 from core import mips_asm as m
 from . import memory_map as mm
 
@@ -17,6 +20,13 @@ def _addr(e, reg, address):
 
 def _guard(a, reject):
     e = a.emit
+    # Unsigned (mode - 1) < 2 admits only 1 and 2, including for high-bit inputs.
+    # Keep the selector the same length as the previously shipped mode==2 guard.
+    assert mm.FIELD_MODES == (1, 2)
+    _addr(e, m.T2, mm.CAM_MODE); e(m.lw(m.T2, m.T2, 0))
+    e(m.addiu(m.T2, m.T2, -1))
+    e(0x2C000000 | (m.T2 << 21) | (m.T3 << 16) | 2)  # sltiu t3,t2,2
+    a.beqz(m.T3, reject); e(m.NOP)
     for address, value in (*mm.EXACT_GUARDS, *((p, 0) for p in mm.ZERO_GUARDS)):
         _addr(e, m.T2, address); e(m.lw(m.T2, m.T2, 0))
         _addr(e, m.T3, value)
@@ -143,15 +153,35 @@ def site_state(b):
     return 'stock' if all(s == 'stock' for s in states) else 'applied'
 
 
+# SHA-256 of the three complete original MSG1 (mode-2-only) wrappers, little endian.
+# An exact, *uninstalled* set is present in playable1 and other_area_1. The block
+# layout and wrapper lengths did not change. Never rewrite legacy code under a live JAL.
+_LEGACY_SHA256 = {
+    mm.CAMERA_CAVE: 'c3be1854ea479dcef0b2ca33c3a4f572f605a264a2acd7bf0acd240b6349931b',
+    mm.ANGLE_CAVE: 'ea89a807cde8e2dfc860d6ada0ef3c9bec42aaaf102e69ffe5620b74b70c72d2',
+    mm.FOV_CAVE: '83188bc04b64d5b364aa8a4ecde4fc0f2ce95f2f3a4435dc60d68b7546472714',
+}
+
+
 def preflight(b):
-    if site_state(b) == 'unknown': raise PatchConflict('unknown Minstrel Song hook')
+    """Validate resources without writing. Return True only for an inert legacy set."""
+    state = site_state(b)
+    if state == 'unknown': raise PatchConflict('unknown Minstrel Song hook')
+    legacy = 0
     for _, _, _, address, words in RESOURCES:
         got = read_words(b, address, len(words))
-        if got != tuple(words) and any(got): raise PatchConflict('Minstrel Song code cave is occupied')
+        if got == tuple(words) or not any(got): continue
+        if hashlib.sha256(struct.pack(f'<{len(got)}I', *got)).hexdigest() != _LEGACY_SHA256[address]:
+            raise PatchConflict('Minstrel Song code cave is occupied')
+        legacy += 1
     magic = b.read_u32(mm.MOD_BLOCK)
     if magic not in (0, mm.MAGIC): raise PatchConflict('Minstrel Song control block is occupied')
     if not magic and any(read_words(b, mm.MOD_BLOCK, mm.BLOCK_SIZE//4)):
         raise PatchConflict('Minstrel Song control block is not empty')
+    if legacy and (legacy != len(RESOURCES) or state != 'stock' or magic != mm.MAGIC
+                   or any(b.read_u32(mm.MOD_BLOCK+off) for off in (mm.MB_FLAGS, mm.MB_APPLIED, mm.MB_PROJ_OWNED))):
+        raise PatchConflict('active or incomplete legacy Minstrel Song patch; load an unpatched state')
+    return bool(legacy)
 
 
 def prepare(b):
@@ -163,7 +193,7 @@ def prepare(b):
 
 
 def install(b):
-    preflight(b)
+    if preflight(b): raise PatchConflict('legacy Minstrel Song code was not prepared')
     for address, stock, hook, _, _ in reversed(RESOURCES):
         if b.read_u32(address) == stock[0]: b.write_u32(address, hook[0])
 
@@ -179,7 +209,7 @@ def restore_projection(b):
 
 
 def uninstall(b):
-    preflight(b)
+    if preflight(b): return  # All hooks already stock; leave the released legacy state untouched.
     owned = b.read_u32(mm.MOD_BLOCK) == mm.MAGIC
     if owned: b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS, 0)
     for address, stock, hook, _, _ in RESOURCES:

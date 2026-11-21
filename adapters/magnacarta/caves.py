@@ -33,12 +33,8 @@ def pointer(a, reg, reject, *, legacy=False):
     else: addr(e,11,0x1FFF000)  # room for every subsequent property load
     e(reg<<21 | 11<<16 | 11<<11 | 0x2B); br(a,'beq',11,0,reject)
 
-def scene(a, reject, *, legacy=False):
-    """t1=current pawn, t0=control. Scratch t2/t3/t4 only.
-
-    legacy emits the exact released MCA1 body solely for safe state migration;
-    it is never installed as the new renderer.
-    """
+def released_scene(a, reject, *, legacy):
+    """First two released MCA1 guards; emitted for exact migration identity only."""
     e=a.emit
     addr(e,9,mm.PLAYER_GLOBAL); e(m.lw(9,9,0)); pointer(a,9,reject,legacy=legacy)
     if legacy:
@@ -64,7 +60,38 @@ def scene(a, reject, *, legacy=False):
     e(m.addiu(11,0,mm.FIELD_SCRIPT_NAMES[1])); br(a,'bne',10,11,reject)
     a.label('script_ok')
 
-def render_words(*, legacy=False):
+def scene(a, reject):
+    """Same manager/world/viewport graph and exact mode/script pairs as host.
+
+    At the native builder call A1 is the viewport and A2 the script-selected
+    view actor. Neither an AI pawn in 53B868 nor a cinematic view is sufficient.
+    Leave the verified pawn in t1, MCA1 base in t0. pointer() clobbers t3.
+    """
+    e=a.emit
+    def load_ptr(dest, base, offset):
+        e(m.lw(dest,base,offset)); pointer(a,dest,reject)
+    addr(e,10,mm.FIELD_OWNER_GLOBAL); load_ptr(10,10,0)  # manager
+    load_ptr(12,10,mm.OWNER_MAGI)                       # magi
+    e(m.lw(11,12,mm.MAGI_OWNER)); br(a,'bne',11,10,reject)
+    load_ptr(10,10,mm.STATE_POINTER)
+    e(0x90000000 | 10<<21 | 9<<16 | mm.STATE_MODE)     # lbu t1,mode(t2)
+    load_ptr(10,12,0x0C); load_ptr(10,10,0x18); e(m.lw(10,10,0x20))
+    for mode,name in mm.FIELD_SCENES:
+        e(m.addiu(11,0,mode)); br(a,'bne',9,11,f'next_mode{mode}')
+        e(m.addiu(11,0,name)); br(a,'beq',10,11,'field_ok')
+        a.label(f'next_mode{mode}')
+    br(a,'beq',0,0,reject)
+    a.label('field_ok')
+    load_ptr(10,12,mm.ACTOR_LEVEL); load_ptr(10,10,mm.LEVEL_GAME)
+    load_ptr(10,10,mm.GAME_LOCAL_PC)                     # local PC
+    load_ptr(9,10,mm.PC_PLAYER); br(a,'bne',9,m.A1,reject)
+    e(m.lw(11,9,mm.VIEWPORT_ACTOR)); br(a,'bne',11,10,reject)
+    load_ptr(9,10,mm.PC_PAWN)
+    e(m.lw(11,9,mm.PLAYER_CONTROLLER)); br(a,'bne',11,10,reject)
+    e(m.lw(11,9,mm.PLAYER_MAGI)); br(a,'bne',11,12,reject)
+
+
+def render_words(*, released=None):
     a=m.Assembler(); e=a.emit; frame=0x100
     e(m.addiu(29,29,-frame)); save(a,SCRATCH); e(sq(31,0x50)); e(sq(7,0x60))
     for f,off in ((0,0x70),(1,0x74),(12,0x78)): e(m.swc1(f,29,off))
@@ -72,7 +99,8 @@ def render_words(*, legacy=False):
     e(m.lw(10,8,0)); addr(e,11,mm.MAGIC); br(a,'bne',10,11,'native')
     e(m.sw(0,8,mm.MB_ACCEPTED))  # Revoke stale movement ownership every render.
     e(m.lw(10,8,mm.MB_FLAGS)); e(m.andi(10,10,mm.FLAG_ORBIT)); br(a,'beq',10,0,'native')
-    scene(a,'native',legacy=legacy)
+    if released is None: scene(a,'native')
+    else: released_scene(a,'native',legacy=released=='hash')
     # This callsite's A2 is the ordinary player's view actor; never follow a
     # different script camera. Movement also checks its controller's pawn.
     br(a,'bne',9,6,'native')  # A2 is the current player view actor itself.
@@ -84,10 +112,15 @@ def render_words(*, legacy=False):
     e(m.swc1(12,8,mm.MB_NATIVE_FOV))
     e(m.lw(10,8,mm.MB_SLOT)); e(m.andi(10,10,1)); e(10<<16 | 10<<11 | 7<<6)
     e(m.addiu(12,8,mm.SLOTS[0])); e(10<<21 | 12<<16 | 12<<11 | 0x21)
-    e(m.lw(10,12,mm.SLOT_PLAYER)); br(a,'bne',9,10,'native')
+    if released is not None:
+        e(m.lw(10,12,mm.SLOT_PLAYER)); br(a,'bne',9,10,'native')
     e(m.lw(11,12,mm.SLOT_SEQUENCE)); e(m.andi(10,11,1)); br(a,'bne',10,0,'native')
     for off in range(0,0x80,4): e(m.lw(10,12,off)); e(m.sw(10,8,mm.MB_SNAPSHOT+off))
     e(m.lw(10,12,0)); br(a,'bne',10,11,'native')
+    if released is None:
+        # Validate the *copied* player after a stable, even sequence. The bank
+        # may have been republished between choosing it and sampling sequence.
+        e(m.lw(10,8,mm.MB_SNAPSHOT+mm.SLOT_PLAYER)); br(a,'bne',9,10,'native')
     for i in range(3):
         e(m.lwc1(0,9,mm.PLAYER_POSITION+4*i))
         for slot,out,stack in ((mm.SLOT_EYE,mm.MB_RENDER_EYE,0xA0),(mm.SLOT_TARGET,mm.MB_RENDER_TARGET,0xB0)):
@@ -111,7 +144,9 @@ def render_words(*, legacy=False):
 
 RENDER_WORDS=render_words()
 # Exact released body, not an allowlist based on magic/header alone.
-LEGACY_RENDER_WORDS=render_words(legacy=True)
+LEGACY_RENDER_WORDS=render_words(released='hash')
+PAWN_RENDER_WORDS=render_words(released='pawn')
+RELEASED_RENDERERS=(LEGACY_RENDER_WORDS,PAWN_RENDER_WORDS)
 
 def _external():
     from . import gameplay
@@ -164,23 +199,27 @@ class Inspection:
     empty: tuple[int,...]
     init: bool
     state: str
-    legacy: bool = False
+    legacy: str = ''  # exact released render + movement pair, never a partial mix
 
 def preflight(b):
     state=site_state(b)
     if state=='unknown': raise PatchConflict('unknown Magna Carta hook/delay instruction')
     boot=b.read_u32(mm.BOOT_SITE)
     if boot not in (mm.BOOT_NATIVE,mm.BOOT_CAVE): raise PatchConflict('unknown Magna Carta render virtual method')
-    empty=[]; legacy=False
+    empty=[]; legacy=''; old_move=False
     for address,words in code_resources():
         actual=read_words(b,address,len(words))
-        if actual!=tuple(words):
-            if (address==mm.RENDER_CAVE
-                    and actual==LEGACY_RENDER_WORDS+(0,)*(len(words)-len(LEGACY_RENDER_WORDS))):
-                legacy=True
-            else:
-                if any(actual) or state!='stock' or boot!=mm.BOOT_NATIVE: raise PatchConflict('Magna Carta cave occupied, damaged or reachable')
-                empty.append(address)
+        if actual==tuple(words): continue
+        # Both released bodies are shorter: unused extension MUST be all zero.
+        def exact(old): return actual==old+(0,)*(len(words)-len(old))
+        if address==mm.RENDER_CAVE and exact(LEGACY_RENDER_WORDS): legacy='hash'
+        elif address==mm.RENDER_CAVE and exact(PAWN_RENDER_WORDS): legacy='pawn'
+        elif address==directions.CAVE and exact(directions.movement_words(released=True)): old_move=True
+        elif any(actual) or state!='stock' or boot!=mm.BOOT_NATIVE:
+            raise PatchConflict('Magna Carta cave occupied, damaged or reachable')
+        else: empty.append(address)
+    if bool(legacy)!=old_move:
+        raise PatchConflict('Magna Carta mixed legacy/current cave bodies')
     magic=b.read_u32(mm.MOD_BLOCK)
     if magic not in (0,mm.MAGIC): raise PatchConflict('Magna Carta control block occupied')
     if (state!='stock' or boot!=mm.BOOT_NATIVE) and magic!=mm.MAGIC: raise PatchConflict('Magna Carta active hooks without ownership')
@@ -188,7 +227,8 @@ def preflight(b):
     if legacy and (empty or magic!=mm.MAGIC or boot!=mm.BOOT_NATIVE
                    or b.read_u32(mm.MOD_BLOCK+mm.MB_COMMAND)!=mm.CMD_ACK
                    or b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&~15
-                   or b.read_u32(mm.MOD_BLOCK+mm.MB_ACK_FLAGS)!=b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)):
+                   or b.read_u32(mm.MOD_BLOCK+mm.MB_ACK_FLAGS)!=b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)
+                   or not matches(b,b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS))):
         raise PatchConflict('Magna Carta legacy state is incomplete or busy; load clean stock state')
     return Inspection(tuple(empty),not magic,state,legacy)
 
@@ -198,12 +238,11 @@ def prepare(b,p):
         # Only after ACK + every hook stock + callback native is its body unreachable.
         sync(b,0,Inspection((),False,p.state))
         released=preflight(b)
-        if (released.state!='stock' or not released.legacy
-                or b.read_u32(mm.BOOT_SITE)!=mm.BOOT_NATIVE):
+        if (released.state!='stock' or released.legacy!=p.legacy
+                or b.read_u32(mm.BOOT_SITE)!=mm.BOOT_NATIVE or b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)!=0):
             raise PatchConflict('Magna Carta legacy release/readback mismatch')
-        for i,w in enumerate(RENDER_WORDS): b.write_u32(mm.RENDER_CAVE+4*i,w)
     for address,words in code_resources():
-        if address in p.empty:
+        if address in p.empty or (p.legacy and address in (mm.RENDER_CAVE,directions.CAVE)):
             for i,w in enumerate(words): b.write_u32(address+4*i,w)
     if p.init: b.write_u32(mm.MOD_BLOCK,mm.MAGIC)
 
