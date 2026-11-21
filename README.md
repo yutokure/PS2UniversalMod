@@ -37,6 +37,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | グランディアII | [Grandia II adapter](<adapters/grandia2/adapter.py>) | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜110°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
 | テイルズ オブ シンフォニア | [Symphonia adapter](<adapters/talesofsymphonia/adapter.py>) | `SLPS-25400` / `830B6FB1` | 町等の通常マップ／徒歩ワールドフィールドのOrbit、移動方向、フィールドコンパス・地図視線、FOV20〜110°、距離・独立6軸オフセット（Free・時計停止・特殊車両非対応） | [解析・確認範囲](<docs/games/talesofsymphonia/CAMERA.md>) |
 | マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | ローカルプレイヤーを追従するOrbit（歩行・走行・Adventureフィールド）、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
+| RPGツクール5 | [RPG Maker 5 adapter](adapters/rpgmaker5/adapter.py) | `SLPS-20143` / `BB78C51D` | 編集カーソル／テストプレイの操作キャラを中心に右スティックで連続Orbit、距離、水平FOV 20〜60° | [解析・確認範囲](docs/games/rpgmaker5/CAMERA.md) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -100,7 +101,7 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 | ゲーム固有機能 | マグナカルタの走行時広域表示・エンカウント無効（ON時オレンジ丸枠非表示）、各読戻し状態。独立したセッション専用切替。未対応ゲームは理由付き無効 |
 | カメラ回転 | Yaw、Pitch、回転速度、右スティック感度、デッドゾーン、左右反転、上下反転、入力ソース（auto / xinput / keyboard / scripted） |
 | カメラ位置 | 距離、注視点の高さ。「オフセット（詳細）」を開くとカメラ X/Y/Z・注視点 X/Y/Z（0 以外があると見出しに「設定あり」と出ます） |
-| カメラレンズ（FOV） | FOV（通常20〜110°。グランディアIIも20〜110°）、上書きの適用、現在値、ゲーム値に戻す |
+| カメラレンズ（FOV） | 水平FOV（通常20〜110°。RPGツクール5はオービット中に20〜60°）、上書きの適用、現在値、ゲーム値に戻す |
 | ゲーム標準ズーム（対応ゲームのみ） | 現在の段階、段階ボタン、R1 でオービット距離を連動（幻想水滸伝V。連動の設定はゲームごとに保存） |
 | デバッグ表示（既定で折りたたみ） | カメラ座標、プレイヤー座標、更新頻度、最終更新 |
 
@@ -344,6 +345,12 @@ presets\*.json                                  同梱プリセット（orbit-de
 - カメラに壁との衝突判定はありません。屋内や壁際で視界が遮られたら、距離を縮めるか角度を変えてください。
   提供ステートでの実測・対象外の場面は[確認結果](docs/games/magnacarta/TEST_RESULTS.md)、判定と復元の詳細は[解析](docs/games/magnacarta/CAMERA.md)を参照してください。
 
+### 5.13 RPGツクール5
+
+- マップ編集では画面に表示されないカーソル、テストプレイでは操作キャラが回転の中心です。「オービット」を選び、右スティックの左右で方位、上下で仰角を変えます。R1は不要で、45°の中間でも止められます。方向キーで移動すると、そのまま中心を追従します。
+- 水平FOVはオービット中に「FOV の上書きを適用」をオンにして20〜60°で設定します。「ゲーム値に戻す」は角度を保って原作の約28.07°に戻します。広角でマップ外や地面の欠けが見える場合は画角を狭めてください。
+- 「オリジナル」に戻すと、移動先を中心に原作の角度・距離・画角へ復帰します。原作のR1＋方向キーやステートロードはこの状態で行ってください。Free Camera、注視点の高さ調整、独立オフセットには対応しません。[解析](docs/games/rpgmaker5/CAMERA.md)・[提供7ステートでの確認結果](docs/games/rpgmaker5/TEST_RESULTS.md)
+
 ## 6. ローカルデータの場所（Git 管理外）
 
 ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます（`core/config/paths.py`）。
@@ -373,7 +380,8 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 
 | 対象 | コマンド |
 |---|---|
-| 全ゲーム共通の回帰（Orbit・FOV・復帰） | `python tools/regression_check.py` |
+| FFX-2・シャイニング・フォース ネオ／イクサ・幻想水滸伝Vの回帰（Orbit・FOV・復帰） | `python tools/regression_check.py` |
+| RPGツクール5 | 編集・テストプレイでの[GUIによる確認手順と実測値](docs/games/rpgmaker5/TEST_RESULTS.md)。オフラインの所有権・復元・GUIテストは `python -m pytest tests -k rpgmaker5` |
 | GUI を PCSX2 の強制終了・再起動で試す | `python tools/gui_freeze_check.py --kill --relaunch` |
 | PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。ディスクとセーブステートは読むだけ） |
 | 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |

@@ -70,6 +70,8 @@ class MyGameAdapter:
 - `accepts_look_height = True` の adapter は `write_orbit_params(..., look_height=...)` で
   設定の相対高さを受け取ります。SF Neo / Exa はこれを使い、異なるフレームのキャラクター Y と中心座標を
   引き算して移動量を高さ設定へ混入させないようにします。指定しない adapter の呼出しは従来どおりです。
+- 原作だけが注視点の高さを決める場合は `features["look_height"] = False` とします。GUIは高さを無効にし、保存設定・プリセットの高さも0に補正します（未指定は従来どおり）。
+  Orbit中だけFOVを変更できる場合は `features["fov_requires_orbit"] = True` でGUIの説明を切り替えます。これは表示用で、書込み条件は[アダプター側](adapters/rpgmaker5/adapter.py)でも照合します。
 - `accepts_orbit_offsets = True` は `write_orbit_params(..., pos_offset=Vec3, target_offset=Vec3)` で
   独立したeyeオフセットと、`look_height + target_offset.y` を含む相対注視点を受け取ります。
   ドルアーガはguest内で最新actor位置を加算し、別frameのactorを引き算して移動量を混入させません。

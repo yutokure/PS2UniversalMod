@@ -913,6 +913,86 @@ def test_dragonquest5_title_translation_is_registered(language, expected):
     assert TEXT["game.dragonquest5"][language] == expected
 
 
+RPG5_ID, RPG5_CRC = "SLPS-20143", "BB78C51D"
+
+
+@pytest.fixture()
+def rpg5_window(env, monkeypatch):
+    """Real GUI selection and guard; no workers, live connection or gameplay fixture."""
+    monkeypatch.setattr(gui.StatusPoller, "start", lambda self: None)
+    monkeypatch.setattr(gui.CameraRuntime, "start", lambda self: None)
+    monkeypatch.setattr(gui.MainWindow, "_setup_input", lambda self: None)
+
+    def make(serial=RPG5_ID, crc=RPG5_CRC):
+        backend = GuiBackend()
+        backend.gid, backend.crcv, backend.ttl = serial, crc, "Disc title"
+        return env.make(lambda: backend), backend
+
+    return make
+
+
+def test_rpgmaker5_registration_uses_its_own_adapter():
+    from adapters.rpgmaker5.adapter import RPGMaker5Adapter
+    assert gui.ADAPTERS["RPGMAKER5"] is RPGMaker5Adapter
+    assert gui.ADAPTER_BY_GAME_ID[RPG5_ID] is RPGMaker5Adapter
+    assert RPG5_ID in gui.SUPPORTED_IDS
+
+
+@pytest.mark.parametrize("serial,crc", [(RPG5_ID, "DEADBEEF"), (RPG5_ID, ""), ("SLPS-00000", RPG5_CRC)])
+def test_rpgmaker5_unverified_disc_stays_read_only(rpg5_window, serial, crc):
+    w, backend = rpg5_window(serial, crc)
+    assert w.runtime is None and not w.guard.writes_allowed
+    assert not w.grp_mode.isEnabled() and not w.grp_lens.isEnabled()
+    with pytest.raises(WriteBlocked):
+        w.guard.write_u32(0, 1)
+    assert backend.mem == {}
+
+
+def test_rpgmaker5_features_and_translations_match_the_native_rig(rpg5_window):
+    w, backend = rpg5_window(crc=RPG5_CRC.lower())
+    assert type(w.adapter) is gui.RPGMaker5Adapter
+    assert w.adapter.name == "RPGMAKER5" and w.adapter.backend is w.guard
+    assert w.guard.expected == (RPG5_ID, RPG5_CRC) and w.guard.writes_allowed
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL and w.rb_original.isChecked()
+    assert w.rb_orbit.isEnabled() and not w.rb_free.isEnabled()
+    assert w.sl_fov.isEnabled() and w.chk_fov.isEnabled()
+    for slider, limits in ((w.sl_dist, (200, 1600)), (w.sl_pitch, (20, 75)), (w.sl_fov, (20, 60))):
+        assert (slider.spin.minimum(), slider.spin.maximum()) == limits
+    w.grp_offsets.setChecked(True)
+    assert not w.sl_look.isEnabled() and not any(sl.isEnabled() for sl in w.off)
+    for lang, title in (("en", "RPG Maker 5"), ("ja", "RPGツクール5")):
+        w.cmb_lang.setCurrentIndex(w.cmb_lang.findData(lang))
+        assert title in w.windowTitle()
+        reason = gui.tr("tip.look_height_unsupported")
+        assert reason != "tip.look_height_unsupported"
+        assert w.sl_look.toolTip() == w.lbl_look_hint.text() == reason
+        assert w.chk_fov.toolTip() == w.sl_fov.toolTip() == gui.tr("tip.fov_orbit_only")
+        assert all(sl.toolTip() == gui.tr("tip.offsets_unsupported") for sl in w.off)
+    assert backend.mem == {}
+
+
+def test_rpgmaker5_saved_settings_and_presets_cannot_override_native_look_height(rpg5_window):
+    store = gui.SettingsStore()
+    old = store.get(RPG5_ID)
+    old.mode, old.look_height, old.distance = gui.MODE_FREE, 25.0, 810.0
+    store.put(old)
+    w, backend = rpg5_window()
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.runtime.settings.distance == 810.0
+    assert w.sl_look.value() == w.runtime.settings.look_height == w.app_settings.look_height == 0
+    old.look_height, old.distance = -15.0, 720.0
+    w.presets.save("native-rig", old)
+    w._refresh_presets()
+    w.cmb_preset.setCurrentText("native-rig")
+    w.btn_load.click()
+    assert w.runtime.settings.mode == gui.MODE_ORIGINAL
+    assert w.runtime.settings.distance == 720.0
+    assert w.sl_look.value() == w.runtime.settings.look_height == w.app_settings.look_height == 0
+    w._persist()
+    assert gui.SettingsStore().get(RPG5_ID).look_height == 0
+    assert backend.mem == {}
+
+
 def test_connected_game_enables_controls_and_uses_the_game_limits(env):
     w = env.make(SuikodenBackend)
     env.spin(0.5)
@@ -924,6 +1004,8 @@ def test_connected_game_enables_controls_and_uses_the_game_limits(env):
     assert (w.sl_yaw.spin.minimum(), w.sl_yaw.spin.maximum()) == (-180.0, 180.0)
     assert w.sl_pitch.spin.minimum() < 0 < w.sl_pitch.spin.maximum()
     assert w.lbl_look_hint.text() and w.lbl_pitch_hint.text()
+    assert w.sl_look.isEnabled() and w.sl_look.toolTip() == gui.tr("tip.look_height")
+    assert w.sl_fov.toolTip() == gui.tr("tip.fov")
     assert not w.rb_free.isEnabled()                       # no detached camera for this game
     assert w.grp_zoom.isVisibleTo(w)
 

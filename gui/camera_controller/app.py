@@ -68,6 +68,7 @@ from adapters.innocentlife.adapter import InnocentLifeAdapter  # noqa: E402
 from adapters.grandia2.adapter import Grandia2Adapter  # noqa: E402
 from adapters.talesofsymphonia.adapter import TalesOfSymphoniaAdapter  # noqa: E402
 from adapters.magnacarta.adapter import MagnaCartaAdapter  # noqa: E402
+from adapters.rpgmaker5.adapter import RPGMaker5Adapter  # noqa: E402
 from core.camera_math.orbit import FOV_MAX_DEG, FOV_MIN_DEG  # noqa: E402
 from core.camera_runtime.engine import (  # noqa: E402
     MODE_FREE, MODE_ORBIT, MODE_ORIGINAL, CameraRuntime, CameraSettings,
@@ -95,23 +96,25 @@ ADAPTERS = {"FFX2": FFX2Adapter, "SFNEO": SFNeoAdapter, "SFEXA": SFExaAdapter,
             "RADIATA": RadiataStoriesAdapter, "MINSTRELSONG": MinstrelSongAdapter,
             "DRAGONQUEST5": DragonQuest5Adapter, "INNOCENTLIFE": InnocentLifeAdapter,
             "GRANDIA2": Grandia2Adapter, "TALESOFSYMPHONIA": TalesOfSymphoniaAdapter,
-            "MAGNACARTA": MagnaCartaAdapter}
+            "MAGNACARTA": MagnaCartaAdapter, "RPGMAKER5": RPGMaker5Adapter}
 #: adapter class per game serial, chosen when the GUI connects
 ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPM-65908": SFNeoAdapter,
                       "SLPM-66646": SFExaAdapter, "SLPM-66286": Suikoden5Adapter,
                       "SLPS-25377": DruagaAdapter, "SLPM-65800": RadiataStoriesAdapter,
                       "SLPM-65920": MinstrelSongAdapter, "SLPM-65555": DragonQuest5Adapter,
                       "SLPS-25763": InnocentLifeAdapter, "SLPM-65081": Grandia2Adapter,
-                      "SLPS-25400": TalesOfSymphoniaAdapter, "SLPS-25401": MagnaCartaAdapter}
+                      "SLPS-25400": TalesOfSymphoniaAdapter, "SLPS-25401": MagnaCartaAdapter,
+                      "SLPS-20143": RPGMaker5Adapter}
 #: ids the current adapters actually verify.  Each adapter matches on serial *and*
 #: CRC (FFX-2 ``8A6D7F14``, Shining Force Neo ``64F241D2``, Shining Force Exa ``8B383FDF``,
 #: Suikoden V ``7380A572``, Nightmare of Druaga ``B476ED7A``, Radiata Stories ``AC73005E``,
 #: Minstrel Song ``2B9AF3C5``, Dragon Quest V ``B64E9939``, Innocent Life ``9AC21F92``,
-#: Grandia II ``B6AB7BC2``, Tales of Symphonia ``830B6FB1``, Magna Carta ``EB925207``),
+#: Grandia II ``B6AB7BC2``, Tales of Symphonia ``830B6FB1``, Magna Carta ``EB925207``,
+#: RPG Maker 5 ``BB78C51D``),
 #: which only the Japanese releases satisfy; unverified versions are deliberately not listed here.
 SUPPORTED_IDS = {"SLPS-25250", "SLPM-65908", "SLPM-66646", "SLPM-66286", "SLPS-25377",
                  "SLPM-65800", "SLPM-65920", "SLPM-65555", "SLPS-25763", "SLPM-65081",
-                 "SLPS-25400", "SLPS-25401"}
+                 "SLPS-25400", "SLPS-25401", "SLPS-20143"}
 
 #: severity styles of the notice bar (explicit foreground *and* background: readable on any theme)
 NOTICE_STYLE = {
@@ -633,7 +636,7 @@ class MainWindow(QMainWindow):
         # sits in the middle of the frame, so it is a first-class control, not an offset.
         self.sl_look = FloatSlider(-40.0, 40.0, -6.0, 2, 0.5)
         self.sl_look.valueChanged.connect(lambda v: self._set(look_height=v))
-        self._row(form, "pos.look_height", self.sl_look, "tip.look_height")
+        self._look_label = self._row(form, "pos.look_height", self.sl_look)
         self.lbl_look_hint = QLabel("")
         self.lbl_look_hint.setWordWrap(True)
         self.lbl_look_hint.setStyleSheet("color:#666;")
@@ -677,7 +680,7 @@ class MainWindow(QMainWindow):
         self.lbl_fov_now = QLabel(self._t("lens.current_none"))
         self.btn_fov_reset = self._btn("lens.reset")
         self.btn_fov_reset.clicked.connect(lambda _=False: self._reset_fov())
-        self._row(form, "lens.fov", self.sl_fov, "tip.fov")
+        self._fov_label = self._row(form, "lens.fov", self.sl_fov)
         form.addRow(self.chk_fov)
         self._row(form, "lens.live", self.lbl_fov_now)
         form.addRow(self.btn_fov_reset)
@@ -795,12 +798,20 @@ class MainWindow(QMainWindow):
             getattr(self, f"lbl_{name}_reason").setText(reason)
             checkbox.setToolTip(self._t(f"toggle.{name}.explanation") if ok else reason)
         fov_ok = bool(f.get("fov", True))
+        fov_tip_key = "tip.fov_orbit_only" if f.get("fov_requires_orbit") else "tip.fov"
+        fov_tip = self._t(fov_tip_key if fov_ok else "lens.unsupported")
+        self._fov_label.setToolTip(fov_tip)
         for control in (self.sl_fov, self.chk_fov, self.btn_fov_reset):
             control.setEnabled(fov_ok)
-            control.setToolTip(self._t("tip.fov") if fov_ok else self._t("lens.unsupported"))
+            control.setToolTip(fov_tip)
         free_ok = bool(f.get("free_camera", True))
         self.rb_free.setEnabled(free_ok)
         self.rb_free.setToolTip("" if free_ok else self._t("mode.free_unsupported"))
+        look_ok = bool(f.get("look_height", True))
+        self.sl_look.setEnabled(look_ok)
+        look_tip = self._t("tip.look_height" if look_ok else "tip.look_height_unsupported")
+        self.sl_look.setToolTip(look_tip)
+        self._look_label.setToolTip(look_tip)
         independent_eye = bool(getattr(self.adapter, "accepts_orbit_offsets", False))
         for i, sl in enumerate(self.off):
             ok = bool(f.get("position_offsets", True)) if i < 3 else bool(f.get("target_offsets", True))
@@ -813,7 +824,10 @@ class MainWindow(QMainWindow):
 
     def _apply_adapter_limits(self, adapter, settings: CameraSettings) -> None:
         """Slider ranges and hints for this game (the adapter knows them; the GUI does not)."""
-        if not getattr(adapter, "features", {}).get("fov", True):
+        features = getattr(adapter, "features", {})
+        if not features.get("look_height", True):
+            settings.look_height = self.app_settings.look_height = 0.0
+        if not features.get("fov", True):
             # Saved values/presets must not bypass an unsupported UI control.
             settings.use_fov = False
             self.app_settings.use_fov = False
@@ -858,7 +872,10 @@ class MainWindow(QMainWindow):
         ad = self.adapter
         look = getattr(ad, "LOOK_HEIGHT_POSITIVE_IS", None)
         pitch = getattr(ad, "PITCH_POSITIVE_IS", None)
-        self.lbl_look_hint.setText(self._t("hint.look_up" if look == "up" else "hint.look_down") if look else "")
+        if not self._features().get("look_height", True):
+            self.lbl_look_hint.setText(self._t("tip.look_height_unsupported"))
+        else:
+            self.lbl_look_hint.setText(self._t("hint.look_up" if look == "up" else "hint.look_down") if look else "")
         self.lbl_pitch_hint.setText(self._t("hint.pitch_below" if pitch == "below" else "hint.pitch_above") if pitch else "")
 
     def _update_offsets_title(self) -> None:
