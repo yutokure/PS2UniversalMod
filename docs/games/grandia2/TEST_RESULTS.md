@@ -13,10 +13,12 @@
 本節から現行追記の直前までは、packet streaming追加前の旧sourceに対する履歴。
 旧性能最適化後の関連320テストと屋外／屋内・MainWindow／runtime統合の限定確認、当時のcleanupは成功したが、現行7siteを実証した結果ではない。
 
+本書の `sstates/`、`work/`、`test_evidence/` は開発ラボを基準とする保存先で、公開リポジトリには含まれません。
+
 ## データ保護と対象
 
-- 提供6ステートは [保護stateディレクトリ](<C:/PS2CameraLab/sstates/グランディア II/>) 内で原本保護し、差分解析に使用した。
-- 開始時のユーザー状態は別名 [user_start_20261107_1117.p2s](<C:/PS2CameraLab/sstates/grandia2/user_start_20261107_1117.p2s>) へ退避した。
+- 提供6ステートは 保護stateディレクトリ（`sstates/グランディア II/`） 内で原本保護し、差分解析に使用した。
+- 開始時のユーザー状態は別名 `sstates/grandia2/user_start_20261107_1117.p2s` へ退避した。
   旧版検証後に同stateを読込み、ユーザー開始状態の復帰を確認した（[旧cleanup](<#旧3hook版の最終cleanup>)）。
 - 実画面確認は提供場面の屋外と屋内。6stateを解析したことを6エリアすべての実機確認と言い換えない。
 - 原本ISO・ステート、展開RAM・ELF・Ghidra project・スクリーンショット・ログはrepository外。ゲーム由来データをコピー／コミットしない。
@@ -51,7 +53,7 @@ runnerのnative builder・inverse・projection cacheは**stub**。実際のPS2�
 
 ## PCSX2実機 — 確認済みの限定範囲
 
-以下は親担当から受けた確認結果と、ローカル [validation.json](<C:/PS2CameraLab/test_evidence/grandia2/validation.json>) の読取りによる要約。
+以下は親担当から受けた確認結果と、ローカル `test_evidence/grandia2/validation.json` の読取りによる要約。
 要求値やmemory変更だけでなく、記載した箇所では親担当が実画面も確認した。文書担当による実機再実行ではない。
 
 | 確認 | 結果・条件 |
@@ -92,7 +94,7 @@ XZはworld units、内積はOrbit実視線の水平forwardとの比較。すべ�
 全8測定で`heading = (desired_heading + 32768) & 65535`となり、180°差を向きの失敗と解釈しない。
 屋内90°ではΔY約−59.304も記録しており、XZ距離と3D距離は区別する。
 
-追加の [movement_extended.json](<C:/PS2CameraLab/test_evidence/grandia2/movement_extended.json>) はyaw25°／表示pitch40°／距離1800、
+追加の `test_evidence/grandia2/movement_extended.json` はyaw25°／表示pitch40°／距離1800、
 eye offset `(160,25,−100)`／target相対値 `(−30,200,70)`で、W/S/D/Aを各0.13秒入力。
 屋外4方向は各約120 units、offset込みの期待方向との内積は全て0.999999999超。屋内S/D/Aも同程度だが、
 Wは段差付近の衝突で17.786 units／内積0.867566、headingも衝突の影響を受けており、全方向成功とはしない。
@@ -101,7 +103,7 @@ R1はnative yaw9271→4935へ変化しつつOrbitのrender eye変化0.0を確認
 
 ### runtime短入力probeの扱い
 
-[validation.json](<C:/PS2CameraLab/test_evidence/grandia2/validation.json>) の`runtime_stick`はyaw45°／内部pitch−30°のまま、
+`test_evidence/grandia2/validation.json` の`runtime_stick`はyaw45°／内部pitch−30°のまま、
 FOVもnative19.995155790°。初回適用に約1.5秒必要だったのに試験待ちが0.4秒と短く、入力変化を捉えていない。
 `applied=true`だけを根拠に右スティック成功としない。上表の追加runtime入力確認は、新規runtimeで2秒待ってから2秒入力した別試験である。
 これは最適化前のprobe。最終hot publicationの測定は次節の別条件として記録し、短い旧probeを成功へ読み替えない。
@@ -119,7 +121,7 @@ backend／epochを跨いだcache共有はせず、**cave本体だけの破損は
 
 ## 旧3hook版MainWindow＋実PINE／runtime統合 — 確認済み
 
-性能最適化後に親担当が再実行した最終GUI runは、ローカル [gui_validation.json](<C:/PS2CameraLab/test_evidence/grandia2/gui_validation.json>) の**11項目すべてpassed=true**。
+性能最適化後に親担当が再実行した最終GUI runは、ローカル `test_evidence/grandia2/gui_validation.json` の**11項目すべてpassed=true**。
 文書担当は更新後の結果を読取り、実行は親担当。MainWindow→実PINE→PCSX2の経路で、入力はscripted source。
 物理XInput controllerを人が操作した試験ではない。
 
@@ -148,7 +150,7 @@ native FOV reset時のpose保持、6offsetの同一actor描画幾何、3hook sto
 python tools/grandia2_live_check.py --out C:/PS2CameraLab/test_evidence/grandia2_reusable_20261107_1228
 ```
 
-結果と対象source SHA256はローカル [checks.json](<C:/PS2CameraLab/test_evidence/grandia2_reusable_20261107_1228/checks.json>) に保存。
+結果と対象source SHA256はローカル `test_evidence/grandia2_reusable_20261107_1228/checks.json` に保存。
 ツール自体はstate／card／GDBを操作せず、MainWindowが唯一のPINE clientを所有する。
 任意の`--reload-handshake`／`--capture-window`はこのツールrunでは未使用。別runのstate再適用・実画面確認とは区別する。
 実行後に再び開始stateを読込み、下記cleanup状態へ戻した。
@@ -158,7 +160,7 @@ python tools/grandia2_live_check.py --out C:/PS2CameraLab/test_evidence/grandia2
 | 項目 | 現状 |
 |---|---|
 | 移動の未網羅範囲 | 4yaw前進とoffset付きW/S/D/Aを限定測定済み。屋内Wは衝突の例外あり。実方向キー入力、全地形、長時間、定速比較は未網羅 |
-| 全sceneの補助描画 | コンパス抜き部分にfieldが見える表示は、提供された原作屋外state画像と[clean stock baseline](<C:/PS2CameraLab/test_evidence/grandia2/clean_stock_baseline.png>)で一致。比較した画像ではnative HUDのclip／透明表現に整合し、MOD回帰の根拠ではない。全sceneの補助描画検証は未網羅 |
+| 全sceneの補助描画 | コンパス抜き部分にfieldが見える表示は、提供された原作屋外state画像とclean stock baseline（`test_evidence/grandia2/clean_stock_baseline.png`）で一致。比較した画像ではnative HUDのclip／透明表現に整合し、MOD回帰の根拠ではない。全sceneの補助描画検証は未網羅 |
 | メニュー | J/I/L/Kボタンprobeでは5guardは`0,0,1,0,0`、camera flags8のまま。実メニューへの到達や安全な抑止を証明しない。全メニューの描画・復帰は未確認 |
 | 最終cleanup／ユーザー状態復帰 | 下記のとおり開始state・3site stock・native focalを読戻し、原作状態で実行中。breakpoint／watchpoint・入力・解析接続を解除 |
 
@@ -168,12 +170,12 @@ raw RSP撮影によるpauseだけではない停止であり、当時は上限60
 
 ## 旧3hook版の最終cleanup
 
-親担当が開始時の [user_start_20261107_1117.p2s](<C:/PS2CameraLab/sstates/grandia2/user_start_20261107_1117.p2s>) を再読込みし、
+親担当が開始時の `sstates/grandia2/user_start_20261107_1117.p2s` を再読込みし、
 Serial／CRC一致・runningを確認。render／tail／moveの3hookはすべてstock、MOD制御・診断flagの確認値は`0,0,0,0,0,0`。
 native focalは1815.25891113、水平FOV19.9951557899°へ復帰した。
 
 - actor約`(−412,0.0000998,2260)`、eye約`(995.605835,1379.933228,3789.315674)`、target約`(−412,180.000092,2260)`。
-- [復帰画像](<C:/PS2CameraLab/test_evidence/grandia2/user_start_restored.png>)は開始時画像と同じ状態を確認。
+- 復帰画像（`test_evidence/grandia2/user_start_restored.png`）は開始時画像と同じ状態を確認。
 - breakpoint／watchpointはいずれも0、試験入力の全キーを解放。MCPを切断し、active PINE clientなし、GUIを開いたまま残していない。
 - PCSX2は原作cameraのまま**running**で残した。原本ISO・提供stateは上書きしていない。stage／commit／push／PR作成は行っていない。
 
@@ -237,8 +239,8 @@ python -m pytest -o addopts='' -q tests/test_grandia2_packets.py `
 
 ### 最終最適化後raw実機run — 屋外／屋内
 
-実行は親担当。ローカル [stream_live.py](<C:/PS2CameraLab/work/grandia2/stream_live.py>) と
-[raw checks.json](<C:/PS2CameraLab/test_evidence/grandia2_buffer_20261107/checks.json>) を文書担当が読取り確認した。
+実行は親担当。ローカル `work/grandia2/stream_live.py` と
+raw checks.json（`test_evidence/grandia2_buffer_20261107/checks.json`） を文書担当が読取り確認した。
 protected stock stateを場面ごとに読込み、sole PINE＋GuardedBackendで適用。yaw／pitch／FOV設定・計測はscript、移動入力は行っていない。
 
 | 条件 | 屋外 `outside_base` | 屋内 `inside_base` |
@@ -259,15 +261,15 @@ highwaterはreserve入口の累積観測で、各短測定ごとの独立最大�
 **初回live assertionの失敗を隠さない:** 初回は「0.5秒で5frame超」という根拠のない速度条件で失敗したが、4frameは進んでいた。
 試験predicateをフレーム進行へ修正したうえで別runを成功させ、上表は最終最適化後のそのrunのみ。失敗や最適化前runを成功へ混ぜない。
 
-親担当が同runの[屋外110°水平画像](<C:/PS2CameraLab/test_evidence/grandia2_buffer_20261107/outside_base_110_horizontal.png>)と
-[屋内110°水平画像](<C:/PS2CameraLab/test_evidence/grandia2_buffer_20261107/inside_base_110_horizontal.png>)を`read_image`で確認した。
+親担当が同runの屋外110°水平画像（`test_evidence/grandia2_buffer_20261107/outside_base_110_horizontal.png`）と
+屋内110°水平画像（`test_evidence/grandia2_buffer_20261107/inside_base_110_horizontal.png`）を`read_image`で確認した。
 屋外ではgeometry／HUD表示を確認。屋内distance2000水平は小さな室内geometryと黒空間が見える状態であり、camera collisionを持たないOrbitの限界を含む。
 この2画像・フレーム進行だけで**全scene描画成功・全geometry完全描画**とはしない。
 
 ### MainWindow＋実PINEの別run — 14項目成功
 
 現行 [grandia2_live_check.py](<../../../tools/grandia2_live_check.py>) を親担当が実行し、
-[GUI checks.json](<C:/PS2CameraLab/test_evidence/grandia2_buffer_gui_20261107/checks.json>) は `completed=true / passed=true`、**14項目成功**。
+GUI checks.json（`test_evidence/grandia2_buffer_gui_20261107/checks.json`） は `completed=true / passed=true`、**14項目成功**。
 MainWindowが唯一のPINE clientを所有する通常field静止場面の別runで、入力はscripted。物理XInput操作・移動・pixel比較・menu/event・長時間の検証ではない。
 
 | 確認 | 結果 |
@@ -285,8 +287,8 @@ MainWindowが唯一のPINE clientを所有する通常field静止場面の別run
 
 ### 今回の最終cleanup — 親担当実施済み
 
-親担当がprotected [user_start_20261107_1117.p2s](<C:/PS2CameraLab/sstates/grandia2/user_start_20261107_1117.p2s>)を再loadした。
-文書担当は[final_stock.json](<C:/PS2CameraLab/test_evidence/grandia2_buffer_20261107/final_stock.json>)を読取り、
+親担当がprotected `sstates/grandia2/user_start_20261107_1117.p2s`を再loadした。
+文書担当は`test_evidence/grandia2_buffer_20261107/final_stock.json`を読取り、
 Serial `SLPM-65081`／CRC `b6ab7bc2`、全7siteのstock exact pair、control先頭96B全zero、native focal **1815.25891113**、PINE status **0（running）**を確認した。
 control全0x800 B（2KiB）や全cave消去を確認したという意味ではない。
 

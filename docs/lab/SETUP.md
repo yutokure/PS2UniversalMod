@@ -1,7 +1,6 @@
-# SETUP — rebuild this lab from a bare Windows machine
+# SETUP — 2026-10-28 の親ラボ構築記録
 
-Everything below was executed in this order on 2026-10-28. Commands are
-idempotent unless marked.
+以下は当時の Windows 機で用いた配置・設定・コマンドの記録です。ローカルの `scripts/`、互換パッチ、エミュレータの作業コピー、利用者の BIOS・ISO などに依存し、公開ソースだけからこの環境は再構築できません。ドライブ名やユーザープロファイル設定を再現する必要はありません。通常の起動・必要な依存関係は[公開ソースの README](../../README.md)、当時の検証範囲は[ラボ概要](README.md)を参照してください。
 
 ## 0. Prerequisites
 
@@ -13,14 +12,9 @@ idempotent unless marked.
 * DeepSeek Harness 0.2.1-rc.3 (desktop)
 * A legally obtained PS2 BIOS and game ISO (user-owned; not included)
 
-## 1. Fix the TLS layer first (KB-01 / KB-02)
+## 1. 当時の TLS 障害（KB-01 / KB-02）
 
-```powershell
-git config --global http.sslBackend openssl
-```
-
-Do **not** use `Invoke-WebRequest` for downloads in this environment; use the
-Python helper described below.
+制限付きトークンで Windows の資格情報ストアを開けず、当時の Git クローンに失敗しました。親ラボでは `git config --global http.sslBackend openssl` で回避し、`Invoke-WebRequest` の代わりにローカルの Python ヘルパーを使いました。`--global` は他のリポジトリにも影響します。公開ソースの取得・GUI 起動のために Git 設定や証明書検証を変更する必要はありません。
 
 ## 2. Create the tree and copy the emulator
 
@@ -155,11 +149,11 @@ machine:
 1. `git clone` fails with `SEC_E_NO_CREDENTIALS` → step 1.
 2. GDB ports closed → the compatible build is not the one being launched, or the
    ini lives in `Documents\PCSX2` instead of the portable folder.
-3. `python` cannot open a script path with non-ASCII characters → keep the lab
-   under `C:\PS2CameraLab` (KB-13).
+3. 当時のシェル経由では非 ASCII 文字を含むスクリプトパスを開けず、ラボでは ASCII のパスを使った（KB-13）。公開ソースの配置先を `C:\PS2CameraLab` に固定する条件ではない。
 
 ## 9. What is *not* restored by this document
 
+* the parent lab's automation scripts, local compatibility changes, reports and savestates,
 * the user's BIOS/ISO (must come from the user),
 * DeepSeek account credentials (managed by the harness),
 * Windows-level tweaks (none were made).

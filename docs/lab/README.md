@@ -1,22 +1,16 @@
-# README — PS2-CAM-00 Autonomous PS2 Analysis Environment
+# PS2-CAM-00 — 親ラボの構成と検証記録
 
-> Moved into the repository on 2026-11-02 (`PS2UniversalMod/docs/lab/`). Start from [`../README.md`](../README.md)
-> for the index. Evidence files named below (`reports/`, `shots/`, `logs/`) are local lab files and are
-> not versioned.
+**GUI を起動する方は[公開ソースの README](../../README.md)へ。** 通常のカメラ操作は GUI から PCSX2 の PINE に接続します。GDB 対応フォーク、MCP、Ghidra、DeepSeek Harness は必要ありません。
 
-`C:\PS2CameraLab` is a self-contained Windows lab in which **DeepSeek Harness
-can start, drive, observe, analyse, break into, restore and repair a running
-PlayStation 2 game** through the PCSX2 MCP server, plus a headless Ghidra
-pipeline for static analysis.
+ここは解析に使った Windows 環境の記録です（2026-11-02 に文書を移管）。`C:\PS2CameraLab` は当時の親ラボであり、このリポジトリの設置先ではありません。下記の `scripts/`、MCP のローカル修正、エミュレータ、BIOS・ISO・ステート、`reports/`・`shots/`・`logs/` の証跡一式は同梱していません。コマンドは当時何を実行したかを示すもので、チェックアウトだけからの再現手順ではありません。
 
-It exists to make the next gate possible:
+当時のラボでは MCP 経由でゲームを操作・観測し、Ghidra で ELF を静的解析しました。次段階として掲げた研究課題は次のとおりです。
 
 > 「FF10のカメラ制御処理を解析し、自由カメラ化に必要なプログラムとデータを特定してください」
 
-Everything in this repository is executed and verified — no dry-run stubs. The
-evidence lives in `reports/`.
+## 親ラボで確認した項目
 
-## What works (verified)
+表のファイル名は当時の親ラボに保存した証跡を指します。PASS はその環境・対象ディスク・試験項目の結果で、公開ソースの全機能を今回再検証したという意味ではありません。
 
 | Capability | Evidence |
 |---|---|
@@ -33,7 +27,7 @@ evidence lives in `reports/`.
 | Autonomous fault repair (config fault → detection → repair → verification) | `reports/e2e_results.json` E |
 | Web research (search, fetch, GitHub primary sources) | `WEB_RESEARCH_SETUP.md`, `reports/web_research_log.json` |
 
-## Layout
+## 当時の親ラボの配置
 
 ```
 C:\PS2CameraLab
@@ -51,7 +45,7 @@ C:\PS2CameraLab
 └─ docs\             long-form notes (KB, research notes)
 ```
 
-## Quick start
+## 親ラボで実行したコマンド例（公開 GUI の起動手順ではない）
 
 ```powershell
 # 1. health snapshot
@@ -70,23 +64,17 @@ C:\PS2CameraLab\python\venv\Scripts\python.exe -m pytest -q C:\PS2CameraLab\test
 C:\PS2CameraLab\python\venv\Scripts\python.exe C:\PS2CameraLab\scripts\ghidra_analyze.py
 ```
 
-## Documentation map
+## 資料の探し方
 
-| File | Contents |
+| 資料 | わかること |
 |---|---|
-| `ARCHITECTURE.md` | component diagram, data flows, transport choices |
-| `SETUP.md` | reproducible installation from a bare Windows machine |
-| `TOOL_VERSIONS.md` | pinned versions, sources, digests, rejected alternatives |
-| `MCP_SETUP.md` | MCP registration in DeepSeek Harness, verification, rollback |
-| `WEB_RESEARCH_SETUP.md` | web search/fetch providers and the WEB-01…05 tests |
-| `AUTONOMOUS_TROUBLESHOOTING.md` | the self-healing loop and its guardrails |
-| `TROUBLESHOOTING_KB.md` | 24 solved problems with root causes and proofs |
-| `CLI_REFERENCE.md` | every script, argument and output file |
-| `TEST_MATRIX.md` | per-requirement PASS/FAIL table |
-| `BLOCKERS.md` | what is not solved and why |
-| `CAMERA_RESEARCH_READINESS.md` | what the next gate can rely on |
+| [構成](ARCHITECTURE.md)・[セットアップ](SETUP.md)・[ツールの版](TOOL_VERSIONS.md) | 当時の接続経路、依存ツールの版と選定理由、配布物の照合値 |
+| [MCP 接続](MCP_SETUP.md)・[Web 調査](WEB_RESEARCH_SETUP.md) | Harness への登録・復旧、WEB-01〜05 の検証 |
+| [自動復旧](AUTONOMOUS_TROUBLESHOOTING.md)・[障害 KB](TROUBLESHOOTING_KB.md) | 何を検知してどこまで復旧したか、24件の症状・原因・対処 |
+| [CLI](CLI_REFERENCE.md)・[試験表](TEST_MATRIX.md) | 親ラボのコマンドと出力先、要件別の結果・証跡名 |
+| [未解決事項と追記](BLOCKERS.md)・[研究準備状況](CAMERA_RESEARCH_READINESS.md) | 当時の未解決事項、その後の経過、次の調査に使えた機能 |
 
-## Safety
+## 親ラボでのデータ保護・接続条件
 
 * BIOS/ISO/save data of the user are never modified; the lab uses copies
   (`pcsx2\iso`, `pcsx2\fork-B056de99\bios`).

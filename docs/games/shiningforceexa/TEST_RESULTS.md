@@ -129,7 +129,7 @@ Qtのfont-directory警告が出るが検証は完了。GUIの日本語表示を�
 - 全エリア、イベント、戦闘、全メニュー、パーティ切替、長時間、録画／再生pad経路は未確認。
 - scene guardで拒否しても、Orbit中のpad mask・gateは残る場合がある。
   特殊sceneで原作入力が必要ならOriginalを選ぶ。全演出の安全な自動退避は未実装。
-- FOV-onlyにもgate停止の副作用がある。場所依存の原作カメラを保ったFOV-onlyではない。
+- アダプター単体でFOVだけを変えた試験でもgateは停止した。GUIのOriginalで原作カメラを保ったままFOVを変更できるという結果ではない。
 - stock state reloadの再適用は実証済み。別process作成MOD stateや異なるallocationへの自動追従は保証しない。
 - 遷移先でゲーム自身の値が変わった場合は未知の値を強制復元しない。常に元のyawへ完全一致する保証はしない。
 - ネオ／FFX-2／幻想水滸伝Vのlive再実行は未実施。共通center境界の既存経路は単体・GUI回帰で確認。

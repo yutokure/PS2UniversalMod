@@ -5,7 +5,7 @@ between automated tests and real play:
 
 * ``XInputSource``   - the physical pad, read directly through XInput.  This is
   the real gameplay path: PCSX2 does not need to cooperate at all.
-* ``KeyboardSource`` - arrow / IJKL keys, for users without a pad.
+* ``KeyboardSource`` - arrow keys, for users without a pad.
 * ``ScriptedSource`` - programmatic values used by the automated end-to-end
   tests (and by the MCP-driven input bridge, which cannot be seen by XInput).
 

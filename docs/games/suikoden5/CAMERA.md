@@ -79,7 +79,8 @@ running (loading, events, menus).
 ### Right stick vs the native zoom
 
 * Mod on: the right stick turns the camera (host side) and the zoom cave presents a centred stick
-  to `FUN_00244150`, so the game's stick zoom never fires (checked physically, both directions).
+  to `FUN_00244150`. With the orbit on, neither up nor down changed the zoom stage in the field test.
+  The test used PCSX2's keyboard-to-pad mapping, not a physical stick ([input check](../../../tools/su5_input_check.py)).
 * `R1` is untouched. In the GUI the *Native zoom* box shows the game's stage; with its checkbox
   on, every R1 step also sets the orbit distance to the stage's value (400/300/200). The three
   stage buttons do the same without R1.
@@ -90,7 +91,7 @@ running (loading, events, menus).
 * With the orbit on, the area pitch/yaw/distance are replaced (absolute values), while the game's
   own values keep changing underneath (`MB_NATIVE_*`). Verified over the slope (13 → 40 native,
   25.00 rendered) and across a map change.
-* When the camera update stops (map load, event, menu) the heartbeat freezes; the adapter's guard
+* When the field-camera update stops, the heartbeat freezes; the adapter's guard
   returns "not a field" and the runtime stops writing. The hook stays in place and resumes by
   itself when the update runs again.
 * Orbit off: the hook is removed completely (only when no FOV override remains).
@@ -107,7 +108,7 @@ running (loading, events, menus).
 
 ## 6. Open items
 
-* Events/cut-scenes use other camera modes; the guard leaves them alone, nothing was tuned for them.
-* Battles and menus were not exercised (field only).
+* Only field play was tested. The heartbeat guard is not proof that every event, battle or menu is excluded. Use Original outside the field.
+* Camera and target offsets shift the focus and move the whole rig; they do not move the eye and target independently. Free Camera is not supported.
 * The hook addresses are for this disc (CRC 7380A572); other releases are refused by `identify()`.
 * A second PINE client (GUI plus a script) makes PINE time out; run one at a time.

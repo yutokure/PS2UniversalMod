@@ -9,6 +9,8 @@ PCSX2 `fork-B056de99`（既存プロセス）、PINE、既存 PySide6 GUI を使
 実装方式・アドレス・安全根拠は [CAMERA.md](<CAMERA.md>)。
 実行ツールは [radiata_live_check.py](<../../../tools/radiata_live_check.py>)。
 
+本書の `test_evidence/` は開発ラボを基準とする保存先で、公開リポジトリには含まれません。
+
 ## 1. 自動テスト
 
 最終実行:
@@ -160,7 +162,7 @@ getterが正しくても原作の移動・地形制限を迂回するわけで�
 4組のOrbit、6 offsets、FOV25/40/65°、FOV解除、右入力回転、別stock `base_only_wait` への再読込み後の
 再適用、Originalで**全4hook stock / pending=0 / native lens**復帰を確認した。
 このGUI実行は `--move` なしで、移動方向の根拠は上表とgetter実測である。
-ローカル証拠は [今回の検証領域](<C:/PS2CameraLab/test_evidence/orbit_walk_20261103/>)。
+ローカル証拠は 今回の検証領域（`test_evidence/orbit_walk_20261103/`）。
 
 ### 残る実機確認
 

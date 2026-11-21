@@ -5,7 +5,7 @@ REQUESTED** = works with a documented deviation; **BLOCKED** = cannot be
 completed without a user-owned or privileged resource; **N/A** = not applicable
 to this gate.
 
-Evidence files are under `reports/`; screenshots under `shots/e2e/`.
+これは[親ラボ](README.md)構築時の採点表です。PASS・試験件数・E2E 結果はその版と場面での実績であり、公開版の再試験結果ではありません。`reports/` と `shots/e2e/` は当時のローカル証跡を示します。現在のゲーム別確認範囲は[文書索引](../README.md)を参照してください。
 
 ## A. Environment and tooling
 

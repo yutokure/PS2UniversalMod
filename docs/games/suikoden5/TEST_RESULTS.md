@@ -25,7 +25,7 @@ log and the extracted RAM stay in the git-ignored local evidence folder (`test_e
 | TEST-04 horizontal rotation | PASS | right stick (runtime): yaw +150° in 1 s, eye stays at constant distance from the focus, focus unchanged | `su5_engine_check` |
 | TEST-05 vertical rotation | PASS | pitch 13 → 85 (limit) and holds when the stick is released | `su5_engine_check` |
 | TEST-06 follow | PASS | walking 116 units: focus equals the character; walking direction relative to the camera is the same at two opposite yaws (diff 4–10°) | `su5_zone_check`, `su5_input_check` |
-| TEST-07 input conflict | PASS | with the orbit on, a physical right stick up/down never changes the zoom stage; R1 still steps it; with the orbit off the game's stick zoom works again | `su5_input_check` |
+| TEST-07 input conflict | PASS | with the orbit on, keyboard-mapped right-stick up/down did not change the game's zoom stage; mapped R1 still stepped it; with the orbit off, stick zoom worked again | `su5_input_check` |
 | TEST-08 GUI distance | PASS | GUI spin box 300 → game distance 300; stage buttons 200/400 | `su5_gui_check` |
 | TEST-09 GUI position | PASS | look height ±, camera X/Y/Z, target X move the focus by exactly the entered amounts; zero returns it | `su5_gui_check` |
 | TEST-10 GUI FOV | PASS | game FOV 20 → 60, viewport extent = sin(30°); screenshots: FOV 20 vs 40 mean pixel difference 21, stock vs orbit-with-stock-values 0.04 | `su5_gui_check`, evidence screenshots |
@@ -60,9 +60,8 @@ compare-and-swap install, coordinate mapping, seeding, heartbeat guard, zoom hel
 
 ## Not done / limits
 
-* Event cut-scenes, battles and menus were not exercised; the heartbeat guard simply leaves them alone.
-* A physical XInput pad was not used; the right stick reached the engine through the runtime and the
-  GUI's scripted source (the XInput/keyboard source classes are shared and unchanged).
+* Event cut-scenes, battles and menus were not exercised. A stopped field-camera heartbeat blocks updates; this does not establish that every special scene stops the heartbeat.
+* No physical XInput pad was used. The game-side zoom/R1 check used keyboard-to-pad bindings in PCSX2; the GUI rotation check used its scripted input source.
 * No free (detached) camera for this game: the GUI disables that radio button.
 * Camera X/Y/Z and target offsets are world-space; they move the whole rig.
 * Only the Japanese disc (CRC 7380A572) is supported.

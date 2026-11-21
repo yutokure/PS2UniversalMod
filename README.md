@@ -1,25 +1,10 @@
 # PS2 Universal Camera Controller
 
-PS2 ゲームの通常フィールドで、**右スティックによる自由回転カメラ**と
-**外部 Windows GUI からのリアルタイム制御**を実現する MOD コントローラーです。
-PCSX2 の PINE（メモリ読み書き IPC）で動き、**DeepSeek Harness・MCP サーバ・GDB は不要**です。
-GUI 単体で動きます（それらは解析・自動テストのときだけ使います）。
+PCSX2 で遊ぶ日本版 PS2 ゲーム **13 タイトル**のカメラを、右スティックや矢印キーで操作する Windows 用 MOD です。**オービット（Orbit）**はキャラクターなどを中心に視点を回す機能です。キャラクターを追従せず、視点と注視点を固定する **Free Camera は FFX-2 のみ**対応します。
 
-```
-┌──────────────────────────┐   PINE (TCP 127.0.0.1:28011)   ┌────────┐
-│ GUI (PySide6)            │ ─────────────────────────────► │ PCSX2  │ ► ゲーム
-│  └ CameraRuntime (thread)│    メモリ読み書き + コードパッチ  └────────┘
-│     └ ゲーム別アダプター  │
-└──────────────────────────┘
-```
+**初めて使う方:** [対応するゲームと版を確認](#1-対応ゲーム) → [ソースを入手して起動](#31-起動) → [カメラを操作](#32-操作)。配布物はソースコード・文書・テストなどです。実行ファイル版、PCSX2、ゲーム、BIOS、セーブデータは含みません。
 
-設計方針として、ゲーム固有の処理・アドレスは原則 `adapters/<game>/` へ分離します。
-ただし、現在の共通エンジン（[`core/camera_runtime/engine.py`](core/camera_runtime/engine.py)）には、
-FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00` の読み取り）が残っています。
-新しいゲームを追加するときは、共通基盤（`core/`・GUI）へ新たなゲーム固有アドレスを持ち込みません。
-
-開発・解析を AI に依頼するときの判断基準は [`AGENTS.md`](AGENTS.md)。親ラボへの配置方法は
-[`docs/README.md`](docs/README.md#agentsmd-の配置) を参照してください。
+[ゲーム別の要点](#5-ゲーム別の要点) · [困ったとき](#8-トラブルシューティング) · [解析・検証資料の索引](docs/README.md)
 
 ## 1. 対応ゲーム
 
@@ -39,7 +24,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | ローカルプレイヤーを追従するOrbit（歩行・走行・Adventureフィールド）、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
 | RPGツクール5 | [RPG Maker 5 adapter](adapters/rpgmaker5/adapter.py) | `SLPS-20143` / `BB78C51D` | 編集カーソル／テストプレイの操作キャラを中心に右スティックで連続Orbit、距離、水平FOV 20〜60° | [解析・確認範囲](docs/games/rpgmaker5/CAMERA.md) |
 
-Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
+GUI はゲームの Serial と CRC が**両方とも一覧と一致した場合だけ**アダプターを選びます。プレイ中にディスクを替える場合は、先に「MOD を無効化して元のカメラに戻す」を押してください。切替の検出は瞬時ではありません。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
 
 ## 2. 動作環境
@@ -47,36 +32,42 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 | 項目 | 要件 |
 |---|---|
 | OS | Windows 10/11 |
-| エミュレータ | PCSX2 2.7.x。`PCSX2.ini` の `[EmuCore]` に `EnablePINE = true`・`PINESlot = 28011` |
-| Python | 3.12。`pip install -r requirements.txt`（PySide6、numpy、zstandard） |
-| 実機検証ツール（`tools/`）を使う場合 | 上に加えて pywin32、psutil、Pillow |
+| エミュレータ | ローカルの PINE 接続に対応する PCSX2。検証環境は 2.7 系（[使用ビルド](docs/lab/TOOL_VERSIONS.md)）。全バージョンでの動作は未確認 |
+| Python | 3.12（下記の手順で PySide6・numpy・zstandard をインストール） |
+| 入力 | XInput 対応パッド、またはキーボードの矢印キー |
 
-> **PINE クライアントは同時に 1 つだけ**です。GUI とスクリプトを同時に動かすと、どちらかが
-> タイムアウトします。
+> GUI は同じ PC 上の PCSX2 に接続します。ポートを外部に公開する必要はありません。解析用の MCP・GDB や親ラボの構築も不要です。検証した PCSX2 ビルドでは PINE を同時に使えるクライアントは 1 つなので、PINE を使う別のツールは閉じてください。
 
 ## 3. 使い方
 
 ### 3.1 起動
 
-1. PCSX2 で対応ゲームを起動し、フィールドまで進めます。
-   - FFX-2 のカメラパッチは runtime が管理します。外部 `.pnach` や `EnableCheats` は不要です。
-     Orbit / Free Camera で自動適用し、Original では外します。「ゲームパッチ」欄はモードに応じた表示になります。
-     旧版の外部カメラパッチが残っている場合は、競合しないよう §5.1 の手順で無効化してください。
-2. `PS2UniversalCamera.bat` をダブルクリック（または `python run_gui.py`）。
-   PySide6 の入った Python を `.venv` → `..\python\venv` → 実行中の Python → PATH の順に探します。
-   依存関係を入れ直すには:
+1. [GitHub Releases](https://github.com/yutokure/PS2UniversalMod/releases/latest) の **Assets → Source code (zip)** をダウンロードし、展開します。`PS2UniversalCamera.bat` と `requirements.txt` があるフォルダーで PowerShell を開きます。
+2. 初回のみ、Python 3.12 の仮想環境を作り、依存パッケージを入れます。環境の有効化は不要です。
 
    ```powershell
-   python -m venv .venv
-   .venv\Scripts\python.exe -m pip install -r requirements.txt
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
-3. 起動すると PINE に接続し、ゲームを識別して「接続済み」になります。未対応のゲームでは書き込みません。
+
+   `py` が見つからない場合は `python --version` が `3.12.x` であることを確認し、1 行目を `python -m venv .venv` に置き換えてください。
+3. PCSX2 を終了し、使用中の `PCSX2.ini` の既存の `[EmuCore]` セクションで次の 2 項目を設定します。保存後に PCSX2 を起動し、ご自身で用意した対応ゲームを通常フィールド（RPGツクール5 はマップ編集またはテストプレイ）まで進めます。
+
+   ```ini
+   [EmuCore]
+   EnablePINE = true
+   PINESlot = 28011
+   ```
+
+4. `PS2UniversalCamera.bat` をダブルクリックし、「接続」欄でゲーム名と Serial / CRC を確認します。最初は「オリジナル」です。「オービット」を選び、右スティックか矢印キーで視点が回ることを確認してください。終了前やゲーム切替前は、PCSX2 を動かしたまま「MOD を無効化して元のカメラに戻す」を押します。
+
+FFX-2 のカメラパッチは GUI が管理するため、外部 `.pnach` や `EnableCheats` は不要です。旧版の外部パッチを使っていた場合は、先に [FFX-2 の注意事項](#51-ffx-2) を確認してください。
 
 ### 3.2 操作
 
 1. **カメラモード → オービット**（または「カメラ MOD を有効化」）
 2. **右スティック**: 左右で水平回転、上下で仰角。離すとその角度を保持します（矢印キーでも同じ操作。
-   XInput とキーボードは併用でき、先に入力のあった方が使われます）
+   入力ソースが auto で同時に入力すると、XInput が優先されます）
 3. 左スティックで歩く（ドルアーガのダンジョンは方向キー）。ラジアータ・ドルアーガ・ミンストレルソング・DQⅤ・イノセントライフ・グランディアIIも Orbit のカメラ基準で移動します（ダンジョンは最寄り8方向）。ゲーム別の確認範囲は §5 を参照
 4. 「オリジナル」はカメラ・移動入力だけを原作へ戻し、独立した時計停止・ゲーム固有機能の選択は保持します。
    「MOD を無効化して元のカメラに戻す」は時計停止・ゲーム固有機能も解除します。
@@ -119,7 +110,7 @@ Serial と CRC の**両方**が一致しないゲームには何も書き込み�
 * 同時に起動できるのは 1 つだけです（PCSX2 の PINE は 1 クライアントのため、2 つ目は起動時に断ります）。
 * 設定にない操作の失敗（例: 途中で PCSX2 が終了）は例外にならず通知バーに出て、`%APPDATA%\PS2UniversalCamera\gui.log` に記録されます。
 
-スライダーと数値入力は同期しており、「適用」ボタンはありません。変更は次フレーム（約 16 ms 以内）に反映されます。
+スライダーと数値入力は同期しており、「適用」ボタンはありません。変更は実行中のカメラに随時反映されます。
 
 PCSX2 を閉じる・終了させても GUI は固まりません（「未接続」を表示し、PCSX2 が戻れば自動で復帰します）。
 監査の記録: [`docs/gui/GUI_AUDIT_2026-11-02.md`](docs/gui/GUI_AUDIT_2026-11-02.md)。
@@ -181,7 +172,7 @@ presets\*.json                                  同梱プリセット（orbit-de
   Free Camera・位置／注視点 X/Z オフセットは非対応として無効表示します。
 - FOV は原作の垂直角パラメーターを水平画角へ換算して制御し、投影行列と実画面の変化を確認済みです。
   ネオの FOV コードケーブは使いません。FOV 上書きも Orbit と同じ平滑化ゲートを保持するため、
-  **FOV だけの上書き中も場所依存の原作カメラ制御が止まります**。
+  開発ツールからアダプターで FOV だけを変更しても、場所依存の原作カメラ制御は止まります。GUI で FOV を上書きするには Orbit を選んでください。
 - Orbit 中は右スティックの専用 load **2 命令のみ**を中立値へ置換。原作クイックバーとの競合を抑え、
   左スティック・ボタン・raw 入力は残します。Original／通常終了で 2 命令とカメラ・FOV を返します。
 - マップは原作処理でカメラ回転に連動（同じ場所で yaw 180→90°、方位と地形の90°回転を確認）。FOV ではマップを拡縮しません。
@@ -198,7 +189,7 @@ presets\*.json                                  同梱プリセット（orbit-de
   「ゲーム標準ズーム」欄のチェックを入れると R1 の段階に合わせてオービット距離も変わります。
 - 場所依存のカメラ（ピッチが 13° → 40° に変わる坂など）はオービット中は無視され、マップ移動後も設定が再適用されます。
 - オフセットはワールド座標で、リグ全体を動かします。近いズーム段階ほど画面上で大きく見えます。
-- 未検証: イベント・戦闘・メニュー（カメラ更新が止まるので MOD は手を出しません）。
+- イベント・戦闘・メニューは未検証です。通常フィールド以外では「オリジナル」へ戻してください。
 - 解析記録とテスト結果: [`docs/games/suikoden5/`](docs/games/suikoden5/)
 
 ### 5.5 ザ・ナイトメア・オブ・ドルアーガ
@@ -260,7 +251,7 @@ presets\*.json                                  同梱プリセット（orbit-de
 - **歩行とキャラの向きはOrbitの実際の視線基準**です。原作Y回転・速度・衝突・向き計算を流用し、移動と向きのyaw入力だけを同じ角度へ合わせます。
   eye offsetで変わった視線も反映し、原作のglobal camera yawは保持します。スクリプト歩行・別locomotionは変換しません。
 - 通常field用の原作yaw上限・下限・入力vetoは描画Orbitへ適用しません。ただし固定視点・イベント・別camera classは安全guardを残し、
-  **特殊cameraの360°回転解除は未対応**です。ユーザーの追加指示により、その個別対応は別件・今回対象外です。
+  **特殊cameraの360°回転解除は未対応**です。
 - Original／通常終了で描画・右入力・移動・向きの4hookを復元し、原作右スティックの左右回転へ戻ります。stock state読込み後は約1秒で再適用。
   追加3hookの適用と全4hookの解除はguest EE threadが実行します。pause中は完了できないため、再開してから再試行してください。
   描画hookの初回bootstrapはPINE書込みが残り、PCSX2の全code-page競合を解消する保証ではありません。
@@ -313,7 +304,7 @@ presets\*.json                                  同梱プリセット（orbit-de
 - 最終最適化後のraw実機runでは両sceneでFOV110°、4yaw×内部pitch4種の各約0.5秒でフレーム進行を確認。yaw45°水平の各約20秒では屋外239frame／718flush、屋内600frame／0flushでした。
   boundary highwaterは屋外1126008B／屋内1023844B（reserve入口の観測値で、全write最高水位の証明ではありません）。FOV20／40／60／100／110°読戻し・native reset・全7site解除・stock state再適用も確認。
   MainWindowの別runは14項目成功（Original起動0write・GUI範囲／入力・FOV・reset pose保持・6offset・全7site復元）。独立レビューではありません。
-  屋外110°水平画像はgeometry／HUD表示を親担当が確認。屋内は距離2000で小さな室内geometryと黒い空間が見えており、全scene描画成功とはしません。
+  屋外110°の水平画像では地形と HUD の表示を確認。屋内は距離2000で小さな室内geometryと黒い空間が見えており、全scene描画成功とはしません。
   壁・裏面・屋内geometry外の黒い空間は距離・角度で回避してください。全エリア・イベント・戦闘・メニュー・長時間は未網羅で、大可視量による負荷増は残ります。
   旧3hook／20〜60°実績とcleanupは過去記録です。今回の測定条件・制限・最終テスト／cleanup追記欄は[検証記録の現行追記](<docs/games/grandia2/TEST_RESULTS.md#現行追記--7siteg2c2packet-streaming-2026-11-07>)を参照してください。
 - 再現用の限定GUI試験は [grandia2_live_check.py](<tools/grandia2_live_check.py>)。通常fieldを実行中に、他PINE clientを閉じ、開始stateを退避してから別々の場面で実行します（`--help`参照）。移動入力・state操作は行わず、任意の外部state読込みはhandshakeで待ちます。
@@ -353,7 +344,7 @@ presets\*.json                                  同梱プリセット（orbit-de
 
 ## 6. ローカルデータの場所（Git 管理外）
 
-ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。場所は次の順で解決されます（`core/config/paths.py`）。
+ISO・BIOS・セーブステート・ダンプはリポジトリに含めません。下表は開発・検証ツール用で、GUI の通常起動には設定不要です。[共通のパス設定](core/config/paths.py)を使うツールでは、**環境変数 → `config/local_config.json` → 既定値** の順で保存場所を決めます。固定のラボ配置や独自の引数を使うツールは、それぞれの説明を確認してください。
 
 | 環境変数 | 既定（元のラボ構成） | 内容 |
 |---|---|---|
@@ -366,24 +357,32 @@ ISO・BIOS・セーブステート・ダンプはリポジトリに含めませ�
 | `PS2_EVIDENCE_DIR` | `<lab>/test_evidence` | スクリーンショットとテスト証跡 |
 
 環境変数の代わりに `config/local_config.example.json` を `config/local_config.json`（Git 無視）へコピーして書いても構いません。
-ほかの PC へ移すときはこの設定だけで再構築できます。
+設定は保存場所を指定するだけです。ラボ固有のステート・ツール・検証素材は別途必要で、ソースには同梱しません。
 
 ## 7. 検証
 
+**オフライン検証（開発者向け）:** Git と §3.1 で作成した環境を使用します。PCSX2 は不要です。公開版に含まれないステートなどを使う任意テストは、それらがない環境ではスキップされます。
+
 ```powershell
-python -m pytest tests -q          # 単体テスト（実機・エミュレータ不要。GUI は offscreen、Git 監査は一時リポジトリで試験）
-python tools/audit_repo.py --staged   # コミット前: Git インデックスの内容を監査（ゲームデータ・秘密情報・大きなファイル）
-python tools/audit_repo.py            # 追跡ファイルの作業ツリー上の内容（--commit REV / --history もあります）
+.\.venv\Scripts\python.exe -m pip install pytest
+.\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-実機検証は PCSX2 でゲームを起動し、そのゲームの `base.p2s` を読み込んでから実行します（PINE クライアントは 1 つだけ）。
+Git の監査を行う場合は、ソース ZIP ではなく `git clone` した作業ツリーで実行してください。
+
+```powershell
+.\.venv\Scripts\python.exe tools/audit_repo.py --staged   # コミット前: ステージした内容を検査
+.\.venv\Scripts\python.exe tools/audit_repo.py            # 追跡ファイルの作業ツリー上の内容（--commit REV / --history も指定可）
+```
+
+**PCSX2 を使う検証（任意）:** 以下は開発ラボ用で、一般利用者の起動手順ではありません。各ツールの対象ゲーム・場面・引数を確認し、必要なステートや複製メモリーカード、追加依存（ツールにより pywin32・psutil・Pillow など）を別途用意します。通常プレイ中に実行しないでください。`<lab>` は自分のラボのパスに置き換えます。
 
 | 対象 | コマンド |
 |---|---|
 | FFX-2・シャイニング・フォース ネオ／イクサ・幻想水滸伝Vの回帰（Orbit・FOV・復帰） | `python tools/regression_check.py` |
 | RPGツクール5 | 編集・テストプレイでの[GUIによる確認手順と実測値](docs/games/rpgmaker5/TEST_RESULTS.md)。オフラインの所有権・復元・GUIテストは `python -m pytest tests -k rpgmaker5` |
 | GUI を PCSX2 の強制終了・再起動で試す | `python tools/gui_freeze_check.py --kill --relaunch` |
-| PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。ディスクとセーブステートは読むだけ） |
+| PCSX2 が別のゲームで戻ったとき旧ゲームへ書かないか | `python tools/game_switch_check.py`（幻想水滸伝V → SF Neo。起動中の PCSX2 を強制終了・再起動するので専用環境でのみ実行） |
 | 幻想水滸伝V | `tools/su5_live_check.py`、`su5_engine_check.py`、`su5_input_check.py`、`su5_zone_check.py`、`su5_transition_check.py`、`su5_gui_check.py`、`su5_zoom_check.py`、`su5_soak.py` |
 | シャイニング・フォース イクサ | `python tools/sfexa_live_check.py --out <lab>/test_evidence/exa/live.json`、`python tools/sfexa_gui_check.py --out <lab>/test_evidence/exa/gui`（GUI 検証は一時設定を使用、実キーボードpad入力あり。state再適用は解析文書参照） |
 | ドルアーガ | `python tools/druaga_live_check.py --out <lab>/test_evidence/druaga/run`（実入力あり。Dungeonは方向キーの通れる隣接タイルを `--dungeon-direction left` 等で指定。reload手順はゲーム別検証記録参照） |
@@ -395,21 +394,21 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 | ラジアータ／ドルアーガの移動方向 | `python tools/orbit_movement_check.py --game radiata --yaw 180 --direction up --out <lab>/test_evidence/radiata/movement.json`（複製カードと安全な同版ステートを用意。`--game druaga` は城内／Dungeonを識別、Dungeonは方向キー。壁・狭い足場による無移動や横滑りは別途切り分ける） |
 | FFX-2 | `tools/e2e.py`、`tools/flicker_test.py --yaw 120 --frames 24`、`tools/verify_state.py --state base` |
 
-結果は表示と `reports/`（JSON）に出ます。スクリーンショットなどの証跡は Git 管理外です。幻想水滸伝V の結果一覧は
+出力先はツールごとに異なります。`--out` で指定するファイルやスクリーンショットなどの生の証跡は配布しません。幻想水滸伝V の結果一覧は
 [`docs/games/suikoden5/TEST_RESULTS.md`](docs/games/suikoden5/TEST_RESULTS.md) にあります。
 
 ## 8. トラブルシューティング
 
 | 症状 | 対処 |
 |---|---|
-| 「未接続」のまま | PCSX2 が起動していて `EnablePINE = true` か確認。GUI とスクリプトを同時に使っていないか確認 |
+| 「未接続」のまま | ゲームが起動中で、PCSX2 が `EnablePINE = true`、`PINESlot = 28011` で再起動済みか確認。GUI とスクリプトを同時に使っていないか確認 |
 | 起動時に「すでに起動しています」 | 別のカメラコントローラーが開いています。閉じてから起動してください |
 | 未対応ゲームと表示される | Serial / CRC が違います。書き込みは行いません（安全） |
-| PCSX2 でゲームを切り替えた | GUI は約 0.25〜0.4 秒で気づき、前のゲームには何も書き込まず（元に戻す処理も行わず）、新しいゲーム用に選び直します。未対応ゲームなら書き込み不可の表示になります。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md) |
+| PCSX2 でゲームを切り替えた | 書き込み許可には最大 0.25 秒の有効期間があり、切替直後の即時遮断は保証されません。別ゲームと検出した後は旧アダプターの復元書き込みをせず、新しい版を判定します。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md) |
 | カメラが動かない | 対応するフィールドか確認。scene guardで書込みを控える場合がありますが、全戦闘・イベントの判別は保証しません。特殊場面ではOriginalへ戻してください |
-| カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。それでも戻らなければゲームを再開 |
+| カメラが元に戻らない | 「MOD を無効化して元のカメラに戻す」を押す。一時停止中は解除が完了しないゲームがあるので、一時停止を解除して再試行。戻らない場合は GUI を閉じ、ゲームを再起動 |
 | PCSX2 を再起動した | GUI は自動で復帰します（設定は保持）。FFX-2 のパッチはモードに応じて runtime が管理します。`EnableCheats` は不要で、「ゲームパッチ」欄と旧外部パッチの競合を確認 |
-| セーブステートを読み込んだ | MOD のコードパッチが消えますが、約 0.2 秒（FFX-2・SF Neo・SF Exa・ドルアーガ・ラジアータ・ミンストレルソング・DQⅤは約 1 秒）で自動再適用されます |
+| セーブステートを読み込んだ | 再適用や復元の条件はゲームごとに異なります。原則「MOD を無効化して元のカメラに戻す」で解除してからロードし、ゲーム名と状態を確認して再度有効化してください。旧 MOD を含むステートの注意事項は §5 を参照 |
 | 右スティックが効かない | パッドが XInput（Xbox 系）で認識されているか、「入力ソース」が keyboard / scripted になっていないか確認。矢印キーでも回せます |
 | 左スティックの向きがカメラと合わない | FFX-2 は Orbit と「ゲームパッチ」の適用状態、旧外部パッチの競合を確認（§5.1）。手動 `enable` は不要。幻想水滸伝V ではカメラ基準になります。SF Neo は未対応、SF Exa は歩行保持を確認したものの全 yaw の方向測定は未実施。DQⅤの通常field歩行はOrbit視線基準へ対応（スクリプト歩行・別locomotionは対象外）。特殊cameraで回らない場合は場所名／stateでの個別調査が必要 |
 | 狭い場所で画面が壁で埋まる | 距離を縮めるか Pitch を下げる（ゲームの衝突判定を通らないため） |
@@ -422,24 +421,20 @@ python tools/audit_repo.py            # 追跡ファイルの作業ツリー上�
 PS2UniversalMod/
 ├─ core/
 │  ├─ camera_math/orbit.py          Orbit 計算・FOV 変換（ゲーム非依存）
-│  ├─ camera_runtime/engine.py      毎フレーム書き込みエンジン
+│  ├─ camera_runtime/engine.py      カメラ状態・アダプターへの適用と復元
 │  ├─ controller/sources.py         XInput / キーボード / スクリプト入力
 │  ├─ memory_backend/pine_backend.py  PINE クライアント（PCSX2 が無いときは即座に失敗）
-│  ├─ memory_backend/guard.py       書き込みガード（Serial/CRC が違うゲームへは書かない）
+│  ├─ memory_backend/guard.py       書き込みガード（Serial/CRC・接続世代を再確認）
 │  ├─ config/settings.py            設定・プリセット
 │  ├─ config/paths.py               ローカルデータの場所
 │  └─ mips_asm.py                   MIPS 命令エンコーダ（コードケーブ用）
-├─ adapters/
-│  ├─ ffx2/                         memory_map.py（アドレス）、adapter.py、lookat_cave.py
-│  ├─ shiningforceneo/              + fov_cave.py、pad_cave.py
-│  ├─ shiningforceexa/              制御値＋局所 pad 命令（cave 不要）
-│  └─ suikoden5/                    + caves.py
+├─ adapters/<game>/                 対応13タイトルの個別実装（ゲームとフォルダーの対応は §1）
 ├─ gui/camera_controller/           PySide6 GUI（app.py、i18n.py）
 ├─ analysis/                        差分解析・Ghidra スクリプト
 ├─ tools/                           実機検証・監査ツール
 ├─ tests/                           pytest
 ├─ docs/                            文書（入口: docs/README.md）
-├─ reports/                         生成された数値の要約（JSON・差分表）
+├─ reports/                         Git 管理対象は選別した検証・解析要約のみ
 ├─ config/                          local_config.example.json
 ├─ presets/                         同梱プリセット（FFX-2 用）
 ├─ patches/                         FFX-2 の .pnach テンプレート
@@ -449,9 +444,7 @@ PS2UniversalMod/
 
 ## 10. リポジトリ運用（Git）
 
-* **GitHub のプライベートリポジトリ** `yutokure/PS2UniversalMod` に置いています（非公開のまま運用します）。
-  基盤 3 ゲームと GUI 修正・ゲーム切替ガードは PR #1 で `main` に統合済みです。イクサの追加状況は現在の作業ブランチを確認してください。
-  新しい作業は既存 PR と現在の Git 状態を確認して作業ブランチで進めます。
+* [GitHub リポジトリ](https://github.com/yutokure/PS2UniversalMod) の `main` が開発版、[Releases](https://github.com/yutokure/PS2UniversalMod/releases) のタグが配布版です。
 * リポジトリのルートは `PS2UniversalMod/` だけです。ゲームデータの置き場（`pcsx2/`・`sstates/`・`work/` など）はこの外にあり、
   親フォルダを `git init` してはいけません。
 * コミット対象はコード・テスト・文書・アドレス／関数名／ハッシュなどの要約のみ。ISO・BIOS・`.p2s`・RAM ダンプ・
@@ -460,7 +453,7 @@ PS2UniversalMod/
   コミット前に `git diff --cached --name-only`、`git diff --cached --stat`、`python tools/audit_repo.py --staged` で確認します。
   `--staged` は作業ツリーではなく **Git インデックスの中身** を検査します（`git add` の後で書き換えても結果は変わりません）。
 * 任意のコミット前フック: `git config core.hooksPath tools/git-hooks` で有効化、`git config --unset core.hooksPath` で解除
-  （標準では無効。1 回だけ飛ばすには `git commit --no-verify`）。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md)。
+  （標準では無効）。詳細は [`docs/gui/GAME_IDENTITY_GUARD.md`](docs/gui/GAME_IDENTITY_GUARD.md)。
 * 新しいゲームの追加手順は [`ADAPTER_GUIDE.md`](ADAPTER_GUIDE.md)（末尾の「Git での追加手順」）。
 
 ## 11. 文書

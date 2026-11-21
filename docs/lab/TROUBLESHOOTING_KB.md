@@ -1,4 +1,6 @@
-# TROUBLESHOOTING_KB — PS2-CAM-00
+# TROUBLESHOOTING_KB — PS2-CAM-00 の障害・対処記録
+
+[親ラボ](README.md)で観測した症状・根拠・対処を、当時の版とともに残したものです。マシン全体の Git 設定、Harness プロファイル、親ラボのスクリプトに関する項目は、公開ソースのセットアップ手順ではありません。
 
 Every entry follows the same schema: **symptom → error text → root cause →
 affected versions → sources → fix applied → rejected alternatives →
@@ -44,8 +46,7 @@ verification), GCM credential manager changes (not the failing layer).
 **Verification** — `git clone https://github.com/snowyegret23/PCSX2_MCP.git`
 succeeds; `git config --global --get http.sslBackend` → `openssl`.
 
-**Prevention** — the setting is global for this machine; re-check it if a future
-shell resets the global config.
+**公開ソース利用時** — 上記 `--global` は当時のラボで採った対処で、そのユーザーの他のリポジトリにも影響する。クローンできている環境に適用せず、似た症状でもまずエラーと利用中の TLS バックエンドを確認する。証明書検証は無効にしない。
 
 ---
 

@@ -1,4 +1,6 @@
-# TOOL_VERSIONS — pinned, verified combination
+# TOOL_VERSIONS — 親ラボで検証したツールの組み合わせ
+
+以下は[親ラボ](README.md)の調査対象を識別する版・ハッシュ・配置で、公開 GUI の推奨版一覧ではありません。特に GDB／`qPcsx2` 用の PCSX2 フォークと MCP のローカル修正は解析専用です。通常利用の前提は[公開ソースの README](../../README.md)を参照してください。
 
 All entries were installed and exercised on 2026-10-28 unless stated otherwise.
 "Verified" means the exact artifact ran successfully in this lab.
@@ -49,7 +51,7 @@ All entries were installed and exercised on 2026-10-28 unless stated otherwise.
 | ViGEmBus + `vgamepad` virtual XInput | kernel driver install requires administrator approval and a reboot; the keyboard backend covers the gate (see `BLOCKERS.md` B-03) |
 | Patching the closed PCSX2 binary | no source-level change possible without a full MSVC/Qt rebuild; MCP-side shims verified instead (KB-04) |
 
-## Reproducing the exact set
+## 当時のツールと版を確認したコマンド（親ラボのスクリプトが必要）
 
 ```powershell
 # 1. bootstrap directories + stock copy + compatible build  (see SETUP.md)

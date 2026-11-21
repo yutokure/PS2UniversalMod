@@ -4,24 +4,26 @@
 実装側の確認記録であり、独立レビューではない。
 設計・アドレス・安全条件は [CAMERA](<CAMERA.md>)。
 
+本書の `work/` と `sstates/` は開発ラボを基準とする保存先で、公開リポジトリには含まれません。
+
 ## 対象とデータ保護
 
 既存fork `B056de99`、PCSX2 2.7.499、EE GDB10501／PINE28011を使用。
 Python3.12 venv・既存Ghidra12.1.4＋R5900 languageを再利用した。
 ISOは読取りのみ、原本8stateもloadのみで上書きしない。
-開始時の実行状態は [session backup](<../../../../work/symphonia/session_start_20261107.p2s>) に別名保存した。
-ELF・RAM・画像・decompile・raw JSONはGit外の [local evidence](<../../../../work/symphonia/>) に保持する。
+開始時の実行状態は `work/symphonia/session_start_20261107.p2s` に別名保存した。
+ELF・RAM・画像・decompile・raw JSONはGit外の `work/symphonia/` に保持する。
 
 | 原本state | SHA256 |
 |---|---|
-| [base](<../../../../sstates/テイルズオブシンフォニア/base.p2s>) | `7C071A171DCAF807A5BE32421E9C1B866A903BABC3B49FB29D2FE240FBA96A08` |
-| [base_only_wait](<../../../../sstates/テイルズオブシンフォニア/base_only_wait.p2s>) | `E0E6F18B43519D3B46F64F502F8AB1C9C22824A9E5A7CCD2E08EAB017BA08E05` |
-| [base_chara_move](<../../../../sstates/テイルズオブシンフォニア/base_chara_move.p2s>) | `E00CD6D4A3AEB685A419990E1F63E72D5A75EA881314C5BB39BB828C85671199` |
-| [base_chara_and_camera_bigger_move](<../../../../sstates/テイルズオブシンフォニア/base_chara_and_camera_bigger_move.p2s>) | `1741063E34685D9C8FB7B7E3020635C1378B5CA4D88503D1EAF25C835AB22762` |
-| [field_base](<../../../../sstates/テイルズオブシンフォニア/field_base.p2s>) | `0CDB2BA25CCCEDCB4B48D25260F559244B3A1C0EB5E2F63A0043E871B9F83189` |
-| [field_base_only_wait](<../../../../sstates/テイルズオブシンフォニア/field_base_only_wait.p2s>) | `BD558F9ADC0EA95320E0190864527EA37B4CAD1319B00C708F879776791827B9` |
-| [field_base_only_camera_move](<../../../../sstates/テイルズオブシンフォニア/field_base_only_camera_move.p2s>) | `4834AD07E446A0689CCFDE558BAC8F47944074E3F952DD75851E33587340B8F5` |
-| [field_base_chara_move](<../../../../sstates/テイルズオブシンフォニア/field_base_chara_move.p2s>) | `5DE1CE7A6228521B729413B37DD2921FDADACDA46ED1EEDB12CF52DB1131F166` |
+| `sstates/テイルズオブシンフォニア/base.p2s` | `7C071A171DCAF807A5BE32421E9C1B866A903BABC3B49FB29D2FE240FBA96A08` |
+| `sstates/テイルズオブシンフォニア/base_only_wait.p2s` | `E0E6F18B43519D3B46F64F502F8AB1C9C22824A9E5A7CCD2E08EAB017BA08E05` |
+| `sstates/テイルズオブシンフォニア/base_chara_move.p2s` | `E00CD6D4A3AEB685A419990E1F63E72D5A75EA881314C5BB39BB828C85671199` |
+| `sstates/テイルズオブシンフォニア/base_chara_and_camera_bigger_move.p2s` | `1741063E34685D9C8FB7B7E3020635C1378B5CA4D88503D1EAF25C835AB22762` |
+| `sstates/テイルズオブシンフォニア/field_base.p2s` | `0CDB2BA25CCCEDCB4B48D25260F559244B3A1C0EB5E2F63A0043E871B9F83189` |
+| `sstates/テイルズオブシンフォニア/field_base_only_wait.p2s` | `BD558F9ADC0EA95320E0190864527EA37B4CAD1319B00C708F879776791827B9` |
+| `sstates/テイルズオブシンフォニア/field_base_only_camera_move.p2s` | `4834AD07E446A0689CCFDE558BAC8F47944074E3F952DD75851E33587340B8F5` |
+| `sstates/テイルズオブシンフォニア/field_base_chara_move.p2s` | `5DE1CE7A6228521B729413B37DD2921FDADACDA46ED1EEDB12CF52DB1131F166` |
 
 最終再計算で8原本＋開始backupのhash一致。
 提供stateは町4つ／ワールド同地域4つで、8エリアの網羅ではない。
@@ -50,8 +52,8 @@ README・文書索引・新規ゲーム文書のlocal link存在も確認。実�
 
 ## 最終TOS2 raw run — 77/77 checks
 
-[batch結果](<../../../../work/symphonia/batch/checks.json>) と
-[local実行script](<../../../../work/symphonia/batch_verify.py>)。
+batch結果（`work/symphonia/batch/checks.json`） と
+local実行script（`work/symphonia/batch_verify.py`）。
 
 - **全8state**で同じadapterを再利用してstockload→再適用。yaw90°／pitch35°／distance1800／FOV60°。
   scene受理・render target・FOV係数・全11site解除・原本hash不変を確認。
@@ -64,9 +66,9 @@ README・文書索引・新規ゲーム文書のlocal link存在も確認。実�
 - TOS2で町4回のapply/releaseを繰返し、actor callback `0x13BA20` 復元。
   続く8state＋angle runでprocess継続、同じblock-clearing errorの再発は観測していない。
 
-画像例: [world yaw180 FOV110](<../../../../work/symphonia/batch/field_base_y180_p35_f110.png>)、
-[world yaw270 FOV110](<../../../../work/symphonia/batch/field_base_y270_p35_f110.png>)、
-[町yaw180 FOV110](<../../../../work/symphonia/batch/base_y180_p35_f110.png>)。
+画像例: world yaw180 FOV110（`work/symphonia/batch/field_base_y180_p35_f110.png`）、
+world yaw270 FOV110（`work/symphonia/batch/field_base_y270_p35_f110.png`）、
+町yaw180 FOV110（`work/symphonia/batch/base_y180_p35_f110.png`）。
 
 ## MainWindow → GuardedBackend → runtime → EE
 
@@ -74,8 +76,8 @@ README・文書索引・新規ゲーム文書のlocal link存在も確認。実�
 既に実行中の通常場面へ接続し、freshなGit外出力先を指定する。他PINE clientを閉じ、開始状態を保護する。
 GUIはoffscreen、一時APPDATA/QSettings、scripted camera入力であり、移動・state操作はしない。
 
-- [町の最終結果](<../../../../work/symphonia/gui_town_stock_final/checks.json>): **15 checks成功**。
-- [worldの最終結果](<../../../../work/symphonia/gui_world_synced_final/checks.json>): **15 checks成功**。
+- 町の最終結果（`work/symphonia/gui_town_stock_final/checks.json`）: **15 checks成功**。
+- worldの最終結果（`work/symphonia/gui_world_synced_final/checks.json`）: **15 checks成功**。
 
 両方でOriginal起動・待機 **0write**、全11hook＋nativecallback返却、yaw40°／pitch+35°実geometry、
 scripted inputでyaw/pitch更新、FOV20/60/110＋aspect、nativeFOV resetでOrbit pose保持、
@@ -89,7 +91,7 @@ checkerをguest反映待ちへ修正して成功。production geometryをこの�
 
 ## 実入力の移動・world RX
 
-[最終入力結果](<../../../../work/symphonia/final_input/checks.json>)。
+最終入力結果（`work/symphonia/final_input/checks.json`）。
 PCSX2 keyboard pad binding `LUp=Keyboard/W` を実際に送る。backendの **y=+1がUp**（−1はDown）。
 recovered processのframeadvance-onlyではkeyboard pollが進まずゼロ変位となったため、通常resume中に短時間保持して測定。
 物理XInput入力ではない。stateは各試験前に読み直し、終了後開始backupへ戻した。
@@ -110,7 +112,7 @@ D-pad／全斜め／全移動モードは実入力未網羅。数学テストは
 world RX実入力0.7秒ではOriginal nativeyaw `3.125→3.6445379`、Orbitでは `3.125→3.125`。
 原作camera専用getterの中立化が効き、global yawをOrbitに書き換えていないことを確認。
 
-追加の [paused enable取消結果](<../../../../work/symphonia/pending_cancel.json>) では、VMpause中のenable→Originalが双方timeoutを返し、
+追加の paused enable取消結果（`work/symphonia/pending_cancel.json`） では、VMpause中のenable→Originalが双方timeoutを返し、
 flags0・全hook stockのまま再開後にnativecallbackへ復帰することを確認。解除完了を早まって返さないためのhost側修正で、generated guest codeは同じ。
 追加合成testで、EEがFLAGS0 store直後にACKしてcallbackを返すraceも検出し、既存CMD_SYNCを再armしない方式に修正した。
 この4case（町/world×再開済／pause継続）を含む最終473caseが成功。既にflags1を読んだEEとの競合時はACK不一致として安全失敗し、再開後offを再試行する。

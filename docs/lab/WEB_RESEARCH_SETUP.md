@@ -1,4 +1,6 @@
-# WEB_RESEARCH_SETUP — Web capability of DeepSeek Harness
+# WEB_RESEARCH_SETUP — 親ラボでの Web 調査環境
+
+これは[当時の研究環境](README.md)で情報源を探し、取得結果を確かめた記録です。以下のプロバイダー、アカウント、ローカル証跡は公開 GUI の起動・利用には不要です。
 
 ## 1. Providers in use
 

@@ -29,7 +29,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバックが残って�
 
 ## 2. アダプターが実装するもの
 
-`adapters/<game>/adapter.py` に次のインターフェースを実装します。
+以下は FFX-2 のメソッドを参考にした読み書きの例です。全ゲーム共通の抽象基底クラスではありません。たとえば[ツクール5のアダプター](adapters/rpgmaker5/adapter.py)は固定の視点・注視点を直接書かず、`write_orbit_params()` を使います。新しいゲームでは[共通エンジン](core/camera_runtime/engine.py)と GUI が実際に使う経路、`features` と復元処理を確認してください。
 
 ```python
 class MyGameAdapter:
@@ -87,12 +87,11 @@ class MyGameAdapter:
 ### 3.1 アドレスを特定する
 
 まず ISO / Serial / CRC、既存接続・解析・ステートを確認します。以下は FFX-2 の手法の例です。
-`analysis/` はリポジトリ内、`scripts/ps2lab/`・`scripts/sweep_*.py` は親ラボにあります。
+[FFX-2 の差分解析](analysis/savestate_diff/run.py)は公開ソースに含まれますが、特定の4ステート名と親ラボの入出力配置を前提とします。以下の `scripts/ps2lab/`・`scripts/sweep_*.py`、入力ステート、実測画像は同梱していません。これは[当時の親ラボ](docs/lab/README.md)での絞り込み例で、チェックアウトだけで実行できるコマンド一覧ではありません。
 
 1. **既存ステートを探し、不足する状態だけ用意する**
    * FFX-2 の例: 基準 / 時間経過のみ / キャラのみ移動 / カメラ大移動（4 個を毎回作る義務ではない）
-2. **展開する** — `scripts/ps2lab/sstate_zip.py` で EE RAM を取り出す
-   （PCSX2 2.x の `.p2s` は ZIP + ZSTD）
+2. **展開する** — 親ラボでは `scripts/ps2lab/sstate_zip.py` で EE RAM を取り出した。当時の FFX-2 ステートは ZIP 内のデータが Zstandard 圧縮された形式で、全ビルドの `.p2s` を同じ方法で読めるわけではない。
 3. **ノイズを除去する** — 「時間経過のみ」でビット一致する値だけ残す
 4. **署名で分類する** — カメラだけ動いた状態で大きく変化する値を候補に
 5. **実画面スイープで確定する** — `scripts/sweep_camera.py` /
@@ -163,19 +162,18 @@ Grandia IIではnative END生成後の2MiB検査が遅く、bank0/1が隣接し�
 
 ### 3.4 アダプターを登録する
 
-```python
-# gui/camera_controller/app.py（3 か所）
-from adapters.mygame.adapter import MyGameAdapter
-ADAPTERS = {"FFX2": FFX2Adapter, "MYGAME": MyGameAdapter}
-ADAPTER_BY_GAME_ID = {"SLPS-25250": FFX2Adapter, "SLPS-00000": MyGameAdapter}   # Serial -> クラス
-SUPPORTED_IDS = {"SLPS-25250", "SLPS-00000"}                                    # 対応する Serial
-```
+[GUI の登録表](gui/camera_controller/app.py)に新クラスの import を追加し、**既存エントリを残して**次の3か所に追記します。以下の名前と Serial は説明用です。
 
-`identify()` が一致しなければ GUI は書き込みを行いません。
+| 追記先 | 追加する項目の例 |
+|---|---|
+| import 群 | `from adapters.mygame.adapter import MyGameAdapter` |
+| `ADAPTERS`（名前 → クラス） | `"MYGAME": MyGameAdapter` |
+| `ADAPTER_BY_GAME_ID`（Serial → クラス） | `"SLPS-00000": MyGameAdapter` |
+| `SUPPORTED_IDS`（対応 Serial の集合） | `"SLPS-00000"` |
 
-GUI はアダプターを `GuardedBackend`（`core/memory_backend/guard.py`）越しに動かし、`identify()` が返した Serial / CRC を約 0.25 秒ごとに再確認します。
-ゲームが替わると書き込みは自動で止まり、アダプターは `restore()` なしで破棄されます。アダプターは**必ず `self.backend` 経由**で書き込んでください
-（PINE のソケットや別のバックエンドを自分で持つと、この保護の外になります）。
+Serial はクラスを選ぶためのキーです。`identify()` で Serial と CRC の**両方**が一致して初めて書込みを許可します。[GuardedBackend](core/memory_backend/guard.py) は、確認済みの接続世代に限り、再確認まで最長 0.25 秒の書込みを許可します。ゲーム切替を瞬時に検知する仕組みではありません。
+
+別ゲームを検出したら旧アダプターを `restore()` せず破棄します。復元も書込みなので、切替後のゲームには行いません。すべての書込みには **`self.backend`** を使い、独自の PINE ソケットでガードを迂回しないでください（[ガードの仕様](docs/gui/GAME_IDENTITY_GUARD.md)）。
 
 ---
 
@@ -199,22 +197,21 @@ GUI はアダプターを `GuardedBackend`（`core/memory_backend/guard.py`）�
 
 | 落とし穴 | 対策 |
 |---|---|
-| PINE はパイプライン不可 | 1 リクエストずつ送る（サーバは 1 パケットずつ read する） |
-| GDB 接続は VM を止める | 解析時のみ使う。制御には PINE を使う |
-| PINE のステート復元 opcode は壊れている | ステートは qPcsx2 / GDB 経由でロードする |
+| PINE の連続書込みを1回の不可分な更新とみなす | 現行の [PineBackend](core/memory_backend/pine_backend.py) は float 配列も1語ずつ順に送る。複数語の一貫性が必要ならゲーム側で判定する |
+| 解析用 GDB に接続すると VM が停止することがある | 進行状態を確認する。通常の GUI 制御には PINE を使う |
+| 親ラボのフォークでは PINE のスロット保存要求が失敗した | 当時は qPcsx2 で保存・復元を確認した（[KB-11](docs/lab/TROUBLESHOOTING_KB.md#kb-11--pine-savestate-command-returns-0xff)）。全 PCSX2 版の制限や GUI の必須手順ではない |
 | 描画ウィンドウの取得が古いフレームを返す | 2 回取得して 2 枚目を使う。ノイズ床を測ってから判定する |
 | カメラ制御が静止時に走らないゲームがある | 差分注入と直接書き込みの併用でカバーする |
 
 ---
 
-## v2 追記: FFX-2 の視線（注視点）フック
+## FFX-2 の視線（注視点）フック
 
-以下は FFX-2 の差分注入方式の条件です。他ゲームへ同じフィールド・フックを強制せず、
+以下の v1・v2・v3 は開発段階を区別する当時の呼称で、公開版のタグやブランチではありません。ここでは FFX-2 の差分注入方式を扱います。他ゲームへ同じフィールド・フックを強制せず、
 SF Neo の制御値方式や幻想水滸伝V のコードケーブ方式（v3）も参照してください。
 
 v1 の「注視点は `0x340380` に直接書き込み」は**誤り**でした。`0x340380` は
-演出依存のカメラ追従点です。現行 Orbit の基準は actor `0x3312D0` + 固定 Y `+5` で、
-描画の注視点は `0x33FC10`、実際の視線は
+演出依存のカメラ追従点で、actor 座標でも描画の注視点でもありません。現行の `read_player()` は actor `0x3312D0` を基準とし、ロード中など原点付近を除いて Y に `+5` を加えます。原作カメラの読み取りは `CAM_EYE_BASE` と `CAM_AIM`（`0x33FC10`）です。フックが有効なメイン描画では注視点の読み先を専用スロット `CAM_AIM_SLOT`（`0x33FC40`）に切り替えます。いずれも実際の視線は
 
 ```
 forward = normalize(注視点 - 視点)
@@ -242,8 +239,7 @@ forward = normalize(注視点 - 視点)
 
 の順で調べてください。アダプター側の追加 API は
 `read_aim()` / `write_aim()` / `restore_aim()` / `patch_active()` です。
-`patch_active()` は GUI の `Look-at patch` 行に表示され、パッチ未適用を
-「動かない MOD」ではなく**明示的な警告**にします。
+`patch_active()` は FFX-2 の注視点フックが完全かを調べます。GUI のパッチ状態行は別の `patch_state()` を読み、原作状態・適用・部分適用・不明を区別します。通常の GUI 操作で外部 `.pnach` を用意する必要はありません。
 
 ---
 
@@ -303,16 +299,18 @@ FOV 非対応は `features['fov'] = False` で GUI のスライダー・上書�
 
 ## Git での追加手順（新しいゲーム）
 
-```bash
-git switch -c feature/<game>-adapter                # main は動作確認済みベースライン
-mkdir adapters/<game>                               # __init__.py / memory_map.py / adapter.py (+ caves.py)
-# アドレスは memory_map.py の定数にだけ書く。共通基盤（core/）にゲーム固有値を入れない
-git add adapters/<game> tests/test_<game>.py docs/games/<game>/CAMERA.md   # 明示的に指定する
-git diff --cached --name-only && git diff --cached --stat
-python tools/audit_repo.py --staged                  # Git インデックスの中身にゲームデータ・秘密情報・大きなファイルが無いこと
-git commit -m "<Game>: camera adapter ..."
+例の `mygame` は実際のゲーム名に置き換えます。チェックアウトのルートで、作業開始時のブランチと変更を確認します。以下は新規アダプターをコミットする場合の例で、解析成果物を一括追加する手順ではありません。
+
+```powershell
+git status --short --branch
+git switch -c feature/mygame-adapter
+# 実装・検証・文書更新後。関連して変更したパスだけを列挙する
+git add -- adapters/mygame gui/camera_controller/app.py tests/test_mygame.py docs/games/mygame/CAMERA.md
+git diff --cached --name-only
+git diff --cached --stat
+python tools/audit_repo.py --staged
+# ステージの内容を確認し、監査に成功した場合だけコミットする
+git commit -m "MyGame: camera adapter"
 ```
 
-GUI への登録は `gui/camera_controller/app.py` の 3 か所（`ADAPTERS`・`ADAPTER_BY_GAME_ID`・
-`SUPPORTED_IDS`）。解析で作ったスクリーンショット・ダンプ・Ghidra プロジェクトは
-`test_evidence/`・`work/` に置き（Git 無視）、文書にはアドレス・関数名・数値だけを書きます。
+ゲーム固有アドレスは `adapters/mygame/` に置き、共通基盤に加えません。ステート、スクリーンショット、ダンプ、Ghidra プロジェクトは Git 管理外に保管し、文書には検証条件、アドレス・関数名・数値、確認できなかった範囲を残します。

@@ -26,7 +26,7 @@
 ## 2026-11-04 — 当時のmode2版の結果
 
 対象: **SLPM-65920 / 2B9AF3C5**。作業branch `feature/minstrelsong-adapter`。
-この記録は今回のadapter sourceを対象とする。独立review/gateではなく、実装側の検証。
+以下は11月4日時点のモード2専用版に対する実装側の検証で、11月21日版の再実行や独立検証ではない。
 全エリア・全イベントへの対応を意味しない。方式と制限は [`CAMERA.md`](CAMERA.md)。
 
 ## データ保護・環境

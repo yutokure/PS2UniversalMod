@@ -1,4 +1,6 @@
-# AUTONOMOUS_TROUBLESHOOTING — how this lab heals itself
+# AUTONOMOUS_TROUBLESHOOTING — 親ラボでの障害検出と復旧
+
+以下の監視・再起動・基準ステート復元は[研究環境](README.md)の自動化手順です。`ps2lab` と実験用ステートは同梱していません。公開 GUI が同じ処理を行ったり、利用者のセーブを自動復元したりするわけではありません。
 
 ## 1. The loop
 

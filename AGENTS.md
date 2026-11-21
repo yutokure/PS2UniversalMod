@@ -5,11 +5,8 @@
 
 ## 適用範囲と正本
 
-- Git 管理する唯一の正本は `PS2UniversalMod/AGENTS.md`。
-  親ラボの `AGENTS.md` は相対シンボリックリンク `PS2UniversalMod/AGENTS.md` とする。
-  配置・読取り一致の確認は [文書索引](docs/README.md) を参照。編集は必ず正本へ行う。
-- 本書のパス・リンク・コマンドの基準はリポジトリルート `PS2UniversalMod/`。
-  親ラボから読む場合も同ルートへ移動して解決する。
+- 正本はこのリポジトリ直下の `AGENTS.md`。以下の相対パス・コマンドはチェックアウトのルートを基準にする。
+  開発元の親ラボでは相対シンボリックリンク経由で同じ文書を読んでいた。公開ソースの利用に親ラボやリンクの作成は不要。
 - PS2UniversalMod の開発には本書全体を適用する。
   親ラボの PCSX2 / MCP / Ghidra / 解析には安全・既存資産活用・復旧の共通ルールを適用する。
   Git・アダプター・GUI 固有の規則はこのリポジトリ用で、別の独立プロジェクトの規則を上書きしない。
@@ -49,7 +46,7 @@
 |---|---|---|
 | FFX-2（FF10-2） / `SLPS-25250` / `8A6D7F14` | 差分注入・注視点パッチ・ゲーム本来のカメラルーチンへのフック。[技術メモ](docs/games/ffx2/ADAPTER_NOTES.md)、[歩行調査](docs/games/ffx2/WALK_DIRECTION_INVESTIGATION.md) | Free Camera 対応。歩行追従の実測は歩き始め 0.3 秒、長時間は未確認。演出エリアの FOV 制限は README・最新追記で確認 |
 | シャイニング・フォース ネオ / `SLPM-65908` / `64F241D2` | 角度・距離・高さの制御値、平滑化ゲート、FOV / 右スティック用コードケーブ。[解析](docs/games/shiningforceneo/CAMERA_ANALYSIS.md) | Free Camera・位置/注視点オフセット未対応。復帰後の yaw は原作が決め、元の角度との一致は既知の制限 |
-| シャイニング・フォース イクサ / `SLPM-66646` / `8B383FDF` | 原作の角度・距離・高さ・垂直 FOV 入力＋平滑化ゲート、右軸 load 2 命令の中立化。[解析](docs/games/shiningforceexa/CAMERA.md) | ネオに近いが actor offset・既定値・入力方式は別。Free Camera / offsets 非対応。FOV-only も gate を保持。全イベント・入力再生は未検証 |
+| シャイニング・フォース イクサ / `SLPM-66646` / `8B383FDF` | 原作の角度・距離・高さ・垂直 FOV 入力＋平滑化ゲート、右軸 load 2 命令の中立化。[解析](docs/games/shiningforceexa/CAMERA.md) | ネオに近いが actor offset・既定値・入力方式は別。Free Camera / offsets 非対応。アダプターの FOV 単独書込みは gate を保持するが、GUI の Original で FOV 単独変更はできない。全イベント・入力再生は未検証 |
 | 幻想水滸伝V / `SLPM-66286` / `7380A572` | カメラ更新の出力ストアをコードケーブで置換。[解析](docs/games/suikoden5/CAMERA.md)、[テスト結果](docs/games/suikoden5/TEST_RESULTS.md) | 原作右スティックは 3 段階ズーム。Orbit 中は競合を遮断し R1 は維持。Free Camera 未対応。イベント・戦闘・メニューは未検証 |
 | ナイトメア オブ ドルアーガ / `SLPS-25377` / `B476ED7A` | 城内・Dungeon別の最終行列出力cave、native状態を保持。右processed軸と派生bitのみ中立化。[解析](docs/games/nightmaredruaga/CAMERA.md)、[テスト結果](docs/games/nightmaredruaga/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。Dungeon playerは専用actor所有pointer（城内ID1000とは別）。城内は連続方位、Dungeon方向キーは最寄り8方向、左analogはitem UI。全floor/イベントは未網羅 |
 | ラジアータ ストーリーズ / `SLPM-65800` / `AC73005E` | 描画view/frustum生成中だけworld行列を差替えてnativeへ復元、FOVはtan引数。player alias→actor所有nodeに追従。[解析](docs/games/radiatastories/CAMERA.md)、[テスト結果](docs/games/radiatastories/TEST_RESULTS.md) | Orbit・6軸offset・FOV・カメラ基準移動対応、Free未対応。移動getterのみOrbit forwardへ差替え、原作右スティックは遮断なし。短い方向測定・state再適用を確認。橋の横ずれ等は未分離、全scene/方向/長時間は未網羅 |
@@ -102,6 +99,15 @@ TOS1のPINE codebootstrapはPCSX2 `Impossible block clearing failure` crashが�
 8提供stateは町4＋world4の限定場面。全ダンジョン・event/menu/battle・長時間/全culling未網羅。町map外黒背景・裏面あり、Orbitcollisionなし。
 旧TOS1はstockstate／再起動で消してからTOS2を使用、未知caveは強制更新しない。pause中ACK不能。
 
+マグナカルタ / `SLPS-25401` / `EB925207` は manager の登録表から現在のフィールドのローカルプレイヤーを特定し、描画引数を差し替える。`0x53B868` は AI を指すことがあり、プレイヤー判定には使わない。
+[解析](docs/games/magnacarta/CAMERA.md)、[実測結果](docs/games/magnacarta/TEST_RESULTS.md)。Adventure・Normal・Detect はそれぞれ対応する selector と script の組だけが対象。
+Orbit・距離150〜6000・水平FOV 20〜110°・6軸オフセット・カメラ基準移動に対応し、Free は非対応。走行中の広域表示と接触エンカウント無効（オレンジの丸枠も非表示）はカメラと独立。
+フィールド16ステートで描画と Original 復帰、うち5ステート各2方位で移動を確認。16マップという意味ではない。壁・樹木とのカメラ衝突判定はなく、全マップ・戦闘・イベント・長時間は未網羅。
+
+RPGツクール5 / `SLPS-20143` / `BB78C51D` はマップ編集時のカーソルまたはテストプレイ時の操作キャラに原作カメラが追従する。原作の方位・距離・極角を使い、最終行列や入力は書き換えない。
+[解析](docs/games/rpgmaker5/CAMERA.md)、[実測結果](docs/games/rpgmaker5/TEST_RESULTS.md)。Orbit は全周、仰角20〜75°・距離200〜1600、水平FOV 20〜60°は Orbit 中のみ。Free・独立オフセット・注視点高さは非対応。
+原作の R1 操作やステート切替の前は Original に戻す。編集4件・テストプレイ3件の確認で、実スティック操作・全作品データ・全イベントは未検証。
+
 FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測定記録。
 歩行未解決などの当時の結論を、後のフック実装・測定より優先しない。
 幻想水滸伝V の長時間試験・他ゲーム回帰も記載された条件の実績であり、全場面の保証ではない。
@@ -122,31 +128,31 @@ FFX-2 の [FINAL_STATUS](docs/games/ffx2/FINAL_STATUS.md) は 2026-10-31 の測�
   [ゲーム切替ガード](docs/gui/GAME_IDENTITY_GUARD.md) にあり、即時・完全遮断と誇張しない。
 - 同一ゲームで通常終了・無効化するときは、原作 camera・FOV・入力・patch を正常に返す。
   保存値・適用済み命令・復元対象を確認し、未知の命令を強制上書きしない。
-  FFX-2 の外部 `.pnach` / stock hook の操作・後始末は README とゲーム資料も確認する。
+  FFX-2 は通常、アダプター自身がフックを適用・解除する。外部 `.pnach` は不要で、既存パッチとの競合・後始末は README とゲーム資料を参照する。
 - 右スティックの原作機能との競合、場所依存/イベント camera、ロード・ステート復元を考慮する。
   `is_field_like()` や heartbeat の判定だけで全特殊シーン対応済みとしない。
 - FOV は実際の投影処理・画角が変わることを確認する。GUI 値や無効な出力ミラーの変化だけで成功にしない。
 - 未対応機能は adapter の `features` と GUI の disable・理由表示に反映する。
-  設定はゲーム別、起動時は Original、プリセットは値のみという現行挙動を守る。
+  設定はゲーム別、起動時は Original。時計停止・走行中の広域表示・エンカウント無効はセッション限りで、設定・プリセットから有効化しない。
 
 ## 新ゲームの追加
 
-詳細は [ADAPTER_GUIDE.md](ADAPTER_GUIDE.md) と最も近いゲーム資料を読む。
+詳細は [ADAPTER_GUIDE.md](ADAPTER_GUIDE.md) と最も近いゲーム資料を読む。手順2〜6はアドレスや描画経路を調べるための例で、GUI の起動手順ではない。
 
 1. ISO の所在・版・Serial / CRC を確認する。原本を変更しない。
-2. 既存 PCSX2 MCP / PINE / Ghidra の構成と使える接続を確認し、作り直さない。
+2. 利用できる PCSX2 / PINE を確認する。すでに解析用 MCP / GDB / Ghidra がある場合は必要に応じて再利用する。
 3. 既存ステート・解析・関数索引を探す。基準・時間経過・移動・ズームなど必要な状態だけ追加する。
    原本ステートは保護し、複製・明示スロットで扱う。
 4. Python のメモリ差分解析でノイズと候補を絞る。`analysis/savestate_diff/`、
-   `analysis/suikoden5/`、親ラボの `scripts/ps2lab/` を参照する。
-5. MCP のオンライン読取り・最小の安全な書込み/読戻しで候補と実画面の関係を確かめる。
+   `analysis/suikoden5/` はソースに含むが、入力ステートや親ラボの `scripts/ps2lab/` は同梱しない。
+5. 親ラボでは MCP でオンライン読取りと最小限の書込み・読戻しを行い、候補と実画面の関係を確かめた。
 6. GDB watchpoint で書込み命令を捕まえ、Ghidra で関数・入力・出力・投影経路を特定する。
 7. 差分注入・制御値・コードケーブ等から、そのゲームに合い競合と復元を扱える方式を選ぶ。
 8. `adapters/<game>/` に実装し、Serial + CRC、場面判定、patch 適用/復元、機能制限を定義する。
 9. 既存 GUI の `ADAPTERS`・`ADAPTER_BY_GAME_ID`・`SUPPORTED_IDS` に登録し、機能・範囲・説明を反映する。
 10. 要求範囲の動作確認を行い、関連文書を確認・更新し、指示された範囲で Git 操作を行う。
 
-PINE は同時 1 クライアント。GUI と検証スクリプトを同時に接続しない。
+親ラボで検証した PCSX2 ビルドの PINE 接続は同時に1クライアント。競合を避けるため GUI と検証スクリプトは交代で使う。
 GDB も MCP と raw RSP を併用せず、接続で VM が停止していないか確認する。
 解析用 MCP / GDB は通常の GUI 実行には不要。設定や起動の詳細は README・ラボ資料を参照する。
 
@@ -196,13 +202,14 @@ GDB も MCP と raw RSP を併用せず、接続で VM が停止していない�
 
 ## Git とデータ保護
 
-- Git root は `C:/PS2CameraLab/PS2UniversalMod`。親ラボ全体を `git init` しない。
-  親 `AGENTS.md` はリンクで Git 管理外。private リポジトリの非公開設定を維持する。
+- 公開するのはこのチェックアウトのソースと文書だけ。Git root は `git rev-parse --show-toplevel` で確認し、
+  親ラボやゲームデータのディレクトリを `git init` しない。固定のドライブ・フォルダー名は不要。
+  公開向けに整備する作業と、リモートの可視性変更・タグ作成・リリース公開の権限は別に扱う。
 - 管理対象は自作コード・adapter・GUI・tests・解析スクリプト・設定テンプレート・docs・最小の解析要約。
   アドレス・関数名・測定値・ハッシュの要約を使い、ゲーム由来データ本体を含めない。
 - ISO / CHD / BIOS / 抽出 ELF・素材 / ステート / メモリーカード / RAM・VRAM dump /
   Ghidra project / 大量の逆コンパイル出力 / スクリーンショット / 録画 / 秘密情報は禁止。LFS も使わない。
-  保存場所は README のローカルデータ表と `core/config/paths.py`、除外は `.gitignore` を確認する。
+  `core/config/paths.py` を使うコードは環境変数、Git 対象外の `config/local_config.json`、リポジトリ親を基準にした既定配置の順で場所を解決する。各解析ツールの入出力は個別にも確認する。
 - Git 操作前に `git status --short --branch` を確認し、HEAD・ブランチ・既存ユーザー変更を把握する。
   他者変更を削除・上書きしない。`git reset --hard` / `git restore .` / `git clean -fd` は禁止。
 - 新機能は作業ブランチを使い、既存 PR と適切なブランチを確認する。main へ直接混ぜない。
@@ -239,7 +246,7 @@ GDB も MCP と raw RSP を併用せず、接続で VM が停止していない�
 
 | 依頼例 | 判断の起点 |
 |---|---|
-| 「新 game 解析追加」 | 既存解析・ステートと版を確認し、新ゲーム手順へ。既存 3 本と同じ構造とは決めない |
+| 「新 game 解析追加」 | 既存解析・ステートと版を確認し、新ゲーム手順へ。既存タイトルと同じ構造とは決めない |
 | 「GUI button 名を変更」 | `app.py` / `i18n.py` と操作説明を検索し、関連表示を確認。全ゲーム実機検証は不要 |
 | 「camera bug を直す」 | ゲーム・版・場面を既存情報から特定し、原因と直接影響を確認。書込み/復元は安全確認を優先 |
 | 「docs と実装を整合」 | 現行 source と根拠を照合し、関連する古い説明を修正。未検証の実機成功を追加しない |

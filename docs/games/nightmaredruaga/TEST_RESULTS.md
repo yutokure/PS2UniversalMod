@@ -10,6 +10,8 @@ Dungeon GUI実機 **15/15**、Dungeon→Town stockステート切替付き実機
 途中の移動失敗は、Dungeonの左analogが原作のitem UI操作だったことと壁条件を切り分け、
 原作の方向キーで通行可能な隣接タイルへ動かして再検証した。失敗履歴と最終成功を分けて以下に残す。
 
+本書の `work/`、`test_evidence/`、`sstates/`、`backups/` は開発ラボを基準とする保存先で、公開リポジトリには含まれません。
+
 ## 0. 追加移動補正 — `fix/orbit-camera-relative-movement`
 
 2026-11-03、以下は Town / Dungeon 移動補正追加 source の **オフライン実装検証**。
@@ -65,7 +67,7 @@ camera / movement3hook / pad / flags復元 → menuを閉じnative field復帰�
 
 今回の関連オフライン回帰は両adapter＋core＋identity/PINE＋GUI全件 **608 passed / 60.64秒**。
 途中の並行実行でDruaga GUI fixtureの新hook未seedにより1件失敗したが、fixtureを更新してこの最終実行で解消した。
-[ローカル証拠](<C:/PS2CameraLab/test_evidence/orbit_walk_20261103/>)。新sourceの全floor・全UI・長時間は未検証。
+ローカル証拠（`test_evidence/orbit_walk_20261103/`）。新sourceの全floor・全UI・長時間は未検証。
 終了時はcamera/movement3hook/pad/flagsがstockであること、breakpoint/watchpointなしを読戻し、
 開始時と同じくPCSX2を正常終了した。両card設定は元の名称へ戻し、原本state・原カードを実験に使用していない。
 
@@ -129,7 +131,7 @@ projection builder は引数・読戻し用の合成モデルで、renderer、PS
 
 [実GUIチェックツール](<../../../tools/druaga_live_check.py>) を offscreen Qt GUI + 実 PINE で使用した。
 一時 APPDATA に設定を隔離し、実入力は PCSX2 keyboard pad、MOD 回転は runtime の scripted input pump を通した。
-ローカル結果: [Town live2 checks](<C:/PS2CameraLab/test_evidence/druaga/live2/checks.json>)。
+ローカル結果: Town live2 checks（`test_evidence/druaga/live2/checks.json`）。
 
 | 確認 | 実測・結果 |
 |---|---|
@@ -174,8 +176,8 @@ yaw90 / 内部pitch−35 / distance16 / look height1.5:
 
 ### GUI harness の途中結果
 
-ローカルの [Dungeon live4 checks](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live4/checks.json>) は **15/16**、
-[Dungeon live5 checks](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live5/checks.json>) は **14/15**。
+ローカルの Dungeon live4 checks（`test_evidence/druaga/dungeon_live4/checks.json`） は **15/16**、
+Dungeon live5 checks（`test_evidence/druaga/dungeon_live5/checks.json`） は **14/15**。
 live4 は stock state reload handshake を含み、live5 は含まない。
 どちらも **唯一の失敗は左移動 / actor追従項目**で、総合 PASS としない。
 
@@ -194,18 +196,18 @@ live4 は stock state reload handshake を含み、live5 は含まない。
   **Dungeonの左analogは原作のitem操作で、歩行はD-pad**。Townのleft analog移動をそのまま適用したharnessの誤りだった。
 - D-padであっても通れない隣接tileでは移動しない。live8ではX12からさらに左が不通で、その項目をFAILのまま残した。
 - UIを閉じ、X14から左の通行可能tileへD-padで動かした
-  [Dungeon live7](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live7/checks.json>)は **15/15 PASS**。
+  Dungeon live7（`test_evidence/druaga/dungeon_live7/checks.json`）は **15/15 PASS**。
   actor `(14,50,-24)→(12,50,-24)`、eye-player相対誤差 **1.90735e−6**。
-- [Dungeon live9 cross](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live9_cross/checks.json>)は **16/16 PASS**。
+- Dungeon live9 cross（`test_evidence/druaga/dungeon_live9_cross/checks.json`）は **16/16 PASS**。
   同じ歩行追従に加え、GUIのOrbit/FOVを維持したままstockの城内ステートへ切替え、約2秒後に
   yaw90 / pitch−35 / distance22 / FOV90 / pad hook・derived4命令の再適用を確認した。
   Originalで切替先のnative FOV **35.146684°** と全検査対象命令へ復帰。
-- 最終[城内再実行](<C:/PS2CameraLab/test_evidence/druaga/town_final/checks.json>)も **15/15 PASS**。
+- 最終城内再実行（`test_evidence/druaga/town_final/checks.json`）も **15/15 PASS**。
   新方式のraw RX255 / processed RX0、1.8単位の左analog移動、相対誤差1.10e−6、全offset/FOV/復元を再確認した。
 
 ### メニューでの復元
 
-[メニュー実機確認](<C:/PS2CameraLab/test_evidence/druaga/menu_check.json>) **5/5 PASS**。
+メニュー実機確認（`test_evidence/druaga/menu_check.json`） **5/5 PASS**。
 城内Orbit＋FOV60→Start menuでscene guard無効→menu内Originalで両camera hooks/pad hook/derived4命令/flagsを解除、
 Crossでmenuを閉じnative FOV35.146684°へ復帰、再度Orbit有効化を確認した。
 無効sceneでの通知 `scene guard: not a field camera` は安全退避の記録であり、復元失敗ではない。
@@ -249,17 +251,17 @@ tool は finally で injected input を放し、GUI 通常 close を行う。
 
 ローカル参照先:
 
-- [Druaga 解析作業領域](<C:/PS2CameraLab/work/druaga/>) — 提供 state の展開 RAM、関数索引、最小調査用出力。
-- [Druaga 実機証拠領域](<C:/PS2CameraLab/test_evidence/druaga/>) — 試験ごとの checks と画像。画像は Git 外。
-- [Town live2 checks](<C:/PS2CameraLab/test_evidence/druaga/live2/checks.json>)（旧入力方式）と
-  [最終Town](<C:/PS2CameraLab/test_evidence/druaga/town_final/checks.json>)（最新方式15/15）。
-- [Dungeon live7](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live7/checks.json>)（15/15）、
-  [Dungeon→Town live9](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live9_cross/checks.json>)（16/16）、
-  [メニュー復元](<C:/PS2CameraLab/test_evidence/druaga/menu_check.json>)（5/5）。
-- [Dungeon live4 checks](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live4/checks.json>)、
-  [Dungeon live5 checks](<C:/PS2CameraLab/test_evidence/druaga/dungeon_live5/checks.json>)。
-- [保護用 original state](<C:/PS2CameraLab/sstates/ナイトメアオブドルアーガ/session_20261103_1502_original.p2s>) と
-  [追加 Dungeon entry state](<C:/PS2CameraLab/sstates/ナイトメアオブドルアーガ/session_20261103_dungeon_entry.p2s>)。
+- Druaga 解析作業領域（`work/druaga/`） — 提供 state の展開 RAM、関数索引、最小調査用出力。
+- Druaga 実機証拠領域（`test_evidence/druaga/`） — 試験ごとの checks と画像。画像は Git 外。
+- Town live2 checks（`test_evidence/druaga/live2/checks.json`）（旧入力方式）と
+  最終Town（`test_evidence/druaga/town_final/checks.json`）（最新方式15/15）。
+- Dungeon live7（`test_evidence/druaga/dungeon_live7/checks.json`）（15/15）、
+  Dungeon→Town live9（`test_evidence/druaga/dungeon_live9_cross/checks.json`）（16/16）、
+  メニュー復元（`test_evidence/druaga/menu_check.json`）（5/5）。
+- Dungeon live4 checks（`test_evidence/druaga/dungeon_live4/checks.json`）、
+  Dungeon live5 checks（`test_evidence/druaga/dungeon_live5/checks.json`）。
+- 保護用 original state（`sstates/ナイトメアオブドルアーガ/session_20261103_1502_original.p2s`） と
+  追加 Dungeon entry state（`sstates/ナイトメアオブドルアーガ/session_20261103_dungeon_entry.p2s`）。
   原本3 state とは別名で保持した。
 
 ### セーブデータ保護・環境復帰
@@ -269,9 +271,9 @@ tool は finally で injected input を放し、GUI 通常 close を行う。
 入場前のカード内容の完全バックアップは無いため、推測でセーブを巻き戻したり別slotのデータを上書きしたりしていない。
 
 マウント中の排他ロックでコピーできなかったためPCSX2を正常終了し、両原カードを
-[完全バックアップ](<C:/PS2CameraLab/backups/druaga_cards_complete_20261103_1538/>)した後、複製カードへ設定を切替えた。
+完全バックアップ（`backups/druaga_cards_complete_20261103_1538/`）した後、複製カードへ設定を切替えた。
 それ以降のDungeon検証は複製側で行い、最終に原カードのDruaga各ファイルがバックアップとSHA-256一致することを確認した
-（[最終ハッシュ記録](<C:/PS2CameraLab/test_evidence/druaga/original_cards_final_hashes.json>)）。
+（最終ハッシュ記録: `test_evidence/druaga/original_cards_final_hashes.json`）。
 これは**隔離後の不変性**の証明であり、初回自動セーブ以前と同じという意味ではない。
 
 完了時は両slotの設定を元のカードへ戻し、PCSX2を再起動して初期退避ステートをloadした。

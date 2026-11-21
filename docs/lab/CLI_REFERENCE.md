@@ -1,7 +1,6 @@
-# CLI_REFERENCE — every script, argument and artifact
+# CLI_REFERENCE — 親ラボで使用したコマンドと生成物
 
-All commands assume `C:\PS2CameraLab` and use
-`C:\PS2CameraLab\python\venv\Scripts\python.exe` (abbreviated `$PY` below).
+以下の作業ディレクトリは当時の親ラボ `C:\PS2CameraLab`、`$PY` はその仮想環境の Python です。`scripts/`、`ps2lab`、この表の `tests/`・`reports/` は親ラボ側を指し、公開ソースで同じコマンドが使えるという意味ではありません。現行 GUI の起動・テストは[公開ソースの README](../../README.md)を参照してください。
 
 ```powershell
 $PY = "C:\PS2CameraLab\python\venv\Scripts\python.exe"

@@ -1,4 +1,4 @@
-"""Launcher that works no matter which ``python`` is on PATH.
+"""Launch the GUI with a project, lab, or current Python interpreter.
 
 ``python gui/camera_controller/app.py`` only works if *that* interpreter has
 PySide6.  This script instead looks for a Python that does, in this order:
@@ -6,10 +6,10 @@ PySide6.  This script instead looks for a Python that does, in this order:
 1. ``<repo>/.venv``                       - a venv created next to the project
 2. ``<repo>/../python/venv``              - the lab venv used during development
 3. the interpreter running this script (if it already has PySide6)
-4. ``py -3`` / ``python`` on PATH
 
-and then re-executes the GUI with it.  Nothing is installed and nothing is
-modified; if no suitable interpreter exists it prints the exact command needed.
+The Windows batch file starts this launcher with a project or lab venv if
+present, otherwise with ``python`` on PATH. The launcher does not install
+packages; if no interpreter has PySide6 it prints setup instructions.
 
     python run_gui.py
     python run_gui.py --screenshot shot.png

@@ -1,4 +1,4 @@
-"""Engine regression check for every adapter: orbit, FOV and restore on the running game.
+"""Live orbit, FOV and restore checks for the four games listed below.
 
     python tools/regression_check.py
 

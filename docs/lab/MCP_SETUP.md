@@ -1,7 +1,6 @@
 # MCP_SETUP — PCSX2 MCP × DeepSeek Harness
 
-This document records exactly how the PCSX2 MCP server is built, registered in
-DeepSeek Harness, verified, and recovered.
+[親ラボ](README.md)が当時の Harness と PCSX2 MCP をどう接続したかを記録しています。`compat/ps2cam00` は当時のローカル修正、以下のパス・プロファイル・バックアップはその環境のものです。公開 GUI は PINE を使うため、この登録・設定編集・再起動は不要です。
 
 ## 1. Server implementation
 

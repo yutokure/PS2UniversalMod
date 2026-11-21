@@ -5,6 +5,8 @@
 [描画・lifecycle](../../../adapters/magnacarta/caves.py)、[移動](../../../adapters/magnacarta/directions.py)、
 [ゲーム固有切替](../../../adapters/magnacarta/gameplay.py)。確認結果は [TEST_RESULTS](TEST_RESULTS.md)。
 
+現行のOrbitはローカルプレイヤーを特定できた歩行・走行・Adventureフィールドが対象。11月21日のAdventure追加はカメラに限り、走行時の広域表示や接触エンカウント無効の適用範囲は広げていない。
+
 ## 解析の基準
 
 2026-11-07、提供された4state（`walking_base`、`walking_base_only_wait`、

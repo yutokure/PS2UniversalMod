@@ -1,8 +1,6 @@
-# BLOCKERS — open items, with cause and next step
+# BLOCKERS — 親ラボでの未解決事項とその後の追記
 
-Nothing in this list stops the lab from being used. Each item is either a
-limitation of the pinned emulator build, a capability that needs the user's
-authority, or a piece deliberately left out of scope for the gate.
+各項目の OPEN / RESOLVED、next step は[親ラボ](README.md)の当該調査・ビルド時点の判断です。後日の追記を含めて経過を残しています。公開 GUI の既知の制限は[利用ガイド](../../README.md)、ゲーム固有の確認範囲は[文書索引](../README.md)の各タイトルを参照してください。
 
 ## B-01 — RESOLVED: `mcp__pcsx2__*` tools active in the GUI session
 
@@ -73,7 +71,9 @@ to keyboard when the driver is absent.
 
 ## B-04 — Savestate *offline* analysis tooling
 
-**Status**: PARTIALLY RESOLVED. `scripts/savestate_extract.py` turns a slot into a raw
+**PS2-CAM-00 時点：一部解決。** 下記は当時のオンライン抽出と未対応範囲。後の [FFX-2 差分解析](../../analysis/savestate_diff/run.py)には対象ステートから EE RAM を取り出す処理があるが、全ビルドの `.p2s` 用の汎用パーサーではない。
+
+The parent lab's `scripts/savestate_extract.py` turns a slot into a raw
 RAM image plus a SHA-256 manifest by loading it in the emulator (EE RAM 32 MB,
 scratch, IOP RAM), which is what analysis actually needs. Parsing the `.p2s`
 container offline (zstd + build-specific layout) is still out of scope.
@@ -102,12 +102,9 @@ added on demand).
 **Next step**: add a targeted script that decompiles only the functions the
 dynamic analysis points at (the cross-check already returns their entry points).
 
-## B-06 — Other PS2 titles are untested
+## B-06 — PS2-CAM-00 の対象ディスクは FFX-2 日本版のみ
 
-The pipeline is game-agnostic (ISO path is a parameter, ELF extraction is
-generic), but only *Final Fantasy X-2 (Japan)* was exercised. FFX (the actual
-PS2-CAM-01 target) is present on the user's drive and can be analysed the same
-way; it was not used here because the brief named X-2 as the test disc.
+当時の自動試験は ISO パスを引数に取るが、指定された *Final Fantasy X-2 (Japan)* だけで実施した。次段階で予定した FFX の試験結果ではない。また、この記録は現行アダプターが FFX-2 のみに対応するという意味ではない。[公開 GUI の対応ゲーム](../../README.md)と[ゲーム別の検証記録](../README.md)を参照。
 
 ## B-07 — One physical controller is attached
 
@@ -118,7 +115,7 @@ idle during automated runs.
 
 ## B-08 — FFX-2 field walking does not follow the orbit camera (resolved in part by the stock-camera hook)
 
-**Status**: RESOLVED in part (latest note below: the stock-camera hook makes the walk follow the orbit; long walks unverified). Analysed on 2026-10-31.
+**2026-10-31 時点：一部解決。** 下記の `.pnach` は当時の試験方式。現行 GUI ではアダプターがフックを適用・解除するため、通常は外部パッチを入れない。歩き始め 0.3 秒での方位測定と、後日のルカでの20秒の場面遷移試験は別で、長時間の歩行追従を実証したものではない（[歩き始めの方位](../games/ffx2/WALK_DIRECTION_INVESTIGATION.md)、[ルカの演出切替](../games/ffx2/CAMERA_MEMORY_MAP.md#ルカのミニマップ-共有-look-at-ビルダへの副作用)）。
 
 **Cause (partly known)**: the mod moves the render camera through the additive eye offset
 `0x3403E0` and the aim slot `0x33FC40`. Walking direction is derived from the game's own camera

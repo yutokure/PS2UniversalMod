@@ -12,23 +12,26 @@ the top-level `README.md` §10); documents refer to them only by local path.
 | [`../README.md`](../README.md) | what the mod does, how to start it, GUI items, settings, local data paths, Git policy |
 | [`../AGENTS.md`](../AGENTS.md) | AI operating rules: scope, reuse, safety, choosing checks, documentation impact, Git |
 | [`../ADAPTER_GUIDE.md`](../ADAPTER_GUIDE.md) | how to add a game: finding the addresses, the hook styles, the Git steps |
-| [`gui/GUI_REVIEW.md`](gui/GUI_REVIEW.md) | first review of the controller window (bugs found and fixed, open items) |
-| [`gui/GUI_AUDIT_2026-11-02.md`](gui/GUI_AUDIT_2026-11-02.md) | second audit: design, UX, robustness, consistency, game-specific behaviour — findings and fixes |
-| [`gui/GAME_IDENTITY_GUARD.md`](gui/GAME_IDENTITY_GUARD.md) | review P1/P2: no writes into another game after a game switch; `audit_repo.py --staged` reads the Git index |
+| [First GUI review](gui/GUI_REVIEW.md) | 2026-10-31, FFX-2 only; findings for the window at that date |
+| [Second GUI audit](gui/GUI_AUDIT_2026-11-02.md) | 2026-11-02, three adapters; fixes including starting in Original and loading preset values without changing mode |
+| [Game identity guard and Git audit](gui/GAME_IDENTITY_GUARD.md) | how the GUI blocks writes once a switch is detected, the 0.25 s lease before detection, and how `audit_repo.py --staged` checks the Git index |
 
 ## Per game
 
-| game | analysis | status / tests |
+The GUI enables an adapter only when **both the serial and CRC** match the Japanese release listed below.
+Check the results for the tested scenes, input methods and limitations; a passing field test does not establish support for every map, battle or menu.
+
+| game (serial / CRC) | analysis | status / tests |
 |---|---|---|
-| Final Fantasy X-2 (SLPS-25250) | [`games/ffx2/CAMERA_MEMORY_MAP.md`](games/ffx2/CAMERA_MEMORY_MAP.md), [`FOV_ANALYSIS`](games/ffx2/FOV_ANALYSIS.md), [`ORBIT_BREAKTHROUGH`](games/ffx2/ORBIT_BREAKTHROUGH.md), [`WALK_DIRECTION_INVESTIGATION`](games/ffx2/WALK_DIRECTION_INVESTIGATION.md), [`SAVESTATE_INVENTORY`](games/ffx2/SAVESTATE_INVENTORY.md) | [`games/ffx2/FINAL_STATUS.md`](games/ffx2/FINAL_STATUS.md) |
-| Shining Force Neo (SLPM-65908) | [`games/shiningforceneo/CAMERA_ANALYSIS.md`](games/shiningforceneo/CAMERA_ANALYSIS.md) | in the same file (open items) |
-| Shining Force Exa (SLPM-66646) | [`games/shiningforceexa/CAMERA.md`](games/shiningforceexa/CAMERA.md) | [tests and limits](games/shiningforceexa/TEST_RESULTS.md) |
-| Suikoden V (SLPM-66286) | [`games/suikoden5/CAMERA.md`](games/suikoden5/CAMERA.md) | [`games/suikoden5/TEST_RESULTS.md`](games/suikoden5/TEST_RESULTS.md) |
-| The Nightmare of Druaga (SLPS-25377) | [`games/nightmaredruaga/CAMERA.md`](games/nightmaredruaga/CAMERA.md) | [`games/nightmaredruaga/TEST_RESULTS.md`](games/nightmaredruaga/TEST_RESULTS.md) |
-| Radiata Stories (SLPM-65800) | [`games/radiatastories/CAMERA.md`](games/radiatastories/CAMERA.md) | [`games/radiatastories/TEST_RESULTS.md`](games/radiatastories/TEST_RESULTS.md) |
-| Romancing SaGa -Minstrel Song- (SLPM-65920) | [`games/minstrelsong/CAMERA.md`](games/minstrelsong/CAMERA.md) | [`games/minstrelsong/TEST_RESULTS.md`](games/minstrelsong/TEST_RESULTS.md) |
-| Dragon Quest V (SLPM-65555) | [`games/dragonquest5/CAMERA.md`](games/dragonquest5/CAMERA.md) | [`games/dragonquest5/TEST_RESULTS.md`](games/dragonquest5/TEST_RESULTS.md) |
-| Innocent Life (SLPS-25763) | [`games/innocentlife/CAMERA.md`](games/innocentlife/CAMERA.md) | [`games/innocentlife/TEST_RESULTS.md`](games/innocentlife/TEST_RESULTS.md) |
+| Final Fantasy X-2 (SLPS-25250 / 8A6D7F14) | [camera memory map](games/ffx2/CAMERA_MEMORY_MAP.md), [FOV](games/ffx2/FOV_ANALYSIS.md), [Orbit](games/ffx2/ORBIT_BREAKTHROUGH.md), [walking direction](games/ffx2/WALK_DIRECTION_INVESTIGATION.md), [savestate inventory](games/ffx2/SAVESTATE_INVENTORY.md) | [current adapter and limits](games/ffx2/ADAPTER_NOTES.md); [2026-10-31 test record](games/ffx2/FINAL_STATUS.md) |
+| Shining Force Neo (SLPM-65908 / 64F241D2) | [camera analysis](games/shiningforceneo/CAMERA_ANALYSIS.md) | same file: no detached camera or offsets; the game chooses the yaw after restore |
+| Shining Force Exa (SLPM-66646 / 8B383FDF) | [camera analysis](games/shiningforceexa/CAMERA.md) | [tests and limits](games/shiningforceexa/TEST_RESULTS.md) |
+| Suikoden V (SLPM-66286 / 7380A572) | [field camera and native zoom](games/suikoden5/CAMERA.md) | [field tests; emulated stick and R1](games/suikoden5/TEST_RESULTS.md) |
+| The Nightmare of Druaga (SLPS-25377 / B476ED7A) | [town and dungeon cameras](games/nightmaredruaga/CAMERA.md) | [town and B1F tests](games/nightmaredruaga/TEST_RESULTS.md) |
+| Radiata Stories (SLPM-65800 / AC73005E) | [field camera](games/radiatastories/CAMERA.md) | [tests and movement limits](games/radiatastories/TEST_RESULTS.md) |
+| Romancing SaGa -Minstrel Song- (SLPM-65920 / 2B9AF3C5) | [field modes 1 and 2](games/minstrelsong/CAMERA.md) | [desert mode 1 and five mode 2 states](games/minstrelsong/TEST_RESULTS.md) |
+| Dragon Quest V (SLPM-65555 / B64E9939) | [field camera](games/dragonquest5/CAMERA.md) | [tests; special fixed cameras excluded](games/dragonquest5/TEST_RESULTS.md) |
+| Innocent Life (SLPS-25763 / 9AC21F92) | [field camera and game clock](games/innocentlife/CAMERA.md) | [tests and limits](games/innocentlife/TEST_RESULTS.md) |
 | Grandia II (SLPM-65081 / B6AB7BC2) | [camera, FOV, movement and safety](<games/grandia2/CAMERA.md>) | [verified results and limitations](<games/grandia2/TEST_RESULTS.md>) |
 | Tales of Symphonia (SLPS-25400 / 830B6FB1) | [town/world camera, FOV, movement, compass and data bootstrap](<games/talesofsymphonia/CAMERA.md>) | [verified results and limitations](<games/talesofsymphonia/TEST_RESULTS.md>) |
 | Magna Carta (SLPS-25401 / EB925207) | [Orbit, FOV, movement, minimap and gameplay switches](<games/magnacarta/CAMERA.md>) | [verified results and limitations](<games/magnacarta/TEST_RESULTS.md>) |
@@ -36,17 +39,14 @@ the top-level `README.md` §10); documents refer to them only by local path.
 
 ## The lab (emulator, MCP, Ghidra, automation)
 
-These describe the Windows lab the mod was developed in (`C:\PS2CameraLab`): PCSX2 with the GDB
-and qPcsx2 extensions, the MCP server, headless Ghidra, and the self-repair loop. They are a
-snapshot written 2026-10-28 .. 11-01 and updated on 2026-11-02 (see the dated sections in
-`BLOCKERS.md` and `TROUBLESHOOTING_KB.md`). Evidence files they cite (`reports/*.json`, `shots/`,
-`logs/`) are local lab files, not part of this repository.
+These are dated records of the Windows development lab, not prerequisites for running the GUI.
+`C:\PS2CameraLab` is the original lab path, not a required checkout location. Commands involving the lab's PCSX2 fork, MCP server or headless Ghidra refer to that setup. Lab evidence under `reports/`, `shots/` and `logs/` is separate from the [summary reports shipped in this repository](../reports/).
 
 | document | contents |
 |---|---|
 | [`lab/README.md`](lab/README.md) | overview of the lab and what it verified |
 | [`lab/ARCHITECTURE.md`](lab/ARCHITECTURE.md) | components, data flows, transport choices |
-| [`lab/SETUP.md`](lab/SETUP.md) | reproducible installation from a bare Windows machine |
+| [`lab/SETUP.md`](lab/SETUP.md) | historical Windows lab setup; relies on parent-lab scripts not shipped here and cannot be reproduced from this checkout alone |
 | [`lab/TOOL_VERSIONS.md`](lab/TOOL_VERSIONS.md) | pinned versions, sources, digests, rejected alternatives |
 | [`lab/MCP_SETUP.md`](lab/MCP_SETUP.md) | MCP registration, verification, rollback |
 | [`lab/WEB_RESEARCH_SETUP.md`](lab/WEB_RESEARCH_SETUP.md) | web search/fetch providers and tests |
@@ -57,7 +57,9 @@ snapshot written 2026-10-28 .. 11-01 and updated on 2026-11-02 (see the dated se
 | [`lab/TEST_MATRIX.md`](lab/TEST_MATRIX.md) | per-requirement PASS/FAIL table of the lab |
 | [`lab/CAMERA_RESEARCH_READINESS.md`](lab/CAMERA_RESEARCH_READINESS.md) | what camera research can rely on |
 
-## Where things are that are not in Git
+## Local data (not included)
+
+For code that uses [the path settings](../core/config/paths.py), the base defaults to the checkout's parent directory. Override it with `PS2_LAB_DIR` or `lab_dir` in `config/local_config.json` ([example](../config/local_config.example.json)). Environment variables take precedence over that file; the paths below are relative to the configured base.
 
 | what | where (default) | how to change |
 |---|---|---|
@@ -74,22 +76,6 @@ snapshot written 2026-10-28 .. 11-01 and updated on 2026-11-02 (see the dated se
 * New game: `docs/games/<game>/CAMERA.md` (analysis) and `TEST_RESULTS.md` (what ran and passed).
 * Dates are absolute (`2026-11-02`).
 
-## AGENTS.md の配置
+## AGENTS.md in the development lab
 
-Git 管理する正本は `PS2UniversalMod/AGENTS.md` だけです。親ラボでは同じ内容を相対 symlink で読みます。
-`C:\PS2CameraLab` で、管理者権限なしの PowerShell から実行します（親ラボを `git init` しません）。
-
-```powershell
-$existingAgents = Get-Item -LiteralPath .\AGENTS.md -Force -ErrorAction SilentlyContinue
-if ($null -ne $existingAgents) {
-    $existingAgents | Format-List FullName,LinkType,Target
-    throw '既存 AGENTS.md の内容・リンク先を確認してください。上書き・削除しません。'
-}
-New-Item -ItemType SymbolicLink -Path .\AGENTS.md -Value 'PS2UniversalMod/AGENTS.md' -ErrorAction Stop
-Get-Item -LiteralPath .\AGENTS.md -Force | Format-List FullName,LinkType,Target
-Get-FileHash -LiteralPath .\AGENTS.md,.\PS2UniversalMod\AGENTS.md -Algorithm SHA256
-```
-
-`LinkType = SymbolicLink`、相対 `Target = PS2UniversalMod\AGENTS.md`、両ハッシュの一致を確認します。
-編集は正本だけに行い、親からの読取りにも即時反映されることを確認します。
-2026-11-02、このラボでは上記の標準機能で作成・更新追従を確認済みです。コピー fallback は使用していません。
+The project rules live in [AGENTS.md](../AGENTS.md) at the checkout root. On 2026-11-02 the parent lab used a relative symlink to read the same file. Neither a parent lab nor a symlink is required to run or contribute to this project.

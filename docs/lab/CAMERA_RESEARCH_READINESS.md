@@ -1,4 +1,6 @@
-# CAMERA_RESEARCH_READINESS — what PS2-CAM-01 can rely on
+# CAMERA_RESEARCH_READINESS — PS2-CAM-00 完了時の研究準備状況
+
+以下の YES は[親ラボ](README.md)を使った当時の判定です。次の課題として挙げた FFX と、機器の動作確認に使った FFX-2 は別タイトルです。これは現行 GUI の対応タイトル一覧でも、公開チェックアウトに同じ実験環境があるという意味でもありません。
 
 This gate did **not** modify any game camera code. It built and proved the
 instrumentation needed for the next instruction:

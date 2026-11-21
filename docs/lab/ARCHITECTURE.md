@@ -1,4 +1,6 @@
-# ARCHITECTURE — how the pieces fit
+# ARCHITECTURE — 親ラボの解析環境
+
+この図は [PS2-CAM-00](README.md) の研究用構成です。MCP、GDB、`qPcsx2`、Ghidra、ローカルの監視スクリプトは、公開 GUI の依存関係や自動復旧機能ではありません。通常は GUI → PINE → PCSX2 の経路を使います（[起動方法](../../README.md)）。
 
 ## 1. Component view
 
