@@ -59,65 +59,71 @@ class MagnaCartaAdapter:
     @staticmethod
     def _native(v): return (v.x,v.z,-v.y)
 
-    def _field(self):
+    def _field_view(self):
         b=self.backend
-        actor=b.read_u32(mm.PLAYER_GLOBAL)
-        if not self._ptr(actor): raise caves.PatchConflict('Magna Carta field player unavailable')
-        magi=b.read_u32(actor+mm.PLAYER_MAGI)
-        if not self._ptr(magi): raise caves.PatchConflict('Magna Carta active script owner unavailable')
-        owner=b.read_u32(magi+mm.MAGI_OWNER)
-        if (not self._ptr(owner) or b.read_u32(mm.FIELD_OWNER_GLOBAL)!=owner
-                or b.read_u32(owner+mm.OWNER_MAGI)!=magi):
+        def ptr(address):
+            value=b.read_u32(address)
+            if not self._ptr(value): raise caves.PatchConflict('Magna Carta field/script object unavailable')
+            return value
+        # The last pawn alias can belong to an AI. Resolve the local PC from
+        # the registered manager's current world, without pinning a heap address.
+        owner=ptr(mm.FIELD_OWNER_GLOBAL); magi=ptr(owner+mm.OWNER_MAGI)
+        if b.read_u32(magi+mm.MAGI_OWNER)!=owner:
             raise caves.PatchConflict('Magna Carta field/script ownership mismatch')
-        state=b.read_u32(owner+mm.STATE_POINTER)
-        if not self._ptr(state): raise caves.PatchConflict('Magna Carta field state unavailable')
-        mode=(b.read_u32(state+0x90)>>8)&255
-        if mode not in mm.FIELD_MODES: raise caves.PatchConflict('Magna Carta ordinary walking/running field unavailable')
-        # The selector above remains 1/2 in battle too. Require the active Magi
-        # script state, not just the remembered walking/running mode. All
-        # six RAM samples use a full u32 FName index (upper bits zero); do not
-        # mask unknown high bits into an otherwise allowed field state.
-        # The pawn-owned Magi changes on area load. Never cache a hash bucket.
-        frame=b.read_u32(magi+0x0C)
-        if not self._ptr(frame): raise caves.PatchConflict('Magna Carta active script frame unavailable')
-        script_state=b.read_u32(frame+0x18)
-        if not self._ptr(script_state): raise caves.PatchConflict('Magna Carta active script state unavailable')
-        if b.read_u32(script_state+0x20) not in mm.FIELD_SCRIPT_NAMES:
-            raise caves.PatchConflict('Magna Carta active script state is not ordinary field walking/running')
+        state=ptr(owner+mm.STATE_POINTER); mode=(b.read_u32(state+0x90)>>8)&255
+        script=ptr(ptr(magi+0x0C)+0x18)
+        if (mode,b.read_u32(script+0x20)) not in mm.FIELD_SCENES:
+            raise caves.PatchConflict('Magna Carta active script/mode is not a supported field')
+        level=ptr(magi+mm.ACTOR_LEVEL); game=ptr(level+mm.LEVEL_GAME)
+        pc=ptr(game+mm.GAME_LOCAL_PC); viewport=ptr(pc+mm.PC_PLAYER); actor=ptr(pc+mm.PC_PAWN)
+        if (b.read_u32(viewport+mm.VIEWPORT_ACTOR)!=pc or b.read_u32(actor+mm.PLAYER_CONTROLLER)!=pc
+                or b.read_u32(actor+mm.PLAYER_MAGI)!=magi):
+            raise caves.PatchConflict('Magna Carta local player/script ownership mismatch')
         player=self._canonical(b.read_floats(actor+mm.PLAYER_POSITION,3))
         if not self._valid(player): raise caves.PatchConflict('invalid Magna Carta player position')
-        return actor,player
+        return actor,player,pc
+
+    def _field(self): return self._field_view()[:2]
 
     def read_player(self):
         with self._lock: return self._field()[1]
 
-    def _native_pose(self):
+    def _native_pose(self,player=None):
         b=self.backend
         eye=self._canonical(b.read_floats(mm.CAMERA_EYE,3))
         # In native view matrix, column2 = forward (X,Y,Z), Z-up. This
         # diagnostic reconstructs a target without touching the game camera.
         matrix=b.read_floats(mm.VIEW_MATRIX,16)
         forward=Vec3(matrix[2],-matrix[10],matrix[6])
-        player=self._field()[1]
+        if player is None: player=self._field()[1]
         distance=max(1,(player-eye).length())
         if not self._valid(eye) or not self._valid(forward): raise caves.PatchConflict('invalid Magna Carta camera')
         return CameraPose(eye,eye+forward.scaled(distance))
 
+    def _accepted(self,actor):
+        b=self.backend
+        return (b.read_u32(mm.MOD_BLOCK)==mm.MAGIC and b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_ORBIT
+                and b.read_u32(mm.MOD_BLOCK+mm.MB_ACCEPTED)==actor)
+
+    def _pose(self,player,accepted):
+        b=self.backend
+        if accepted:
+            return CameraPose(self._canonical(b.read_floats(mm.MOD_BLOCK+mm.MB_RENDER_EYE,3)),
+                              self._canonical(b.read_floats(mm.MOD_BLOCK+mm.MB_RENDER_TARGET,3)))
+        return self._native_pose(player)
+
     def read_game_pose(self):
         with self._lock:
-            b=self.backend
-            if (b.read_u32(mm.MOD_BLOCK)==mm.MAGIC and b.read_u32(mm.MOD_BLOCK+mm.MB_ACCEPTED)==b.read_u32(mm.PLAYER_GLOBAL)
-                and b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_ORBIT):
-                return CameraPose(self._canonical(b.read_floats(mm.MOD_BLOCK+mm.MB_RENDER_EYE,3)),
-                                  self._canonical(b.read_floats(mm.MOD_BLOCK+mm.MB_RENDER_TARGET,3)))
-            return self._native_pose()
+            actor,player=self._field()
+            return self._pose(player,self._accepted(actor))
 
     def read_scene(self):
         with self._lock:
             try:
-                player=self._field()[1]; pose=self.read_game_pose()
+                actor,player,pc=self._field_view(); accepted=self._accepted(actor)
+                pose=self._pose(player,accepted)
                 valid=self._valid(pose.eye) and self._valid(pose.target) and 1<pose.distance()<20000
-                return SceneState(player,pose,self.read_fov_deg(),pose.distance(),valid,'' if valid else 'invalid Magna Carta camera geometry')
+                return SceneState(player,pose,self._fov_value(pc,accepted),pose.distance(),valid,'' if valid else 'invalid Magna Carta camera geometry')
             except caves.PatchConflict as exc:
                 return SceneState(Vec3(0,0,0),CameraPose(Vec3(0,0,0),Vec3(0,0,1)),0,0,False,str(exc))
     def is_field_like(self,scene): return scene.valid
@@ -217,25 +223,23 @@ class MagnaCartaAdapter:
     def no_encounters(self):
         with self._lock: return self._toggle_active(mm.FLAG_NO_ENCOUNTERS)
 
-    def _native_fov(self):
-        # Player viewactor carries native horizontal FOV; live builder F12=55.
-        b=self.backend; actor=b.read_u32(mm.PLAYER_GLOBAL)
-        if self._ptr(actor):
-            controller=b.read_u32(actor+mm.PLAYER_CONTROLLER)
-            if self._ptr(controller):
-                fov=b.read_f32(controller+0x1F4)
-                if math.isfinite(fov) and 5<fov<170: return fov
-        return 55.0
+    def _fov_value(self,pc,accepted):
+        if accepted:
+            fov=self.backend.read_f32(mm.MOD_BLOCK+mm.MB_RENDER_FOV)
+            if math.isfinite(fov) and 5<fov<170: return fov
+        fov=self.backend.read_f32(pc+0x1F4)
+        return fov if math.isfinite(fov) and 5<fov<170 else 55.0
     def read_fov_deg(self):
         with self._lock:
-            b=self.backend
-            if (b.read_u32(mm.MOD_BLOCK)==mm.MAGIC and b.read_u32(mm.MOD_BLOCK+mm.MB_APPLIED)&1
-                and b.read_u32(mm.MOD_BLOCK+mm.MB_FLAGS)&mm.FLAG_ORBIT):
-                fov=b.read_f32(mm.MOD_BLOCK+mm.MB_RENDER_FOV)
-                if math.isfinite(fov) and 5<fov<170: return fov
-            return self._native_fov()
+            try: actor,_,pc=self._field_view()
+            except caves.PatchConflict: return 55.0
+            return self._fov_value(pc,self._accepted(actor))
     def read_fov_scale(self): return 320.0/math.tan(math.radians(self.read_fov_deg())/2)
-    def capture_original_fov(self): return self._native_fov()
+    def capture_original_fov(self):
+        with self._lock:
+            try: _,_,pc=self._field_view()
+            except caves.PatchConflict: return 55.0
+            return self._fov_value(pc,False)
     def write_fov_deg(self,deg):
         with self._lock:
             if not math.isfinite(deg): raise ValueError('nonfinite Magna Carta FOV')

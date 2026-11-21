@@ -24,6 +24,7 @@ from tests.test_radiata import CaveMachine as BaseMachine
 
 ACTOR, OWNER, STATE = 0x1900000, 0x1800000, 0x1700000
 MAGI, SCRIPT_FRAME, SCRIPT_STATE = 0x1600000, 0x1500000, 0x1400000
+PC, VIEWPORT, LEVEL, GAME = 0x1300000, 0x1200000, 0x1100000, 0x1000000
 
 
 class BootMachine(BaseMachine):
@@ -69,7 +70,11 @@ class FakeBackend(ByteBackend):
 
 def seed_field(b=None):
     b = b or FakeBackend()
-    for address, value in ((mm.PLAYER_GLOBAL, ACTOR), (mm.FIELD_OWNER_GLOBAL, OWNER),
+    for address, value in ((mm.PLAYER_GLOBAL, ACTOR+0x100), (mm.FIELD_OWNER_GLOBAL, OWNER),
+                           (MAGI+mm.ACTOR_LEVEL, LEVEL), (LEVEL+mm.LEVEL_GAME, GAME),
+                           (GAME+mm.GAME_LOCAL_PC, PC), (PC+mm.PC_PAWN, ACTOR),
+                           (PC+mm.PC_PLAYER, VIEWPORT), (VIEWPORT+mm.VIEWPORT_ACTOR, PC),
+                           (ACTOR+mm.PLAYER_CONTROLLER, PC),
                            (OWNER + mm.STATE_POINTER, STATE), (STATE + 0x90, 2 << 8),
                            (ACTOR + mm.PLAYER_MAGI, MAGI), (MAGI + mm.MAGI_OWNER, OWNER),
                            (OWNER + mm.OWNER_MAGI, MAGI), (MAGI + 0x0C, SCRIPT_FRAME),
@@ -159,7 +164,7 @@ def test_identify_requires_serial_and_crc(serial, crc, matched):
 
 
 @pytest.mark.parametrize('address,value', [
-    (mm.PLAYER_GLOBAL, 0), (mm.PLAYER_GLOBAL, ACTOR + 1),
+    (PC + mm.PC_PAWN, 0), (PC + mm.PC_PAWN, ACTOR + 1),
     (mm.FIELD_OWNER_GLOBAL, 0), (mm.FIELD_OWNER_GLOBAL, 0x2000000),
     (OWNER + mm.STATE_POINTER, 0), (OWNER + mm.STATE_POINTER, STATE + 1),
     (STATE + 0x90, 0), (STATE + 0x90, 3 << 8), (STATE + 0x90, 255 << 8),
@@ -173,7 +178,7 @@ def test_scene_owner_rejection_never_writes(be, adapter, address, value):
     assert be.writes == []
 
 
-@pytest.mark.parametrize('mode,script_name', [(1, 0x31D3), (2, 0x31CC)])
+@pytest.mark.parametrize('mode,script_name', [(1, 0x31D3), (2, 0x31CC), (0, 0x3148)])
 def test_walking_running_and_coordinate_boundary(be, adapter, mode, script_name):
     be.seed_u32(STATE + 0x90, mode << 8)
     be.seed_u32(SCRIPT_STATE + 0x20, script_name)
@@ -453,7 +458,7 @@ def test_registered_gui_original_preserves_both_options_disable_all_restores(mak
 @pytest.mark.parametrize('state', ['walking_base', 'walking_base_only_wait',
                                    'walking_base_chara_and_camera_move', 'running_base'])
 def test_optional_local_states_have_stock_hook_pairs_and_empty_caves(state):
-    path = Path('C:/PS2CameraLab/work/magnacarta/states') / state / 'eeMemory.bin'
+    path = (Path(__file__).resolve().parents[2] / 'work/magnacarta/states') / state / 'eeMemory.bin'
     if not path.is_file(): pytest.skip('optional private local RAM state unavailable')
     ram = path.read_bytes()
     actor = struct.unpack_from('<I', ram, mm.PLAYER_GLOBAL)[0]

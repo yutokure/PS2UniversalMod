@@ -45,6 +45,8 @@ class MinstrelSongAdapter:
 
     def _field(self):
         b = self.backend
+        if b.read_u32(mm.CAM_MODE) not in mm.FIELD_MODES:
+            raise caves.PatchConflict('unsupported Minstrel Song field camera mode')
         for address, value in (*mm.EXACT_GUARDS, *((p, 0) for p in mm.ZERO_GUARDS)):
             if b.read_u32(address) != value:
                 raise caves.PatchConflict('Minstrel Song ordinary field follow is suspended or unavailable')
@@ -158,8 +160,16 @@ class MinstrelSongAdapter:
 
     def _release(self):
         b = self.backend
-        caves.preflight(b)
+        legacy = caves.preflight(b)
         flags = (mm.FLAG_ORBIT if self._orbit else 0) | (mm.FLAG_FOV if self._fov is not None else 0)
+        if legacy:
+            # A stock state with released legacy wrappers is already Original. If
+            # something remains requested, _publish must migrate before setting flags.
+            if flags:
+                try: self._field()
+                except caves.PatchConflict: return
+                self._publish()
+            return
         if b.read_u32(mm.MOD_BLOCK) == mm.MAGIC:
             b.write_u32(mm.MOD_BLOCK+mm.MB_FLAGS, flags)
             if self._fov is None: caves.restore_projection(b)

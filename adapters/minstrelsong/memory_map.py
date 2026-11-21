@@ -1,4 +1,4 @@
-"""SLPM-65920 / 2B9AF3C5, EE physical addresses, verified 2026-11-04.
+"""SLPM-65920 / 2B9AF3C5, EE physical addresses. Field modes verified 2026-11-21.
 
 The 0x396E20 matrix is stale in the supplied states, NOT the field camera.
 Native eye/target keep updating; only the field look-at arguments are redirected.
@@ -23,10 +23,12 @@ PROJECTION_Y = PROJECTION + 0x14
 CAMERA_PTR = 0x004899D0
 PLAYER = 0x004189B0  # canonical field-player record; updated from actor node by native code
 PLAYER_HEADING = PLAYER + 0x14
-# Native field loop/pause flags. Restrict to verified ordinary follow mode 2.
+# Native field follow: 1 (カクラム砂漠) and 2 (Ismas Castle). Other modes are unverified.
+FIELD_MODES = (1, 2)
+# Native field loop/pause flags, in addition to the two exact owners below.
 ZERO_GUARDS = (0x0043F5F0, 0x00417E48, 0x0043F604, 0x0043F608,
                0x0043F638, 0x0043F72C, 0x0043F730)
-EXACT_GUARDS = ((CAM_MODE, 2), (CAM_TARGET_PTR, PLAYER), (CAMERA_PTR, CAMERA))
+EXACT_GUARDS = ((CAM_TARGET_PTR, PLAYER), (CAMERA_PTR, CAMERA))
 FUN_LOOK_AT = 0x001875C0
 FUN_ANGLES = 0x0022B430
 FUN_SET_PROJECTION = 0x002465F0

@@ -1,4 +1,29 @@
-# Minstrel Song 検証結果 — 2026-11-04
+# Minstrel Song 検証結果
+
+## 2026-11-21 — カクラム砂漠の反例と既存5状態
+
+**日本版 SLPM-65920 / 2B9AF3C5。提供された6状態すべてでOrbitとOriginal復帰を確認。**
+11月21日更新の `other_area_1` は、旧版ではhost判定から外れ、`read_scene().valid == False` となった。
+原作camera modeは1。既存5状態はすべて2で、active camera/target owner、7本のfieldフラグ、native焦点距離の条件は同じだった。
+原作は異なるpose計算後に同じfield描画処理へ合流する。モード以外の条件は緩めていない。
+
+| 入力state | mode | 開始時の3hook / cave | 実機結果 |
+|---|---:|---|---|
+| `other_area_1`（カクラム砂漠） | 1 | stock / 解除済みの旧版 | 旧版を自動移行、2姿勢・解除成功。画面でも地形の構図とコンパスの変化を確認 |
+| `playable1` | 2 | stock / 解除済みの旧版 | 旧版を自動移行、2姿勢・解除成功 |
+| `base`、`base_only_wait`、`base_chara_move`、`base_chara_move_and_camera_big_move` | 2 | stock / 全zero | 各2姿勢・解除成功 |
+
+- 各stateで (yaw, pitch, 距離, 水平FOV) を **(35°,16°,12,70°)** → **(−105°,29°,18,58°)** と変更。全12点で
+  GUI要求値でなく実View行列 `0x00417410` と原作側yaw/distance、投影scale、guest heartbeat進行を照合した。
+  player位置と要求した姿勢から再構成した4×4行列との最大要素誤差は砂漠 `0.000306` 未満、他5状態 `0.000016` 未満。
+- 各stateで解除し、全hook＋delayがstock、flagsと投影所有が0、水平FOVが `53.0500335°`。原作Eye/Targetからの
+  再構成と実Viewとの差は全状態 `0.000043` 未満。画像の目視は今回の砂漠のみ。全方向の歩行・イベント・メニュー・全エリアは追加検証していない。
+- 専用単体 `python -m pytest tests/test_minstrelsong.py -q`：**110 passed**。mode1/2のcamera・angle・FOVと、mode0/3/4/高位bit、
+  旧hook稼働中・旧新版混在・破損・不正な所有状態での書込み拒否を含む。
+- 個別portable PCSX2（PINE 28191、cardなし、入力なし）で複製slotだけを使用。Serial/CRC照合後にGuardedBackend経由で適用/解除。
+  全6原本のSHA-256が検証開始時の複製と一致し、このVMだけを終了した。ユーザーのPCSX2、state、cardへの書込みなし。
+
+## 2026-11-04 — 当時のmode2版の結果
 
 対象: **SLPM-65920 / 2B9AF3C5**。作業branch `feature/minstrelsong-adapter`。
 この記録は今回のadapter sourceを対象とする。独立review/gateではなく、実装側の検証。

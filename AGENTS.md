@@ -57,7 +57,7 @@
 ミンストレルソング / `SLPM-65920` / `2B9AF3C5` はfield専用look-at引数＋camera yaw consumer＋投影scale方式。
 [解析](docs/games/minstrelsong/CAMERA.md)、[確認結果](docs/games/minstrelsong/TEST_RESULTS.md)。
 Orbit・6軸offset・FOV・コンパス（方位盤とactor針）・カメラ基準移動対応、Free未対応。
-原作の右スティック回転は無く、遮断パッチなし。イスマス城内の限定確認、hostはメニュー識別を保証しない。
+原作の右スティック回転は無く、遮断パッチなし。フィールド追従モード1・2が対象。hostのモード判定だけではメニューを識別できない。
 
 ドラゴンクエストV / `SLPM-65555` / `B64E9939` は描画更新中だけWORLD/lensを差替え、終了時にnativeへ戻す方式。
 [解析](docs/games/dragonquest5/CAMERA.md)、[確認結果](docs/games/dragonquest5/TEST_RESULTS.md)。

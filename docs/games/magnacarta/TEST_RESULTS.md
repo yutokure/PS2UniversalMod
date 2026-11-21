@@ -201,3 +201,30 @@ README対応一覧・ADAPTER_GUIDE・文書索引の公開機能は変わらず�
   全map/event/menu/battle/特殊camera/長時間は未網羅。
   エリア固有アドレスや生成instance IDへの依存は除去したが、「全場面で実証済み」とはしない。
   Orbit collisionはなく、森林の木や町の壁/屋根へのめり込み・遮蔽は残る。
+
+## 2026-11-21 — 追加10stateと既存6stateのオフライン検証
+
+11月8日版を基準にした原因別結果。state名は再現用の識別子であり、製品コードの条件には使わない。
+
+| state | 初期状態の読取り結果 |
+|---|---|
+| `other_area_2-2`, `other_area_4`, `other_area_5`, `other_area_7`, `other_area_8`, `other_area_9` | 旧 `0x53B868` は別のAI Pawn。新経路は現在のworldに属するローカルPC/Pawnを返す。 |
+| `other_area_10`, `other_area_11` | 旧aliasはローカルPawnと一致。実際の組は `0 / MrtsFieldStateAdventure (0x3148)` で、旧版はこれを拒否していた。 |
+| `other_area_3`, `other_area_6` | aliasもmode/scriptも旧判定に一致。保存時点のポインタからは上記2原因を認めない。 |
+| walking系3件、`running_base`, `other_area`, `other_area_2` | 既存6件も新経路を満たす。前4件はstock、後2件は初版MOD入り、今回の追加10件は11月8日版MOD入り。 |
+
+- [方式](CAMERA.md)の所有経路・相互参照、ローカルPCのnative FOV 55°を16/16で照合した。各原本ZIPは読取り専用。プロセス内のRAMコピーでstock/旧2世代の識別、必要なEE bootstrapによる解除・移行、Orbit描画引数の受理・heartbeat進行、解除後の全5hook stockを確認。AI aliasの6件では同じviewportでもA2をAIにするとnativeへ戻ることを確認した。
+- [area tests](../../../tests/test_magnacarta_areas.py)：3組のmode/script、逆引き・viewport・view actor・bank owner不一致、最初のsequence読取り直前の別playerによるbank再利用、古いpose/FOV表示を検査。旧2世代render/移動は既知digestを固定し、欠損・延長範囲の汚損・旧新混在・paused・release後に所有権が変わるケースでreachable bodyを上書きしないことを検証した。
+- ゲーム専用4ファイル（`test_magnacarta{,_areas,_directions,_gameplay}.py`）をオフラインで実行し **194 passed、skipなし**。提供stateの16件もこの数に含む。合成builderはstubであり、この件数はPCSX2での実描画・実入力・自然なmap境界越え・全場面での成功を示さない。
+
+### PCSX2での比較：16ステートの描画とOriginal復帰
+
+**追加10件・既存6件とも、プレイヤー操作中のフィールドでOrbitとOriginal復帰を確認した。** 件数はマップ数ではない。日本版 `SLPS-25401 / EB925207`、個別のportable PCSX2（B056de99、メモリーカードなし）で複製だけを読み込んだ。
+
+- **修正前**（`5ee089c`）：既存6件と追加の `3`・`6` は描画を受理。上表のAI参照6件はhostが有効と判定してもguestは描画を受理せず、heartbeatは増えなかった。`10`・`11` はAdventureのためhostで拒否した。
+- **修正後**：各ステートで距離450、注視点をプレイヤーの100上に置き、(yaw, pitch) を `(20°,20°)` → `(110°,−15°)` → `(200°,40°)` → `(290°,0°)` と変更。全64姿勢で、実際に描画されるPawnとローカルPawnが一致し、builderに渡るeyeの誤差は0.00186未満、描画ノードの視線と要求方向の内積は0.99999993以上。連続姿勢間のスクリーンショットも全48組で変化した。
+- **画角と復帰**：各ステートで水平FOV **55° → 75° → Originalの55°**。投影の水平scaleは `1.920982 → 1.303225 → 1.920982`、解除後のeye引数は原作eyeと一致し、全5hookの命令対・元callback・flags=0を確認した。
+- **測定方法**：`0x2B3B7C` のfield builderに入るA0（描画ノード）・A2（view actor）・A3（world eye）・F12（水平FOV）と、同じノードのview・投影が `0x2DA194` / `0x2DA1AC` で使用される時点を照合した。共有行列 `0x57FC90` は別の描画パスでも変わるため、途中でそこを一度読むだけではOrbitの成否を判定できない。
+- **敵が近い `other_area_9`**：保存時はNormalで、旧MODのエンカウント無効が有効。開始地点で旧hookを解除・移行すると、すぐ発見演出（`MrtsFieldStateDetected / 0x30B2`）に入る例を確認した。その間の描画対象はプレイヤーではなく、guestはOrbitを受理しない。これは歩行用 `DetectMode / 0x31CC` とは別。上記の4姿勢・画角・解除は、ロード後に左スティックで約3秒その場から離れ、同じフィールド内で実施した。移行中もエンカウント抑止が途切れないとは保証しない。
+- **移動・GUI**：`walking_base`・`other_area_2-2`・`4`・`10`・`11` は各2方位（30°・140°）でスティック上を入力。10/10で位置が変化し、キャラの向きと要求した視線の水平成分の内積は0.99999996以上。実GUIの別試験では、同一接続のままstockと旧2世代をまたぐ7回のロード（初期状態を含め8回の描画確認）で要求方向に追従し、最後にOriginalで全hookが戻った。
+- **範囲と保護**：全マップ・全イベント・戦闘カメラ・長時間プレイは対象外。壁や樹木とのカメラ衝突判定はない。両ゲームの原本22件は作業前後でSHA-256が一致し、個別の検証VMを正常終了。ステート・RAM・画像はGitに含めない。回帰テストはラボのvenvで `python -m pytest -o addopts= tests -q -ra` を実行し **2855 passed**。

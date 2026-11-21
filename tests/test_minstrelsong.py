@@ -35,6 +35,7 @@ class FakeBackend(ByteBackend):
 
 def seed_field(b):
     """Seed a verified-shape ordinary field with entirely invented geometry."""
+    b.seed_u32(mm.CAM_MODE, 2)
     for address, value in (*mm.EXACT_GUARDS, *((p, 0) for p in mm.ZERO_GUARDS)):
         b.seed_u32(address, value)
     b.seed_floats(mm.PLAYER, (*PLAYER.as_tuple(), 1.0))
@@ -105,6 +106,7 @@ class CaveMachine:
             else: raise AssertionError(f'unmodeled integer {word:08X}')
         elif op == 0x0F: self.put(rt, imm << 16)
         elif op == 9: self.put(rt, r[rs] + signed)
+        elif op == 0x0B: self.put(rt, int((r[rs] & 0xFFFFFFFF) < (signed & 0xFFFFFFFF)))
         elif op == 0x0D: self.put(rt, r[rs] | imm)
         elif op == 0x0C: self.put(rt, r[rs] & imm)
         elif op == 0x23: self.put(rt, b.read_u32(addr))
@@ -219,7 +221,58 @@ def test_seed_helper_reads_native_field_without_writes(be):
     assert not be.writes
 
 
-BAD_GUARDS = [(a, v ^ 1) for a, v in mm.EXACT_GUARDS] + [(a, 1) for a in mm.ZERO_GUARDS]
+BAD_GUARDS = ([(mm.CAM_MODE, v) for v in (0, 3, 4, 0x80000001, 0xFFFFFFFF)]
+              + [(a, v ^ 1) for a, v in mm.EXACT_GUARDS] + [(a, 1) for a in mm.ZERO_GUARDS])
+
+
+def seed_released_legacy(b, monkeypatch):
+    # Reconstruct our own shipped mode-2-only assembler, not a state or game binary.
+    def old_guard(a, reject):
+        for addr, v in ((mm.CAM_MODE, 2), *mm.EXACT_GUARDS, *((p, 0) for p in mm.ZERO_GUARDS)):
+            caves._addr(a.emit, m.T2, addr); a.emit(m.lw(m.T2, m.T2, 0))
+            caves._addr(a.emit, m.T3, v); a.words.append(('bne', m.T2, m.T3, reject)); a.emit(m.NOP)
+    with monkeypatch.context() as mp:
+        mp.setattr(caves, '_guard', old_guard)
+        for (_, _, _, addr, _), make in zip(caves.RESOURCES, (caves.camera_words, caves.angle_words, caves.fov_words)):
+            for i, word in enumerate(make()): b.seed_u32(addr + i*4, word)
+    b.seed_u32(mm.MOD_BLOCK, mm.MAGIC)
+    b.seed_u32(mm.MOD_BLOCK + mm.MB_NATIVE_VALID, 1)
+
+
+@pytest.mark.parametrize('mode', [1, 2])
+def test_released_old_state_to_working_orbit_and_back(be, monkeypatch, mode):
+    be.seed_u32(mm.CAM_MODE, mode)
+    seed_released_legacy(be, monkeypatch)
+    ad = MinstrelSongAdapter(be)
+    assert ad.read_scene().valid
+    ad.restore_fov(); ad.set_patch(False)
+    assert not be.writes
+    ad.write_orbit_params(PLAYER, 80, 25, 12)
+    ad.write_fov_deg(70)
+    machine = CaveMachine(be)
+    assert machine.camera()[2:4] == (mm.MOD_BLOCK+mm.MB_RENDER_EYE, mm.MOD_BLOCK+mm.MB_RENDER_TARGET)
+    assert machine.angles() == pytest.approx((math.radians(80), 12))
+    assert machine.projection()[-2] == pytest.approx(ad._focal(70))
+    ad.restore_fov(); ad.set_patch(False)
+    assert_stock(be)
+
+
+@pytest.mark.parametrize('fault', ['hook', 'flags', 'applied', 'lens', 'mixed', 'empty', 'foreign', 'magic'])
+def test_legacy_migration_rejects_active_incomplete_or_unowned_without_writes(be, monkeypatch, fault):
+    seed_released_legacy(be, monkeypatch)
+    _, _, hook, addr, words = caves.RESOURCES[0]
+    if fault == 'hook': be.seed_u32(mm.CAMERA_HOOK, hook[0])
+    elif fault == 'mixed': be.seed(addr, struct.pack(f'<{len(words)}I', *words))
+    elif fault == 'empty': be.seed(addr, bytes(len(words)*4))
+    elif fault == 'foreign': be.seed_u32(addr + 4, 0xDEADBEEF)
+    elif fault == 'magic': be.seed_u32(mm.MOD_BLOCK, 0)
+    else:
+        off = {'flags': mm.MB_FLAGS, 'applied': mm.MB_APPLIED, 'lens': mm.MB_PROJ_OWNED}[fault]
+        be.seed_u32(mm.MOD_BLOCK + off, 1)
+    ad = MinstrelSongAdapter(be)
+    for operation in (lambda: ad.set_patch(True), lambda: ad.set_patch(False), lambda: ad.write_fov_deg(60)):
+        with pytest.raises(caves.PatchConflict): operation()
+    assert not be.writes
 
 
 @pytest.mark.parametrize('address,value', BAD_GUARDS)

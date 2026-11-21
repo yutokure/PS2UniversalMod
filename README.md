@@ -36,7 +36,7 @@ FFX-2（FF10-2）由来の FOV 同期確認用フォールバック（`0x340B00`
 | 新牧場物語 ピュア イノセントライフ | `adapters/innocentlife` | `SLPS-25763` / `9AC21F92` | 右スティックOrbit、カメラ基準移動・向き、距離、FOV、独立した位置・注視点6軸オフセット、ゲーム内時計の停止（Free非対応） | [解析・確認範囲](docs/games/innocentlife/CAMERA.md) |
 | グランディアII | [Grandia II adapter](<adapters/grandia2/adapter.py>) | `SLPM-65081` / `B6AB7BC2` | 屋外／屋内の右スティックOrbit、カメラ基準移動・向き、距離、FOV20〜110°、独立した位置・注視点6軸オフセット（Free・時計停止非対応、実機の確認範囲・制限は詳細参照） | [解析・確認範囲](<docs/games/grandia2/CAMERA.md>) |
 | テイルズ オブ シンフォニア | [Symphonia adapter](<adapters/talesofsymphonia/adapter.py>) | `SLPS-25400` / `830B6FB1` | 町等の通常マップ／徒歩ワールドフィールドのOrbit、移動方向、フィールドコンパス・地図視線、FOV20〜110°、距離・独立6軸オフセット（Free・時計停止・特殊車両非対応） | [解析・確認範囲](<docs/games/talesofsymphonia/CAMERA.md>) |
-| マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | エリア変更に追従するOrbit（Pawn所有参照、提供2マップ・再訪状態で確認）、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
+| マグナカルタ | [Magna Carta adapter](<adapters/magnacarta/adapter.py>) | `SLPS-25401` / `EB925207` | ローカルプレイヤーを追従するOrbit（歩行・走行・Adventureフィールド）、FOV20〜110°、距離・独立6軸オフセット、カメラ基準移動・原作ミニマップ矢印追従、走行時の広域表示、接触エンカウント無効＋オレンジ丸枠非表示（各切替可） | [解析・確認範囲](<docs/games/magnacarta/CAMERA.md>) |
 
 Serial と CRC の**両方**が一致しないゲームには何も書き込みません（日本版のみ対応）。
 「Free Camera」は FFX-2 だけで使えます。他のゲームでは GUI のラジオボタンが無効になります。
@@ -234,7 +234,7 @@ presets\*.json                                  同梱プリセット（orbit-de
 - [解析・安全条件](docs/games/radiatastories/CAMERA.md)・[実行した確認と制限](docs/games/radiatastories/TEST_RESULTS.md)
 
 ### 5.7 ロマンシング サガ -ミンストレルソング-
-- 日本版 `SLPM-65920 / 2B9AF3C5`、通常フィールド追従モード2に対応。原作の右スティックにカメラ回転機能はなく、入力遮断は追加しません。
+- 日本版 `SLPM-65920 / 2B9AF3C5`、通常フィールドの追従モード1・2に対応。原作の右スティックにカメラ回転機能はなく、入力遮断は追加しません。
 - Orbit、距離 **1〜80**、Pitch **−25〜+89.5°**、注視点高さ **−10〜10**、水平FOV **20〜110°**。
   視点XYZ・注視点XYZは独立オフセット。高さは**負が上**、Free Cameraは非対応です。
 - 原作リグの視点・注視点・平滑化を保持し、field専用のlook-at引数だけを差し替えます。
@@ -243,7 +243,8 @@ presets\*.json                                  同梱プリセット（orbit-de
   キャラheadingは変更しません。カメラ回転とキャラの方向転換は別々に反映されます。
 - Original／通常終了で3hook・原作投影scale・camera yaw/distanceを返します。stock state読込み後は約1秒で再適用。
   FOVはOrbitに付随し、OriginalのFOV-onlyは共通runtimeの対象外です。
-- イスマス城内の4提供state・GUI実機22項目・短い歩行で確認。全エリア・戦闘・全イベント・長時間は未検証です。
+- カクラム砂漠（モード1）の反例と既存5ステート（モード2）で、各2姿勢の描画とOriginal復帰を確認しました。
+  イスマス城内の従来のGUI・短い歩行試験とは別の検証です。全エリア・戦闘・全イベント・長時間は未検証です。
   hostの場面判定はメニューを識別できません。確認したメニューではfield hookは実行されませんが、特殊場面ではOriginalへ戻してください。
 - Orbitに原作の衝突補正は適用しません。壁・柱の内側や裏面が見える場合は距離を縮めるか角度を調整してください。
 - [解析・安全条件](docs/games/minstrelsong/CAMERA.md)・[実行した確認と制限](docs/games/minstrelsong/TEST_RESULTS.md)
@@ -334,6 +335,14 @@ presets\*.json                                  同梱プリセット（orbit-de
 - 8stateのOrbit／FOV／全hook解除、両sceneの広角110°と4yaw×4pitchでフレーム進行を確認しています。町ではマップ外の黒背景や屋根裏面が見えるため、距離・画角・角度を調整してください。
   カメラの壁衝突は追加しません。全scene・長時間・全culling／補助描画は未網羅です。
 - [解析・安全条件](<docs/games/talesofsymphonia/CAMERA.md>)・[実行した確認と制限](<docs/games/talesofsymphonia/TEST_RESULTS.md>)
+
+### 5.12 マグナカルタ
+- 日本版 `SLPS-25401 / EB925207`。歩行・走行に加え、街などで使われるAdventureフィールドにも対応します。
+  ローカルプレイヤーのコントローラから現在の操作キャラをたどり、そのキャラを描くときだけOrbitを適用します。AIキャラや別の演出カメラは追従しません。
+- 過去2版のMOD入りステートは、既知のコードと適用状態がすべて一致する場合だけ、エミュレータ実行中に自動移行します。
+  移行中はいったん旧MODを解除するため、敵のすぐ近くでは先にその場を離れてください。未知の版・混在したコードは書き換えません。その場合はMODなしのステート、またはゲーム再起動を使ってください。
+- カメラに壁との衝突判定はありません。屋内や壁際で視界が遮られたら、距離を縮めるか角度を変えてください。
+  提供ステートでの実測・対象外の場面は[確認結果](docs/games/magnacarta/TEST_RESULTS.md)、判定と復元の詳細は[解析](docs/games/magnacarta/CAMERA.md)を参照してください。
 
 ## 6. ローカルデータの場所（Git 管理外）
 
